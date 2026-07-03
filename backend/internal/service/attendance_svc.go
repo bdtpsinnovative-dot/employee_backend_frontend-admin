@@ -120,7 +120,12 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 	return att, nil
 }
 
-// CheckOutRequest ข้อมูลที่ Client ส่งมาตอนเช็คเอาท์
+// ListByMonthAllUsers (Admin)
+func (s *AttendanceService) ListByMonthAllUsers(ctx context.Context, year, month int) ([]domain.Attendance, error) {
+	return s.attendanceRepo.ListByMonthAllUsers(ctx, year, month)
+}
+
+// CheckOutRequest ข้อมูลที่ Client ส่งมาตอนออกงานเช็คเอาท์
 type CheckOutRequest struct {
 	UserID   uuid.UUID
 	Lat      *float64
@@ -174,8 +179,9 @@ func (s *AttendanceService) ListByUser(ctx context.Context, userID uuid.UUID) ([
 
 // CreateManual บันทึกเข้างานด้วยมือโดยแอดมิน (กรณีพิเศษ เช่น ลืมสแกน หรือเครื่องมีปัญหา)
 func (s *AttendanceService) CreateManual(ctx context.Context, userID uuid.UUID, date time.Time, status string) (*domain.Attendance, error) {
-	// ล้างค่าเวลาให้เป็น 00:00:00 สำหรับวันที่ระบุ
-	targetDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	// ล้างค่าเวลาให้เป็น 00:00:00 สำหรับวันที่ระบุ (ใช้ Local timezone)
+	loc := time.Local
+	targetDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
 
 	// เช็คว่ามีบันทึกอยู่แล้วหรือไม่
 	existing, _ := s.attendanceRepo.FindByUserAndDate(ctx, userID, targetDate)
@@ -183,13 +189,37 @@ func (s *AttendanceService) CreateManual(ctx context.Context, userID uuid.UUID, 
 		return nil, errors.New("มีบันทึกการเข้างานของพนักงานในวันดังกล่าวแล้ว")
 	}
 
-	checkInTime := time.Date(date.Year(), date.Month(), date.Day(), 9, 0, 0, 0, date.Location()) // ตั้งค่าเวลาเข้างานสมมติเป็น 09:00 น.
+	var checkInTime *time.Time
+	now := time.Now()
+	todayDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	// ห้ามบันทึก "ตรงเวลา" หรือ "มาสาย" ล่วงหน้า
+	if targetDate.After(todayDate) && (status == "on_time" || status == "late") {
+		return nil, errors.New("ไม่สามารถบันทึกสถานะ 'ตรงเวลา' หรือ 'มาสาย' สำหรับวันในอนาคตได้")
+	}
+	
+	// ตั้งเวลา CheckInAt เฉพาะการเข้างานจริงๆ เท่านั้น (ไม่รวมการลาต่างๆ)
+	if status == "on_time" || status == "late" || status == "offsite" {
+		var t time.Time
+		// ถ้าแอดมินบันทึกของ "วันนี้" ให้ใช้เวลาปัจจุบัน
+		if targetDate.Equal(todayDate) {
+			t = now
+		} else {
+			// ถ้าเป็นของย้อนหลังหรือล่วงหน้า สมมติเวลาให้ตามสถานะ (Local timezone)
+			hour, minute := 9, 0
+			if status == "late" {
+				hour, minute = 9, 30
+			}
+			t = time.Date(date.Year(), date.Month(), date.Day(), hour, minute, 0, 0, loc)
+		}
+		checkInTime = &t
+	}
 
 	att := &domain.Attendance{
 		ID:        uuid.New(),
 		UserID:    userID,
 		Date:      targetDate,
-		CheckInAt: &checkInTime,
+		CheckInAt: checkInTime,
 		Status:    status,
 	}
 

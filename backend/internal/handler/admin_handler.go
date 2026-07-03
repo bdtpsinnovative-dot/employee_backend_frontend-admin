@@ -2,6 +2,9 @@ package handler
 
 import (
 	"net/http"
+	"sort"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -43,6 +46,36 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": users})
+}
+
+// UpdateUser PUT /admin/users/:id — อัปเดตข้อมูลพนักงาน (Role, Department, etc.)
+func (h *AdminHandler) UpdateUser(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	var req struct {
+		FirstName  string `json:"first_name"`
+		LastName   string `json:"last_name"`
+		Department string `json:"department"`
+		Position   string `json:"position"`
+		Role       string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	// ponytail: minimum needed to update fields.
+	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Department, req.Position, req.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // ApproveUser PATCH /admin/users/:id/approve — อนุมัติบัญชีพนักงาน
@@ -123,6 +156,114 @@ func (h *AdminHandler) GetAllRequests(c *gin.Context) {
 			"leaves":  leaves,
 			"offsite": offsite,
 		},
+	})
+}
+
+type HistoryRecord struct {
+	Date       string     `json:"date"`
+	UserName   string     `json:"user_name"`
+	Email      string     `json:"email"`
+	Status     string     `json:"status"`
+	Type       string     `json:"type"` // attendance, leave, offsite
+	CheckInAt  *time.Time `json:"check_in_at,omitempty"`
+	CheckOutAt *time.Time `json:"check_out_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// GetMonthlyHistory GET /admin/history/monthly?month=YYYY-MM
+func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
+	monthParam := c.Query("month")
+	if len(monthParam) != 7 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "month format must be YYYY-MM"})
+		return
+	}
+	
+	yearStr, monthStr := monthParam[:4], monthParam[5:]
+	year, _ := strconv.Atoi(yearStr)
+	month, _ := strconv.Atoi(monthStr)
+
+	ctx := c.Request.Context()
+
+	// 1. Fetch all users for name mapping
+	users, err := h.userSvc.ListAll(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
+		return
+	}
+	userMap := make(map[uuid.UUID]*domain.User)
+	for i := range users {
+		userMap[users[i].ID] = &users[i]
+	}
+
+	// 2. Fetch data
+	attendances, _ := h.attendanceSvc.ListByMonthAllUsers(ctx, year, month)
+	leaves, _ := h.leaveSvc.ListByMonthAllUsers(ctx, year, month)
+	offsites, _ := h.offsiteSvc.ListByMonthAllUsers(ctx, year, month)
+
+	var records []HistoryRecord
+
+	for _, a := range attendances {
+		u := userMap[a.UserID]
+		if u == nil {
+			continue
+		}
+		createdAt := time.Now()
+		if a.CheckInAt != nil {
+			createdAt = *a.CheckInAt
+		}
+		records = append(records, HistoryRecord{
+			Date:       a.Date.Format("2006-01-02"),
+			UserName:   u.FullName(),
+			Email:      u.Email,
+			Status:     a.Status,
+			Type:       "attendance",
+			CheckInAt:  a.CheckInAt,
+			CheckOutAt: a.CheckOutAt,
+			CreatedAt:  createdAt,
+		})
+	}
+
+	for _, l := range leaves {
+		u := userMap[l.UserID]
+		if u == nil {
+			continue
+		}
+		records = append(records, HistoryRecord{
+			Date:      l.Date.Format("2006-01-02"),
+			UserName:  u.FullName(),
+			Email:     u.Email,
+			Status:    l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
+			Type:      "leave",
+			CreatedAt: l.CreatedAt,
+		})
+	}
+
+	for _, o := range offsites {
+		u := userMap[o.UserID]
+		if u == nil {
+			continue
+		}
+		records = append(records, HistoryRecord{
+			Date:      o.Date.Format("2006-01-02"),
+			UserName:  u.FullName(),
+			Email:     u.Email,
+			Status:    "offsite" + " (" + o.Status + ")",
+			Type:      "offsite",
+			CreatedAt: o.CreatedAt,
+		})
+	}
+
+	// Sort by date DESC
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Date == records[j].Date {
+			return records[i].CreatedAt.After(records[j].CreatedAt)
+		}
+		return records[i].Date > records[j].Date
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":   true,
+		"data": records,
 	})
 }
 

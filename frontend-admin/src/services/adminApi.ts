@@ -8,6 +8,7 @@ import type {
   Holiday,
   WorkLocation,
   PendingRequestsData,
+  HistoryRecord
 } from '../types';
 
 // ────────────────── Users ──────────────────
@@ -19,6 +20,10 @@ export async function fetchUsers(): Promise<User[]> {
 
 export async function approveUser(id: string): Promise<void> {
   await api.patch(`/admin/users/${id}/approve`);
+}
+
+export async function updateUser(id: string, body: Partial<User>): Promise<void> {
+  await api.put(`/admin/users/${id}`, body);
 }
 
 export async function disableUser(id: string): Promise<void> {
@@ -49,6 +54,13 @@ export async function updateOffsiteStatus(id: string, status: 'approved' | 'reje
 export async function fetchAllAttendance(date: string): Promise<Attendance[]> {
   const { data } = await api.get<ApiResponse<Attendance[]>>('/admin/attendance', {
     params: { date },
+  });
+  return data.data ?? [];
+}
+
+export async function fetchMonthlyHistory(month: string): Promise<HistoryRecord[]> {
+  const { data } = await api.get<ApiResponse<HistoryRecord[]>>('/admin/history/monthly', {
+    params: { month },
   });
   return data.data ?? [];
 }

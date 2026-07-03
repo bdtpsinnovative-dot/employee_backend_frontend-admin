@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import type { User } from '../types';
@@ -8,11 +8,19 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isDashboard) {
+      setSelectedUser(null);
+    }
+  }, [location.pathname, isDashboard]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -68,7 +76,7 @@ export default function AdminLayout() {
           <Outlet context={{ selectedUser, setSelectedUser }} />
         </div>
 
-        <RightPanel selectedUser={selectedUser} />
+        {isDashboard && <RightPanel selectedUser={selectedUser} />}
       </div>
     </div>
   );

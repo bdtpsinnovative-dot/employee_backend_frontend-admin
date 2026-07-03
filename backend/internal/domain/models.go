@@ -111,3 +111,24 @@ type Holiday struct {
 	NumDays   int       `db:"num_days" json:"num_days"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
+
+// LeaveQuota represents the annual leave quota for a user.
+// Maps to: public.leave_quotas table
+type LeaveQuota struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	UserID        uuid.UUID `db:"user_id" json:"user_id"`
+	Year          int       `db:"year" json:"year"`
+	SickLeave     int       `db:"sick_leave" json:"sick_leave"`
+	PersonalLeave int       `db:"personal_leave" json:"personal_leave"`
+	AnnualLeave   int       `db:"annual_leave" json:"annual_leave"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// LeaveUsage represents the calculated leave balances.
+type LeaveBalance struct {
+	LeaveType string  `json:"leave_type"`
+	Quota     float64 `json:"quota"`
+	Used      float64 `json:"used"`
+	Remaining float64 `json:"remaining"`
+}

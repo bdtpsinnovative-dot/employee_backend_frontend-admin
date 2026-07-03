@@ -62,6 +62,17 @@ export interface OffsiteRequest {
   created_at: string;
 }
 
+export interface HistoryRecord {
+  date: string;
+  user_name: string;
+  email: string;
+  status: string;
+  type: string;
+  check_in_at?: string;
+  check_out_at?: string;
+  created_at: string;
+}
+
 export interface Holiday {
   id: string;
   date: string;

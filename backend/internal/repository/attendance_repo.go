@@ -81,6 +81,21 @@ func (r *AttendanceRepo) ListByDate(ctx context.Context, date time.Time) ([]doma
 	return records, nil
 }
 
+// ListByMonthAllUsers ดึงบันทึกเข้างานของพนักงานทุกคนในเดือนที่ระบุ (สำหรับ Admin History)
+func (r *AttendanceRepo) ListByMonthAllUsers(ctx context.Context, year, month int) ([]domain.Attendance, error) {
+	var records []domain.Attendance
+	err := r.db.SelectContext(ctx, &records, `
+		SELECT * FROM attendance 
+		WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
+		ORDER BY date DESC, check_in_at DESC
+	`, year, month)
+	if err != nil {
+		log.Printf("[Repo Error] ListByMonthAllUsers query failed: %v", err)
+		return nil, err
+	}
+	return records, nil
+}
+
 // ListByUser ดึงประวัติเข้างานทั้งหมดของ user (เรียงจากใหม่ไปเก่า)
 func (r *AttendanceRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Attendance, error) {
 	var records []domain.Attendance

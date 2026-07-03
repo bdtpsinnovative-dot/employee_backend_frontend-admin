@@ -81,6 +81,89 @@ func (h *LeaveHandler) ListMine(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": requests})
 }
 
+// GetMyQuota GET /api/leaves/quota?year=2026
+func (h *LeaveHandler) GetMyQuota(c *gin.Context) {
+	userID, _ := c.Get(middleware.ContextKeyUserID)
+	year, _, err := parseYearMonth(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ปีไม่ถูกต้อง"})
+		return
+	}
+
+	balances, err := h.svc.GetLeaveBalances(c.Request.Context(), userID.(uuid.UUID), year)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลสิทธิวันลาล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": balances})
+}
+
+// GetUserQuota GET /admin/users/:id/quota?year=2026
+func (h *LeaveHandler) GetUserQuota(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+	
+	year, _, err := parseYearMonth(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ปีไม่ถูกต้อง"})
+		return
+	}
+
+	quota, err := h.svc.GetUserQuota(c.Request.Context(), userID, year)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลโควต้าล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": quota})
+}
+
+type updateUserQuotaBody struct {
+	SickLeave     int `json:"sick_leave"`
+	PersonalLeave int `json:"personal_leave"`
+	AnnualLeave   int `json:"annual_leave"`
+}
+
+// UpdateUserQuota PUT /admin/users/:id/quota?year=2026
+func (h *LeaveHandler) UpdateUserQuota(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+	
+	year, _, err := parseYearMonth(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ปีไม่ถูกต้อง"})
+		return
+	}
+
+	var body updateUserQuotaBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	quota := &domain.LeaveQuota{
+		UserID:        userID,
+		Year:          year,
+		SickLeave:     body.SickLeave,
+		PersonalLeave: body.PersonalLeave,
+		AnnualLeave:   body.AnnualLeave,
+	}
+
+	if err := h.svc.UpdateUserQuota(c.Request.Context(), quota); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกโควต้าล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตโควต้าสำเร็จ"})
+}
+
 // OffsiteHandler รับ HTTP Request เกี่ยวกับคำขอออกหน้างาน
 type OffsiteHandler struct {
 	svc *service.OffsiteService

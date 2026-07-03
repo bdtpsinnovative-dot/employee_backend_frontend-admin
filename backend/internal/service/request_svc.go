@@ -10,11 +10,12 @@ import (
 
 // LeaveService จัดการ business logic เกี่ยวกับใบลา
 type LeaveService struct {
-	leaveRepo *repository.LeaveRepo
+	leaveRepo      *repository.LeaveRepo
+	leaveQuotaRepo *repository.LeaveQuotaRepo
 }
 
-func NewLeaveService(lr *repository.LeaveRepo) *LeaveService {
-	return &LeaveService{leaveRepo: lr}
+func NewLeaveService(lr *repository.LeaveRepo, lqr *repository.LeaveQuotaRepo) *LeaveService {
+	return &LeaveService{leaveRepo: lr, leaveQuotaRepo: lqr}
 }
 
 // Create สร้างใบลาใหม่
@@ -39,9 +40,88 @@ func (s *LeaveService) ListAll(ctx context.Context) ([]domain.LeaveRequest, erro
 	return s.leaveRepo.ListAll(ctx)
 }
 
+// ListByMonthAllUsers ดึงใบลาของทุกคนในเดือน (Admin)
+func (s *LeaveService) ListByMonthAllUsers(ctx context.Context, year, month int) ([]domain.LeaveRequest, error) {
+	return s.leaveRepo.ListByMonthAllUsers(ctx, year, month)
+}
+
 // UpdateStatus อนุมัติ/ปฏิเสธใบลา (Admin)
 func (s *LeaveService) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	return s.leaveRepo.UpdateStatus(ctx, id, status, reviewedBy)
+}
+
+// GetLeaveBalances ดึงโควต้าวันลาที่เหลือของ user ในปีนั้น
+func (s *LeaveService) GetLeaveBalances(ctx context.Context, userID uuid.UUID, year int) ([]domain.LeaveBalance, error) {
+	// 1. Fetch quota (fallback to default if not found)
+	quota, err := s.leaveQuotaRepo.GetQuota(ctx, userID, year)
+	if err != nil {
+		return nil, err
+	}
+	if quota == nil {
+		quota = &domain.LeaveQuota{
+			SickLeave:     30,
+			PersonalLeave: 6,
+			AnnualLeave:   6,
+		}
+	}
+
+	// 2. Fetch usage stats
+	stats, err := s.leaveRepo.GetLeaveUsageStats(ctx, userID, year)
+	if err != nil {
+		return nil, err
+	}
+
+	usageMap := make(map[string]float64)
+	for _, stat := range stats {
+		usageMap[stat.LeaveType] = stat.TotalDays
+	}
+
+	// 3. Calculate balances
+	balances := []domain.LeaveBalance{
+		{
+			LeaveType: "ลาป่วย",
+			Quota:     float64(quota.SickLeave),
+			Used:      usageMap["ลาป่วย"],
+			Remaining: float64(quota.SickLeave) - usageMap["ลาป่วย"],
+		},
+		{
+			LeaveType: "ลากิจ",
+			Quota:     float64(quota.PersonalLeave),
+			Used:      usageMap["ลากิจ"],
+			Remaining: float64(quota.PersonalLeave) - usageMap["ลากิจ"],
+		},
+		{
+			LeaveType: "ลาพักร้อน",
+			Quota:     float64(quota.AnnualLeave),
+			Used:      usageMap["ลาพักร้อน"],
+			Remaining: float64(quota.AnnualLeave) - usageMap["ลาพักร้อน"],
+		},
+	}
+
+	return balances, nil
+}
+
+// GetUserQuota ดึงโควต้าปัจจุบันของ user (Admin)
+func (s *LeaveService) GetUserQuota(ctx context.Context, userID uuid.UUID, year int) (*domain.LeaveQuota, error) {
+	quota, err := s.leaveQuotaRepo.GetQuota(ctx, userID, year)
+	if err != nil {
+		return nil, err
+	}
+	if quota == nil {
+		return &domain.LeaveQuota{
+			UserID:        userID,
+			Year:          year,
+			SickLeave:     30,
+			PersonalLeave: 6,
+			AnnualLeave:   6,
+		}, nil
+	}
+	return quota, nil
+}
+
+// UpdateUserQuota อัปเดตโควต้าของ user (Admin)
+func (s *LeaveService) UpdateUserQuota(ctx context.Context, quota *domain.LeaveQuota) error {
+	return s.leaveQuotaRepo.UpsertQuota(ctx, quota)
 }
 
 // OffsiteService จัดการ business logic เกี่ยวกับคำขอออกหน้างาน
@@ -73,6 +153,11 @@ func (s *OffsiteService) ListPending(ctx context.Context) ([]domain.OffsiteReque
 // ListAll ดึงคำขอออกหน้างานทั้งหมด ทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
 func (s *OffsiteService) ListAll(ctx context.Context) ([]domain.OffsiteRequest, error) {
 	return s.offsiteRepo.ListAll(ctx)
+}
+
+// ListByMonthAllUsers ดึงคำขอออกหน้างานของทุกคนในเดือน (Admin)
+func (s *OffsiteService) ListByMonthAllUsers(ctx context.Context, year, month int) ([]domain.OffsiteRequest, error) {
+	return s.offsiteRepo.ListByMonthAllUsers(ctx, year, month)
 }
 
 // UpdateStatus อนุมัติ/ปฏิเสธคำขอ (Admin)

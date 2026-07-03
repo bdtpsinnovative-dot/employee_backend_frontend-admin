@@ -21,6 +21,7 @@
 
     .right-panel, .stat-card, .table-card, .record-controls, .modal-box, .history-filters, .login-left, .glass-panel { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: var(--glass-border-base); border-top-color: var(--glass-border-highlight); border-left-color: var(--glass-border-highlight); box-shadow: var(--glass-shadow); }
     .sidebar { background: var(--glass-bg); backdrop-filter: var(--glass-blur); border: var(--glass-border-base); border-left: none; border-bottom: none; border-top-color: var(--glass-border-highlight); box-shadow: 15px 0 35px rgba(0,0,0,0.03); width: var(--sidebar-width); padding: 35px 25px; display: flex; flex-direction: column; z-index: 1000; transition: 0.3s ease; border-radius: 0; }
+    .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); z-index: 999; backdrop-filter: blur(2px); }
     #login-section { display: flex; width: 100%; height: 100vh; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); position: absolute; top: 0; left: 0; z-index: 9999; transition: opacity 0.5s ease; }
     .login-left { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 10%; box-shadow: 25px 0 45px rgba(0, 0, 0, 0.05), inset 3px 3px 6px rgba(255, 255, 255, 0.9), inset -3px -3px 6px rgba(0, 0, 0, 0.04); }
     .brand-logo { font-size: 28px; font-weight: 700; background-image: var(--primary-gradient); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 40px; display: flex; align-items: center; gap: 10px; }
@@ -49,7 +50,7 @@
     .page-section { display: none; animation: fadeIn 0.4s ease; } .page-section.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-    .dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; margin-bottom: 30px; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 25px; margin-bottom: 30px; }
     .stat-card { padding: 25px; border-radius: 20px; display: flex; align-items: center; transition: 0.3s; }
     .stat-card:hover { transform: translateY(-8px); background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.4) 100%); }
     .stat-icon { width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 22px; margin-right: 18px; flex-shrink: 0; background: rgba(255, 255, 255, 0.9); }
@@ -107,9 +108,120 @@
     .btn-reset { background: rgba(255,255,255,0.5); border: 1px solid #ccc; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 500; }
     .btn-page { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9); padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: 600; }
 
-    @media (max-width: 1300px) and (min-width: 901px) { .dashboard-grid { grid-template-columns: repeat(2, 1fr); } .stat-card:first-child { grid-column: span 2; } }
-    @media (max-width: 900px) { body { overflow: auto; height: auto; } #app-section { height: auto; overflow: visible; display: block; } .login-right { display: none; } .login-left { height: 100vh; } .sidebar { position: fixed; left: -300px; top: 0; height: 100%; width: 280px; background: #fff; } .sidebar.active { left: 0; } .main-container { flex-direction: column; display: block; } .right-panel { width: 100%; order: -1; padding: 20px; } .mobile-header { display: flex; } .dashboard-grid { grid-template-columns: repeat(2, 1fr); } .stat-card:first-child { grid-column: span 2; } }
-    @media (max-width: 480px) { .dashboard-grid { grid-template-columns: 1fr; } .stat-card:first-child { grid-column: span 1; } }
+    @media (max-width: 1300px) and (min-width: 901px) { .stat-card:first-child { grid-column: span 2; } }
+    @media (max-width: 900px) { 
+        body { overflow: auto; height: auto; } 
+        #app-section { height: auto; overflow: visible; display: block; } 
+        .login-right { display: none; } 
+        .login-left { height: 100vh; } 
+        .sidebar { position: fixed; left: -300px; top: 0; height: 100%; width: 280px; background: #fff; } 
+        .sidebar.active { left: 0; } 
+        .main-container { flex-direction: column; display: block; } 
+        .right-panel { width: 100%; order: -1; padding: 20px; } 
+        .mobile-header { display: flex; } 
+        .stat-card:first-child { grid-column: span 2; } 
+    }
+    
+    @media (max-width: 768px) {
+        .content-area { padding: 15px; }
+        
+        /* Tables to Cards (Ultra-Compact) */
+        .table-card { padding: 10px; border-radius: 16px; background: transparent; border: none; box-shadow: none; overflow-x: hidden; margin-bottom: 15px; }
+        table { display: block; min-width: 100%; }
+        thead { display: none; }
+        tbody { display: flex; flex-direction: column; gap: 10px; }
+        tr { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 8px 12px; 
+            background: var(--glass-bg); 
+            backdrop-filter: var(--glass-blur); 
+            border: var(--glass-border-base); 
+            border-radius: 16px; 
+            padding: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        }
+        td { 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: flex-start; 
+            padding: 0; 
+            border-top: none; 
+            font-size: 13px; 
+            text-align: left; 
+            gap: 2px; 
+        }
+        td::before { 
+            content: attr(data-label); 
+            font-weight: 600; 
+            color: var(--text-gray); 
+            font-size: 10px; 
+            text-align: left; 
+            text-transform: uppercase;
+        }
+        td:first-child { 
+            grid-column: span 2; 
+            font-size: 15px; 
+            font-weight: 700; 
+            border-bottom: 1px solid rgba(0,0,0,0.06); 
+            padding-bottom: 6px; 
+            margin-bottom: 2px; 
+        }
+        td:last-child { 
+            grid-column: span 2; 
+            flex-direction: row; 
+            justify-content: flex-end; 
+            align-items: center; 
+            border-top: 1px solid rgba(0,0,0,0.06); 
+            padding-top: 8px; 
+            margin-top: 4px; 
+        }
+        td:last-child > div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px !important;
+            justify-content: flex-end;
+            width: 100%;
+        }
+        td:last-child > div > button {
+            flex: 1 1 auto;
+        }
+        td:last-child::before { display: none; }
+        .table-card select.form-control { padding: 8px 12px; font-size: 13px; width: 100%; max-width: 150px; }
+        
+        /* Banner & Typography */
+        .banner { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2); }
+        .banner-text h1 { font-size: 18px; margin: 0; }
+        #live-clock-banner { font-size: 12px; }
+        .banner i { display: none; }
+        
+        /* Sticky Controls & Form Elements */
+        .record-controls, .filter-bar { 
+            flex-direction: column; 
+            align-items: stretch; 
+            gap: 12px; 
+            padding: 15px;
+            margin-bottom: 15px;
+            position: sticky; 
+            top: 0; 
+            z-index: 100; 
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+        }
+        .custom-search-dropdown, .custom-date-pill { width: 100%; }
+        
+        /* Modals & Dialogs */
+        .modal-box, .modal-content { width: 95% !important; max-height: 85vh; overflow-y: auto; padding: 20px !important; }
+        .btn-approve, .btn-reject, .btn-secondary, .btn-save, .btn-primary, .btn-page { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    }
+    
+    @media (max-width: 480px) { 
+        .stat-card:first-child { grid-column: span 1; }
+        .dashboard-grid { grid-template-columns: 1fr; }
+    }
 
     /* ──── Status Badge Variants ──── */
     .status-badge.st-ontime { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }

@@ -31,6 +31,7 @@ func New(cfg *config.Config) (*Server, error) {
 	userRepo := repository.NewUserRepo(db)
 	attendanceRepo := repository.NewAttendanceRepo(db)
 	leaveRepo := repository.NewLeaveRepo(db)
+	leaveQuotaRepo := repository.NewLeaveQuotaRepo(db)
 	offsiteRepo := repository.NewOffsiteRepo(db)
 	holidayRepo := repository.NewHolidayRepo(db)
 	locationRepo := repository.NewLocationRepo(db)
@@ -38,7 +39,7 @@ func New(cfg *config.Config) (*Server, error) {
 	// --- สร้าง Services (ชั้น Business Logic) ---
 	userSvc := service.NewUserService(userRepo)
 	attendanceSvc := service.NewAttendanceService(attendanceRepo, locationRepo, offsiteRepo, cfg)
-	leaveSvc := service.NewLeaveService(leaveRepo)
+	leaveSvc := service.NewLeaveService(leaveRepo, leaveQuotaRepo)
 	offsiteSvc := service.NewOffsiteService(offsiteRepo)
 	holidaySvc := service.NewHolidayService(holidayRepo)
 	locationSvc := service.NewLocationService(locationRepo)
@@ -56,9 +57,9 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// CORS — อนุญาตให้ frontend เรียก API ข้าม origin ได้
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "User-Agent", "Cache-Control"},
 		AllowCredentials: true,
 	}))
 
@@ -120,6 +121,7 @@ func registerRoutes(
 		// ใบลา
 		api.POST("/leaves", leaveH.Create)    // ส่งใบลา
 		api.GET("/leaves", leaveH.ListMine)   // ดูใบลาของตัวเอง
+		api.GET("/leaves/quota", leaveH.GetMyQuota) // ดูโควต้าวันลา
 
 		// ขอออกหน้างาน
 		api.POST("/offsite", offsiteH.Create)    // ส่งคำขอออกหน้างาน
@@ -138,10 +140,15 @@ func registerRoutes(
 	{
 		// จัดการพนักงาน
 		admin.GET("/users", adminH.ListUsers)                          // ดูรายชื่อพนักงานทั้งหมด
-		admin.GET("/users/:id/history", adminH.GetUserHistory)          // ดึงประวัติรายคน
+		admin.GET("/users/:id/history", adminH.GetUserHistory)         // ดึงประวัติรายคน
+		admin.GET("/history/monthly", adminH.GetMonthlyHistory)        // ดึงประวัติเข้างานแบบรวมรายเดือน (N+1 fix)
+		admin.PUT("/users/:id", adminH.UpdateUser)                     // แก้ไขข้อมูลพนักงาน (Role, Name, etc.)
 		admin.PATCH("/users/:id/approve", adminH.ApproveUser)          // อนุมัติบัญชีพนักงาน
 		admin.PATCH("/users/:id/disable", adminH.DisableUser)          // ปิดบัญชีพนักงาน
 		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice)   // ปลดล็อคเครื่องมือถือ
+		
+		admin.GET("/users/:id/quota", leaveH.GetUserQuota)             // ดูโควต้าวันลาพนักงาน
+		admin.PUT("/users/:id/quota", leaveH.UpdateUserQuota)          // อัปเดตโควต้าวันลาพนักงาน
 
 		// อนุมัติคำขอ
 		admin.GET("/requests/pending", adminH.GetPendingRequests)          // ดูคำขอที่รออนุมัติ

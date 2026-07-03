@@ -63,6 +63,20 @@ func (r *OffsiteRepo) ListAll(ctx context.Context) ([]domain.OffsiteRequest, err
 	return requests, nil
 }
 
+// ListByMonthAllUsers ดึงคำขอออกหน้างานของทุกคนในเดือน (Admin)
+func (r *OffsiteRepo) ListByMonthAllUsers(ctx context.Context, year, month int) ([]domain.OffsiteRequest, error) {
+	var requests []domain.OffsiteRequest
+	err := r.db.SelectContext(ctx, &requests, `
+		SELECT * FROM offsite_requests 
+		WHERE EXTRACT(YEAR FROM date) = $1 AND EXTRACT(MONTH FROM date) = $2
+		ORDER BY date DESC
+	`, year, month)
+	if err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
 // UpdateStatus อัปเดตสถานะคำขอ (pending → approved/rejected)
 func (r *OffsiteRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `

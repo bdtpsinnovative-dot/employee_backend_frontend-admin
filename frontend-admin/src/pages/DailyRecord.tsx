@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { fetchAllAttendance, fetchUsers, manualAttendance } from '../services/adminApi';
-import type { User, Attendance } from '../types';
+import { fetchAllAttendance, fetchUsers, manualAttendance, fetchAllRequests, fetchHolidays } from '../services/adminApi';
+import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
 
 interface EmployeeRecord {
   user: User;
   attendance: Attendance | null;
+  leave: LeaveRequest | null;
+  offsite: OffsiteRequest | null;
   selectedStatus: string;
 }
 
 export default function DailyRecord() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<EmployeeRecord[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -23,20 +26,43 @@ export default function DailyRecord() {
     setLoading(true);
     setMessage('');
     try {
-      const [users, attendance] = await Promise.all([
+      const year = new Date(date).getFullYear();
+      const [users, attendance, allReqs, holidaysData] = await Promise.all([
         fetchUsers(),
         fetchAllAttendance(date),
+        fetchAllRequests(),
+        fetchHolidays(year)
       ]);
+
+      setHolidays(holidaysData ?? []);
 
       const activeUsers = (users ?? []).filter(u => u.status === 'active');
       const attMap = new Map<string, Attendance>();
       (attendance ?? []).forEach(a => attMap.set(a.user_id, a));
 
+      const leaveMap = new Map<string, LeaveRequest>();
+      (allReqs.leaves ?? []).forEach(l => {
+        if (l.date.split('T')[0] === date && l.status === 'approved') {
+          leaveMap.set(l.user_id, l);
+        }
+      });
+      const offsiteMap = new Map<string, OffsiteRequest>();
+      (allReqs.offsite ?? []).forEach(o => {
+        if (o.date.split('T')[0] === date && o.status === 'approved') {
+          offsiteMap.set(o.user_id, o);
+        }
+      });
+
       const recs: EmployeeRecord[] = activeUsers.map(user => {
         const att = attMap.get(user.id) ?? null;
+        const leave = leaveMap.get(user.id) ?? null;
+        const offsite = offsiteMap.get(user.id) ?? null;
+        
         return {
           user,
           attendance: att,
+          leave,
+          offsite,
           selectedStatus: att?.status ?? 'no_record',
         };
       });
@@ -106,6 +132,14 @@ export default function DailyRecord() {
     } catch {
       return dateStr;
     }
+  }
+
+  function isHolidayOrWeekend(dateStr: string) {
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    if (day === 0 || day === 6) return true;
+    if (holidays.some(h => h.date.split('T')[0] === dateStr)) return true;
+    return false;
   }
 
   function getStatusDisplay(status: string) {
@@ -181,54 +215,76 @@ export default function DailyRecord() {
                 </td>
               </tr>
             ) : (
-              records.map((rec) => (
-                <tr key={rec.user.id}>
-                  <td style={{ fontWeight: 600 }}>{rec.user.first_name} {rec.user.last_name}</td>
-                  <td>{rec.user.department || '-'}</td>
-                  <td>
-                    {rec.attendance ? (
-                      (() => {
-                        const display = getStatusDisplay(rec.attendance.status);
-                        return (
-                          <span className="status-badge" style={{ color: display.color, background: display.bg, border: '1px solid rgba(255,255,255,0.5)' }}>
-                            {display.text}
-                            {rec.attendance.check_in_at && (
-                              <span style={{ marginLeft: '8px', fontSize: '11px', opacity: 0.7 }}>
-                                เข้า {new Date(rec.attendance.check_in_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })()
-                    ) : (
-                      <select
-                        className="form-control"
-                        style={{ width: 'auto', margin: 0, padding: '5px 10px', fontSize: '13px' }}
-                        value={rec.selectedStatus}
-                        onChange={(e) => handleStatusChange(rec.user.id, e.target.value)}
-                      >
-                        <option value="no_record">— ไม่มีบันทึกเข้างาน —</option>
-                        <option value="on_time">เข้างานปกติ</option>
-                        <option value="late">มาสาย</option>
-                        <option value="offsite">ออกหน้างาน</option>
-                        <optgroup label="ลาป่วย">
-                          <option value="sick_leave_full">ลาป่วย (เต็มวัน)</option>
-                          <option value="sick_leave_morning">ลาป่วย (ครึ่งเช้า)</option>
-                          <option value="sick_leave_afternoon">ลาป่วย (ครึ่งบ่าย)</option>
-                        </optgroup>
-                        <optgroup label="ลากิจ">
-                          <option value="personal_leave_full">ลากิจ (เต็มวัน)</option>
-                          <option value="personal_leave_morning">ลากิจ (ครึ่งเช้า)</option>
-                          <option value="personal_leave_afternoon">ลากิจ (ครึ่งบ่าย)</option>
-                        </optgroup>
-                        <option value="annual_leave">ลาพักร้อน</option>
-                        <option value="shift_swap">สลับวัน</option>
-                        <option value="unknown">ไม่ทราบสาเหตุ</option>
-                      </select>
-                    )}
-                  </td>
-                </tr>
-              ))
+              records.map((rec) => {
+                const isOffDay = isHolidayOrWeekend(date);
+                const hasApprovedLeave = rec.leave !== null;
+                const hasApprovedOffsite = rec.offsite !== null;
+
+                return (
+                  <tr key={rec.user.id}>
+                    <td data-label="ชื่อ-นามสกุล" style={{ fontWeight: 600 }}>{rec.user.first_name} {rec.user.last_name}</td>
+                    <td data-label="แผนก">{rec.user.department || '-'}</td>
+                    <td data-label="สถานะ">
+                      {rec.attendance ? (
+                        (() => {
+                          let display = getStatusDisplay(rec.attendance.status);
+                          // Override display if it's weekend/holiday work
+                          if (isOffDay && (rec.attendance.status === 'on_time' || rec.attendance.status === 'late')) {
+                            display = { text: 'ทำงานวันหยุด', color: '#D97706', bg: 'rgba(253, 230, 138, 0.75)' };
+                          }
+                          return (
+                            <span className="status-badge" style={{ color: display.color, background: display.bg, border: '1px solid rgba(255,255,255,0.5)' }}>
+                              {display.text}
+                              {rec.attendance.check_in_at && (
+                                <span style={{ marginLeft: '8px', fontSize: '11px', opacity: 0.7 }}>
+                                  เข้า {new Date(rec.attendance.check_in_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()
+                      ) : hasApprovedLeave ? (
+                        <span className="status-badge" style={{ color: '#DC2626', background: 'rgba(254, 226, 226, 0.75)', border: '1px solid rgba(255,255,255,0.5)' }}>
+                          {rec.leave?.leave_type} {rec.leave?.duration !== 'เต็มวัน' ? `(${rec.leave?.duration})` : ''}
+                        </span>
+                      ) : hasApprovedOffsite ? (
+                        <span className="status-badge" style={{ color: '#0369A1', background: 'rgba(224, 242, 254, 0.75)', border: '1px solid rgba(255,255,255,0.5)' }}>
+                          ออกหน้างาน (อนุมัติแล้ว)
+                        </span>
+                      ) : (
+                        <select
+                          className="form-control"
+                          style={{ width: 'auto', margin: 0, padding: '5px 10px', fontSize: '13px' }}
+                          value={rec.selectedStatus}
+                          onChange={(e) => handleStatusChange(rec.user.id, e.target.value)}
+                        >
+                          <option value="no_record">— ไม่มีบันทึกเข้างาน —</option>
+                          {date <= new Date().toISOString().split('T')[0] && (
+                            <>
+                              <option value="on_time">เข้างานปกติ</option>
+                              <option value="late">มาสาย</option>
+                            </>
+                          )}
+                          <option value="offsite">ออกหน้างาน</option>
+                          <optgroup label="ลาป่วย">
+                            <option value="sick_leave_full">ลาป่วย (เต็มวัน)</option>
+                            <option value="sick_leave_morning">ลาป่วย (ครึ่งเช้า)</option>
+                            <option value="sick_leave_afternoon">ลาป่วย (ครึ่งบ่าย)</option>
+                          </optgroup>
+                          <optgroup label="ลากิจ">
+                            <option value="personal_leave_full">ลากิจ (เต็มวัน)</option>
+                            <option value="personal_leave_morning">ลากิจ (ครึ่งเช้า)</option>
+                            <option value="personal_leave_afternoon">ลากิจ (ครึ่งบ่าย)</option>
+                          </optgroup>
+                          <option value="annual_leave">ลาพักร้อน</option>
+                          <option value="shift_swap">สลับวัน</option>
+                          <option value="unknown">ไม่ทราบสาเหตุ</option>
+                        </select>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

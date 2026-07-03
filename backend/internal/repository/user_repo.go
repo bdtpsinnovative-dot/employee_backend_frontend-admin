@@ -59,7 +59,18 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 
 // UpdateStatus อัปเดตสถานะบัญชี (pending → active, active → disabled)
 func (r *UserRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE users SET status = $1 WHERE id = $2`, status, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2`, status, id)
+	return err
+}
+
+// UpdateProfileAndRole อัปเดตข้อมูลพนักงานและสิทธิ์ (admin เท่านั้นที่ทำได้)
+// ponytail: minimum needed to edit user profile
+func (r *UserRepo) UpdateProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, department, position, role string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users 
+		SET first_name = $1, last_name = $2, department = $3, position = $4, role = $5, updated_at = NOW() 
+		WHERE id = $6`,
+		firstName, lastName, department, position, role, id)
 	return err
 }
 

@@ -185,6 +185,13 @@ export default function Dashboard() {
           case 'unknown': status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
           default: status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
         }
+        
+        // Override for holiday/weekend work
+        if ((isWknd || holidayName) && (att.status === 'on_time' || att.status === 'late')) {
+          status = 'ทำงานวันหยุด';
+          statusClass = 'st-weekend';
+        }
+
         if (att.check_in_at) {
           timestamp = new Date(att.check_in_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
         }
@@ -274,6 +281,12 @@ export default function Dashboard() {
           case 'shift_swap': status = 'สลับวันหยุด'; statusClass = 'st-weekend'; break;
           case 'unknown': status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
           default: status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
+        }
+        
+        // Override for holiday/weekend work
+        if ((isWknd || holidayName) && (att.status === 'on_time' || att.status === 'late')) {
+          status = 'ทำงานวันหยุด';
+          statusClass = 'st-weekend';
         }
       } else if (leave) {
         status = leave.leave_type + (leave.duration !== 'เต็มวัน' ? ` (${leave.duration})` : '');
@@ -365,9 +378,20 @@ export default function Dashboard() {
           gap: '15px',
         }}
       >
-        <h3 style={{ color: titleColor, margin: 0 }} id="dashboard-title">
-          {dashboardTitle}
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {selectedUser && (
+            <button 
+              className="btn-outline" 
+              style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-main)' }}
+              onClick={handleClearSearch}
+            >
+              <i className="fa-solid fa-arrow-left"></i> ย้อนกลับ
+            </button>
+          )}
+          <h3 style={{ color: titleColor, margin: 0 }} id="dashboard-title">
+            {dashboardTitle}
+          </h3>
+        </div>
 
         <div className="filter-bar">
           <div className="custom-search-dropdown" id="empSearchDropdown">
@@ -564,11 +588,11 @@ export default function Dashboard() {
               ) : (
                 pagedHistory.map((row, idx) => (
                   <tr key={idx}>
-                    <td>{row.displayDate}</td>
-                    <td>
+                    <td data-label="วันที่">{row.displayDate}</td>
+                    <td data-label="สถานะ">
                       <span className={`status-badge ${row.statusClass}`}>{row.status}</span>
                     </td>
-                    <td style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{row.timestamp}</td>
+                    <td data-label="เวลาเข้างาน" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{row.timestamp}</td>
                   </tr>
                 ))
               )
@@ -582,12 +606,19 @@ export default function Dashboard() {
               ) : (
                 filteredRows.map(({ user, status, statusClass, checkInTime }) => (
                   <tr key={user.id}>
-                    <td>{user.first_name} {user.last_name}</td>
-                    <td>{user.position || user.department || '-'}</td>
-                    <td>
+                    <td data-label="ชื่อ-นามสกุล">
+                      <span
+                        style={{ cursor: 'pointer', color: 'var(--blue)', textDecoration: 'underline' }} 
+                        onClick={() => handleSelectEmployee(user)}
+                      >
+                        {user.first_name} {user.last_name}
+                      </span>
+                    </td>
+                    <td data-label="ตำแหน่ง">{user.position || user.department || '-'}</td>
+                    <td data-label="สถานะ">
                       <span className={`status-badge ${statusClass}`}>{status}</span>
                     </td>
-                    <td style={{ color: 'var(--text-gray)', fontSize: '12px' }}>
+                    <td data-label="เวลาเข้างาน" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>
                       {checkInTime ? new Date(checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-'}
                     </td>
                   </tr>

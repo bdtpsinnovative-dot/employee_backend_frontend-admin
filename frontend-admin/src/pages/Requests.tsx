@@ -146,9 +146,9 @@ export default function Requests() {
             ) : (
               rows.map((row) => (
                 <tr key={`${row.type}-${row.id}`}>
-                  <td>{formatDate(row.date)}</td>
-                  <td style={{ fontWeight: 600 }}>{row.userName}</td>
-                  <td>
+                  <td data-label="วันที่ขอใช้สิทธิ์">{formatDate(row.date)}</td>
+                  <td data-label="พนักงาน" style={{ fontWeight: 600 }}>{row.userName}</td>
+                  <td data-label="ประเภทและเหตุผล">
                     <div style={{ fontWeight: 500 }}>{row.detail}</div>
                     {row.reason && (
                       <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>
@@ -156,7 +156,7 @@ export default function Requests() {
                       </div>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="จัดการ" style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                       <button
                         className="btn-approve"

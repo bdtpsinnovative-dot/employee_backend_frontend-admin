@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { fetchHolidays, createHoliday, deleteHoliday } from '../services/adminApi';
 import type { Holiday } from '../types';
 
@@ -28,6 +28,34 @@ export default function Holidays() {
       console.error('โหลดวันหยุดล้มเหลว:', err);
     }
     setLoading(false);
+  }
+
+  const monthNames = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  const groupedHolidays = useMemo(() => {
+    const groups: Record<number, Holiday[]> = {};
+    holidays.forEach(h => {
+      const m = new Date(h.date).getMonth();
+      if (!groups[m]) groups[m] = [];
+      groups[m].push(h);
+    });
+    return groups;
+  }, [holidays]);
+
+  function isLongWeekend(iso: string, numDays: number) {
+    try {
+      const d = new Date(iso);
+      for (let i = 0; i < numDays; i++) {
+        const day = new Date(d.getTime() + i * 24 * 60 * 60 * 1000).getDay();
+        if (day === 1 || day === 5) return true; // วันจันทร์ (1) หรือ ศุกร์ (5)
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -180,25 +208,51 @@ export default function Holidays() {
                 </td>
               </tr>
             ) : (
-              holidays.map((h) => (
-                <tr key={h.id}>
-                  <td>{formatDate(h.date)}</td>
-                  <td>{getDayName(h.date)}</td>
-                  <td style={{ fontWeight: 600 }}>{h.name}</td>
-                  <td style={{ textAlign: 'center' }}>{h.num_days}</td>
-                  <td style={{ textAlign: 'center' }}>วัน</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn-reject"
-                      style={{ fontSize: '12px', padding: '4px 10px' }}
-                      disabled={actionLoading === h.id}
-                      onClick={() => handleDelete(h.id)}
-                    >
-                      <i className="fa-solid fa-trash"></i> ลบ
-                    </button>
-                  </td>
-                </tr>
-              ))
+              Object.keys(groupedHolidays).map((monthStr) => {
+                const m = Number(monthStr);
+                const items = groupedHolidays[m];
+                return (
+                  <React.Fragment key={m}>
+                    <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+                      <td colSpan={6} style={{ fontWeight: 'bold', color: 'var(--blue)', borderBottom: '1px solid var(--border-color)', paddingTop: '15px', paddingBottom: '10px' }}>
+                        เดือน{monthNames[m]} 
+                        <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: 'normal', marginLeft: '8px' }}>
+                          (มี {items.length} วัน)
+                        </span>
+                      </td>
+                    </tr>
+                    {items.map((h) => {
+                      const isLW = isLongWeekend(h.date, h.num_days);
+                      return (
+                        <tr key={h.id}>
+                          <td data-label="วันที่">{formatDate(h.date)}</td>
+                          <td data-label="วัน">
+                            {getDayName(h.date)}
+                            {isLW && (
+                              <span style={{ display: 'inline-block', marginLeft: '8px', fontSize: '10px', background: 'var(--gold-bg)', color: 'var(--gold)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold', border: '1px solid var(--gold-border)' }}>
+                                <i className="fa-solid fa-plane"></i> Long Weekend
+                              </span>
+                            )}
+                          </td>
+                          <td data-label="ชื่อวันหยุด" style={{ fontWeight: 600 }}>{h.name}</td>
+                          <td data-label="จำนวน" style={{ textAlign: 'center' }}>{h.num_days}</td>
+                          <td data-label="หน่วย" style={{ textAlign: 'center' }}>วัน</td>
+                          <td data-label="จัดการ" style={{ textAlign: 'right' }}>
+                            <button
+                              className="btn-reject"
+                              style={{ fontSize: '12px', padding: '4px 10px' }}
+                              disabled={actionLoading === h.id}
+                              onClick={() => handleDelete(h.id)}
+                            >
+                              <i className="fa-solid fa-trash"></i> ลบ
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
