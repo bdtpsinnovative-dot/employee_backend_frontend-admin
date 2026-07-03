@@ -112,6 +112,20 @@ func (h *AdminHandler) GetPendingRequests(c *gin.Context) {
 	})
 }
 
+// GetAllRequests GET /admin/requests/all — ดูคำขอทั้งหมดทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
+func (h *AdminHandler) GetAllRequests(c *gin.Context) {
+	leaves, _ := h.leaveSvc.ListAll(c.Request.Context())
+	offsite, _ := h.offsiteSvc.ListAll(c.Request.Context())
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"leaves":  leaves,
+			"offsite": offsite,
+		},
+	})
+}
+
 // UpdateLeaveStatus PATCH /admin/leaves/:id/status — อนุมัติ/ปฏิเสธใบลา
 func (h *AdminHandler) UpdateLeaveStatus(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -156,6 +170,42 @@ func (h *AdminHandler) UpdateOffsiteStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะคำขอออกหน้างานสำเร็จ"})
+}
+
+// GetUserHistory GET /admin/users/:id/history — ดึงประวัติเข้างานและใบลาทั้งหมดของพนักงาน (สำหรับโหมดรายบุคคล)
+func (h *AdminHandler) GetUserHistory(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	attendance, err := h.attendanceSvc.ListByUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลประวัติเข้างานล้มเหลว"})
+		return
+	}
+
+	leaves, err := h.leaveSvc.ListMine(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลประวัติการลาล้มเหลว"})
+		return
+	}
+
+	offsite, err := h.offsiteSvc.ListMine(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลประวัติออกหน้างานล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"attendance": attendance,
+			"leaves":     leaves,
+			"offsite":    offsite,
+		},
+	})
 }
 
 // GetAllAttendance GET /admin/attendance?date=2026-07-02 — ดูสถิติเข้างานทุกคน

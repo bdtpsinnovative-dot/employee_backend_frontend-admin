@@ -1,12 +1,135 @@
 package middleware
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/big"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// JWK represents a JSON Web Key for token verification
+type JWK struct {
+	Kty string `json:"kty"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	Kid string `json:"kid"`
+	Crv string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
+
+// JWKS holds a list of JSON Web Keys
+type JWKS struct {
+	Keys []JWK `json:"keys"`
+}
+
+// KeyManager handles fetching and caching public keys from Supabase JWKS
+type KeyManager struct {
+	jwksURL     string
+	apiKey      string
+	keys        map[string]*ecdsa.PublicKey
+	mu          sync.RWMutex
+	lastFetched time.Time
+}
+
+// NewKeyManager creates a new key manager for verifying ES256 tokens
+func NewKeyManager(supabaseURL, apiKey string) *KeyManager {
+	return &KeyManager{
+		jwksURL: supabaseURL + "/auth/v1/.well-known/jwks.json",
+		apiKey:  apiKey,
+		keys:    make(map[string]*ecdsa.PublicKey),
+	}
+}
+
+// GetPublicKey retrieves the public key matching the given Key ID (kid)
+func (km *KeyManager) GetPublicKey(kid string) (*ecdsa.PublicKey, error) {
+	km.mu.RLock()
+	key, exists := km.keys[kid]
+	lastFetched := km.lastFetched
+	km.mu.RUnlock()
+
+	if !exists || time.Since(lastFetched) > 1*time.Hour {
+		if err := km.FetchKeys(); err != nil {
+			if exists {
+				return key, nil
+			}
+			return nil, err
+		}
+
+		km.mu.RLock()
+		key, exists = km.keys[kid]
+		km.mu.RUnlock()
+		if !exists {
+			return nil, fmt.Errorf("key id %s not found in JWKS", kid)
+		}
+	}
+	return key, nil
+}
+
+// FetchKeys downloads the JWKS keys from Supabase and parses them into ECDSA public keys
+func (km *KeyManager) FetchKeys() error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", km.jwksURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("apikey", km.apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to fetch JWKS, status: %d", resp.StatusCode)
+	}
+
+	var jwks JWKS
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return err
+	}
+
+	newKeys := make(map[string]*ecdsa.PublicKey)
+	for _, key := range jwks.Keys {
+		if key.Kty != "EC" || key.Crv != "P-256" || key.Alg != "ES256" {
+			continue
+		}
+
+		xBytes, err := base64.RawURLEncoding.DecodeString(key.X)
+		if err != nil {
+			continue
+		}
+		yBytes, err := base64.RawURLEncoding.DecodeString(key.Y)
+		if err != nil {
+			continue
+		}
+
+		pubKey := &ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(xBytes),
+			Y:     new(big.Int).SetBytes(yBytes),
+		}
+		newKeys[key.Kid] = pubKey
+	}
+
+	km.mu.Lock()
+	km.keys = newKeys
+	km.lastFetched = time.Now()
+	km.mu.Unlock()
+
+	return nil
+}
 
 // ContextKey เก็บชื่อ key ที่ใช้ฝังข้อมูลลง gin.Context
 const (
@@ -17,8 +140,7 @@ const (
 )
 
 // JWTAuth ตรวจสอบ JWT ที่ส่งมาจาก Client ผ่าน Header: Authorization: Bearer <token>
-// ถ้า JWT ถูกต้อง จะดึง auth_id (sub claim) ฝังลง Context เพื่อให้ handler ถัดไปใช้ได้
-func JWTAuth(jwtSecret string) gin.HandlerFunc {
+func JWTAuth(jwtSecret string, keyManager *KeyManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ดึง token จาก Header
 		authHeader := c.GetHeader("Authorization")
@@ -34,9 +156,22 @@ func JWTAuth(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// ตรวจสอบ JWT ด้วย secret ของ Supabase
+		// ตรวจสอบ JWT
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			// Supabase ใช้ HMAC-SHA256
+			// รองรับ ES256 (Supabase Auth จริง)
+			if t.Method.Alg() == "ES256" {
+				kid, ok := t.Header["kid"].(string)
+				if !ok || kid == "" {
+					return nil, fmt.Errorf("missing kid header for ES256 token")
+				}
+				pubKey, err := keyManager.GetPublicKey(kid)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get public key for kid %s: %w", kid, err)
+				}
+				return pubKey, nil
+			}
+
+			// รองรับ HS256 (สำหรับเทส/ local token)
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
@@ -44,6 +179,9 @@ func JWTAuth(jwtSecret string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
+			log.Printf("[JWT Error] Token parsing/validation failed: %v (Token valid: %t)", err, token != nil && token.Valid)
+			log.Printf("[JWT Info] Secret used (len: %d)", len(jwtSecret))
+			log.Printf("[JWT Debug] Raw Token: %s", tokenStr)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token หมดอายุหรือไม่ถูกต้อง กรุณาล็อกอินใหม่"})
 			return
 		}
@@ -75,9 +213,9 @@ func RequireActive() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		status, exists := c.Get(ContextKeyStatus)
 		if !exists {
-			// ถ้ายังไม่มีข้อมูล status ใน Context หมายความว่ายังไม่ได้ดึงจาก DB
-			// ปล่อยผ่านไปก่อน ให้ handler จัดการ (กรณี /auth/register)
-			c.Next()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "ไม่พบข้อมูลผู้ใช้ในระบบ",
+			})
 			return
 		}
 

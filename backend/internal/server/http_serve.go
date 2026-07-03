@@ -3,7 +3,9 @@ package server
 import (
 	"fmt"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/config"
 	"github.com/Nattamon123/employee/backend/internal/handler"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
@@ -51,7 +53,16 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// --- สร้าง Router และลงทะเบียน Routes ---
 	router := gin.Default()
-	registerRoutes(router, cfg, userH, attendanceH, leaveH, offsiteH, holidayH, adminH)
+
+	// CORS — อนุญาตให้ frontend เรียก API ข้าม origin ได้
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
+
+	registerRoutes(router, cfg, userSvc, userH, attendanceH, leaveH, offsiteH, holidayH, adminH)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -68,6 +79,7 @@ func (s *Server) Run() error {
 func registerRoutes(
 	r *gin.Engine,
 	cfg *config.Config,
+	userSvc *service.UserService,
 	userH *handler.UserHandler,
 	attendanceH *handler.AttendanceHandler,
 	leaveH *handler.LeaveHandler,
@@ -80,6 +92,9 @@ func registerRoutes(
 		c.JSON(200, gin.H{"status": "ok", "service": "nexhr-api"})
 	})
 
+	// สร้าง KeyManager เพื่อดึงและแคช Public Keys จาก Supabase JWKS (สำหรับยืนยัน ES256 tokens)
+	keyManager := middleware.NewKeyManager(cfg.SupabaseURL, cfg.SupabaseAnonKey)
+
 	// ─── เส้นทางสาธารณะ (ไม่ต้องล็อกอิน) ──────────────────
 	auth := r.Group("/auth")
 	{
@@ -88,7 +103,8 @@ func registerRoutes(
 
 	// ─── เส้นทางพนักงาน (ต้องล็อกอิน + บัญชี active) ──────
 	api := r.Group("/api")
-	api.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret))  // ตรวจ JWT จาก Supabase
+	api.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager))  // ตรวจ JWT จาก Supabase
+	api.Use(LoadUserMiddleware(userSvc))                // ดึงข้อมูล user จาก DB ฝังลง Context
 	api.Use(middleware.RequireActive())                   // บล็อคบัญชี pending/disabled
 	{
 		// ข้อมูลผู้ใช้
@@ -115,18 +131,21 @@ func registerRoutes(
 
 	// ─── เส้นทางแอดมิน (ต้องล็อกอิน + active + role admin) ─
 	admin := r.Group("/admin")
-	admin.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret))
+	admin.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager))
+	admin.Use(LoadUserMiddleware(userSvc))
 	admin.Use(middleware.RequireActive())
 	admin.Use(middleware.RequireAdmin())
 	{
 		// จัดการพนักงาน
 		admin.GET("/users", adminH.ListUsers)                          // ดูรายชื่อพนักงานทั้งหมด
+		admin.GET("/users/:id/history", adminH.GetUserHistory)          // ดึงประวัติรายคน
 		admin.PATCH("/users/:id/approve", adminH.ApproveUser)          // อนุมัติบัญชีพนักงาน
 		admin.PATCH("/users/:id/disable", adminH.DisableUser)          // ปิดบัญชีพนักงาน
 		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice)   // ปลดล็อคเครื่องมือถือ
 
 		// อนุมัติคำขอ
 		admin.GET("/requests/pending", adminH.GetPendingRequests)          // ดูคำขอที่รออนุมัติ
+		admin.GET("/requests/all", adminH.GetAllRequests)                   // ดูคำขอทั้งหมดทุกสถานะ (ประวัติ)
 		admin.PATCH("/leaves/:id/status", adminH.UpdateLeaveStatus)        // อนุมัติ/ปฏิเสธใบลา
 		admin.PATCH("/offsite/:id/status", adminH.UpdateOffsiteStatus)     // อนุมัติ/ปฏิเสธออกหน้างาน
 
@@ -142,5 +161,33 @@ func registerRoutes(
 		admin.GET("/locations", adminH.ListLocations)          // ดูจุดทำงานทั้งหมด
 		admin.POST("/locations", adminH.CreateLocation)        // เพิ่มจุดทำงาน (สาขาใหม่)
 		admin.DELETE("/locations/:id", adminH.DeleteLocation)   // ลบจุดทำงาน
+	}
+}
+
+// LoadUserMiddleware ดึงข้อมูลผู้ใช้จากฐานข้อมูลด้วย auth_id และฝัง user_id, role, status ลง Context
+func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authIDStr, exists := c.Get(middleware.ContextKeyAuthID)
+		if !exists {
+			c.Next()
+			return
+		}
+
+		authID, err := uuid.Parse(authIDStr.(string))
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		// ดึงข้อมูล User จากฐานข้อมูล
+		user, err := userSvc.GetByAuthID(c.Request.Context(), authID)
+		if err == nil && user != nil {
+			// ฝังข้อมูลลง Context เพื่อให้ Middleware หรือ Handler ถัดไปใช้งานได้
+			c.Set(middleware.ContextKeyUserID, user.ID)
+			c.Set(middleware.ContextKeyRole, user.Role)
+			c.Set(middleware.ContextKeyStatus, user.Status)
+		}
+		
+		c.Next()
 	}
 }

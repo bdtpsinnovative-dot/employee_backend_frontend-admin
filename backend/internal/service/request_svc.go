@@ -34,6 +34,11 @@ func (s *LeaveService) ListPending(ctx context.Context) ([]domain.LeaveRequest, 
 	return s.leaveRepo.ListPending(ctx)
 }
 
+// ListAll ดึงใบลาทั้งหมดของทุกคน ทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
+func (s *LeaveService) ListAll(ctx context.Context) ([]domain.LeaveRequest, error) {
+	return s.leaveRepo.ListAll(ctx)
+}
+
 // UpdateStatus อนุมัติ/ปฏิเสธใบลา (Admin)
 func (s *LeaveService) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	return s.leaveRepo.UpdateStatus(ctx, id, status, reviewedBy)
@@ -63,6 +68,11 @@ func (s *OffsiteService) ListMine(ctx context.Context, userID uuid.UUID) ([]doma
 // ListPending ดึงคำขอที่รออนุมัติ (Admin)
 func (s *OffsiteService) ListPending(ctx context.Context) ([]domain.OffsiteRequest, error) {
 	return s.offsiteRepo.ListPending(ctx)
+}
+
+// ListAll ดึงคำขอออกหน้างานทั้งหมด ทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
+func (s *OffsiteService) ListAll(ctx context.Context) ([]domain.OffsiteRequest, error) {
+	return s.offsiteRepo.ListAll(ctx)
 }
 
 // UpdateStatus อนุมัติ/ปฏิเสธคำขอ (Admin)

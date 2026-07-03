@@ -73,7 +73,14 @@ func (h *AttendanceHandler) CheckOut(c *gin.Context) {
 
 	userID, _ := c.Get(middleware.ContextKeyUserID)
 
-	att, err := h.svc.CheckOut(c.Request.Context(), userID.(uuid.UUID), body.Lat, body.Lng, body.PhotoURL)
+	req := service.CheckOutRequest{
+		UserID:   userID.(uuid.UUID),
+		Lat:      body.Lat,
+		Lng:      body.Lng,
+		PhotoURL: body.PhotoURL,
+	}
+
+	att, err := h.svc.CheckOut(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -51,6 +51,18 @@ func (r *OffsiteRepo) ListPending(ctx context.Context) ([]domain.OffsiteRequest,
 	return requests, nil
 }
 
+// ListAll ดึงคำขอออกหน้างานทั้งหมดของทุกคน ทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
+func (r *OffsiteRepo) ListAll(ctx context.Context) ([]domain.OffsiteRequest, error) {
+	var requests []domain.OffsiteRequest
+	err := r.db.SelectContext(ctx, &requests, `
+		SELECT * FROM offsite_requests ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
 // UpdateStatus อัปเดตสถานะคำขอ (pending → approved/rejected)
 func (r *OffsiteRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `

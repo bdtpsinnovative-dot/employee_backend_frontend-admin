@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,7 @@ func (r *AttendanceRepo) FindByUserAndDate(ctx context.Context, userID uuid.UUID
 		SELECT * FROM attendance WHERE user_id = $1 AND date = $2
 	`, userID, date.Format("2006-01-02"))
 	if err != nil {
+		// sql.ErrNoRows ไม่ถือว่าเป็น error จริงจังเพราะหมายถึงยังไม่ได้เช็คอิน
 		return nil, err
 	}
 	return &att, nil
@@ -60,6 +62,7 @@ func (r *AttendanceRepo) ListByUserAndMonth(ctx context.Context, userID uuid.UUI
 		ORDER BY date ASC
 	`, userID, year, month)
 	if err != nil {
+		log.Printf("[Repo Error] ListByUserAndMonth query failed: %v", err)
 		return nil, err
 	}
 	return records, nil
@@ -72,6 +75,20 @@ func (r *AttendanceRepo) ListByDate(ctx context.Context, date time.Time) ([]doma
 		SELECT * FROM attendance WHERE date = $1 ORDER BY check_in_at ASC
 	`, date.Format("2006-01-02"))
 	if err != nil {
+		log.Printf("[Repo Error] ListByDate query failed: %v", err)
+		return nil, err
+	}
+	return records, nil
+}
+
+// ListByUser ดึงประวัติเข้างานทั้งหมดของ user (เรียงจากใหม่ไปเก่า)
+func (r *AttendanceRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Attendance, error) {
+	var records []domain.Attendance
+	err := r.db.SelectContext(ctx, &records, `
+		SELECT * FROM attendance WHERE user_id = $1 ORDER BY date DESC
+	`, userID)
+	if err != nil {
+		log.Printf("[Repo Error] ListByUser query failed: %v", err)
 		return nil, err
 	}
 	return records, nil

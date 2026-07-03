@@ -50,6 +50,18 @@ func (r *LeaveRepo) ListPending(ctx context.Context) ([]domain.LeaveRequest, err
 	return requests, nil
 }
 
+// ListAll ดึงใบลาทั้งหมดของทุกคน ทุกสถานะ (สำหรับหน้าประวัติย้อนหลัง)
+func (r *LeaveRepo) ListAll(ctx context.Context) ([]domain.LeaveRequest, error) {
+	var requests []domain.LeaveRequest
+	err := r.db.SelectContext(ctx, &requests, `
+		SELECT * FROM leave_requests ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
 // UpdateStatus อัปเดตสถานะใบลา (pending → approved/rejected)
 func (r *LeaveRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `

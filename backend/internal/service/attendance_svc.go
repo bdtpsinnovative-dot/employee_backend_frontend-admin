@@ -91,9 +91,12 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 	}
 
 	// 3. คำนวณสถานะสาย (หลัง 09:00 = สาย)
+	isPastLateHour := now.Hour() > s.cfg.LateThresholdHour
+	isAtLateHourButPastMinute := now.Hour() == s.cfg.LateThresholdHour && now.Minute() > s.cfg.LateThresholdMinute
+	isLate := isPastLateHour || isAtLateHourButPastMinute
+
 	status := "on_time"
-	if now.Hour() > s.cfg.LateThresholdHour ||
-		(now.Hour() == s.cfg.LateThresholdHour && now.Minute() > s.cfg.LateThresholdMinute) {
+	if isLate {
 		status = "late"
 	}
 
@@ -117,13 +120,21 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 	return att, nil
 }
 
+// CheckOutRequest ข้อมูลที่ Client ส่งมาตอนเช็คเอาท์
+type CheckOutRequest struct {
+	UserID   uuid.UUID
+	Lat      *float64
+	Lng      *float64
+	PhotoURL *string
+}
+
 // CheckOut ดำเนินการเช็คเอาท์ออกงาน
-func (s *AttendanceService) CheckOut(ctx context.Context, userID uuid.UUID, lat, lng *float64, photoURL *string) (*domain.Attendance, error) {
+func (s *AttendanceService) CheckOut(ctx context.Context, req CheckOutRequest) (*domain.Attendance, error) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	// ดึงบันทึกเข้างานของวันนี้
-	att, err := s.attendanceRepo.FindByUserAndDate(ctx, userID, today)
+	att, err := s.attendanceRepo.FindByUserAndDate(ctx, req.UserID, today)
 	if err != nil {
 		return nil, errors.New("ไม่พบบันทึกเช็คอินของวันนี้ กรุณาเช็คอินก่อน")
 	}
@@ -133,7 +144,7 @@ func (s *AttendanceService) CheckOut(ctx context.Context, userID uuid.UUID, lat,
 	}
 
 	// อัปเดตเวลาเช็คเอาท์ (ใช้เวลา Server)
-	if err := s.attendanceRepo.UpdateCheckOut(ctx, att.ID, now, lat, lng, photoURL); err != nil {
+	if err := s.attendanceRepo.UpdateCheckOut(ctx, att.ID, now, req.Lat, req.Lng, req.PhotoURL); err != nil {
 		return nil, fmt.Errorf("บันทึกเช็คเอาท์ล้มเหลว: %w", err)
 	}
 
@@ -154,6 +165,11 @@ func (s *AttendanceService) History(ctx context.Context, userID uuid.UUID, year,
 // GetAllByDate ดึงบันทึกเข้างานของทุกคนในวันนั้น (สำหรับ Admin)
 func (s *AttendanceService) GetAllByDate(ctx context.Context, date time.Time) ([]domain.Attendance, error) {
 	return s.attendanceRepo.ListByDate(ctx, date)
+}
+
+// ListByUser ดึงประวัติเข้างานทั้งหมดของ user (สำหรับ Admin)
+func (s *AttendanceService) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Attendance, error) {
+	return s.attendanceRepo.ListByUser(ctx, userID)
 }
 
 // CreateManual บันทึกเข้างานด้วยมือโดยแอดมิน (กรณีพิเศษ เช่น ลืมสแกน หรือเครื่องมีปัญหา)
