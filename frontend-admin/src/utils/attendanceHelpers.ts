@@ -73,17 +73,27 @@ export function translateStatus(raw: string, isoDate?: string) {
   if (raw === 'on_time') return 'มาทำงาน (ตรงเวลา)';
   if (raw === 'late') return 'มาทำงาน (สาย)';
   if (raw === 'no_record') return 'ไม่มีบันทึก';
-  if (raw.startsWith('offsite')) return raw.replace('offsite', 'ออกหน้างาน');
-  if (raw.includes('sick_leave_full')) return raw.replace('sick_leave_full', 'ลาป่วย (เต็มวัน)');
-  if (raw.includes('sick_leave_morning')) return raw.replace('sick_leave_morning', 'ลาป่วย (ครึ่งเช้า)');
-  if (raw.includes('sick_leave_afternoon')) return raw.replace('sick_leave_afternoon', 'ลาป่วย (ครึ่งบ่าย)');
-  if (raw.includes('personal_leave_full')) return raw.replace('personal_leave_full', 'ลากิจ (เต็มวัน)');
-  if (raw.includes('personal_leave_morning')) return raw.replace('personal_leave_morning', 'ลากิจ (ครึ่งเช้า)');
-  if (raw.includes('personal_leave_afternoon')) return raw.replace('personal_leave_afternoon', 'ลากิจ (ครึ่งบ่าย)');
-  if (raw.includes('annual_leave')) return raw.replace('annual_leave', 'ลาพักร้อน');
-  if (raw.includes('shift_swap')) return raw.replace('shift_swap', 'สลับวันหยุด');
-  if (raw === 'unknown') return 'ไม่ทราบสาเหตุ';
-  return raw;
+  
+  let result = raw;
+  if (result.startsWith('offsite')) {
+    result = result.replace('offsite', 'ออกหน้างาน');
+  }
+  if (result.includes('sick_leave_full')) result = result.replace('sick_leave_full', 'ลาป่วย (เต็มวัน)');
+  if (result.includes('sick_leave_morning')) result = result.replace('sick_leave_morning', 'ลาป่วย (ครึ่งเช้า)');
+  if (result.includes('sick_leave_afternoon')) result = result.replace('sick_leave_afternoon', 'ลาป่วย (ครึ่งบ่าย)');
+  if (result.includes('personal_leave_full')) result = result.replace('personal_leave_full', 'ลากิจ (เต็มวัน)');
+  if (result.includes('personal_leave_morning')) result = result.replace('personal_leave_morning', 'ลากิจ (ครึ่งเช้า)');
+  if (result.includes('personal_leave_afternoon')) result = result.replace('personal_leave_afternoon', 'ลากิจ (ครึ่งบ่าย)');
+  if (result.includes('annual_leave')) result = result.replace('annual_leave', 'ลาพักร้อน');
+  if (result.includes('shift_swap')) result = result.replace('shift_swap', 'สลับวันหยุด');
+  if (result === 'unknown') return 'ไม่ทราบสาเหตุ';
+
+  // Translate status suffixes from backend
+  result = result.replace('(pending)', '(รออนุมัติ)');
+  result = result.replace('(approved)', '(อนุมัติ)');
+  result = result.replace('(rejected)', '(ปฏิเสธ)');
+  
+  return result;
 }
 
 export function getStatusClass(status: string) {

@@ -385,11 +385,11 @@ export default function History() {
               <thead>
                 <tr>
                   <th style={{ whiteSpace: 'nowrap' }}>วันที่</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>Email</th>
+                  <th className="hide-email" style={{ whiteSpace: 'nowrap' }}>Email</th>
                   <th style={{ whiteSpace: 'nowrap' }}>พนักงาน</th>
                   <th style={{ whiteSpace: 'nowrap' }}>แผนก</th>
                   <th style={{ whiteSpace: 'nowrap' }}>ตำแหน่ง</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>ประเภท</th>
+                  <th className="hide-type" style={{ whiteSpace: 'nowrap' }}>ประเภท</th>
                   <th style={{ whiteSpace: 'nowrap' }}>สถานะ</th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>เข้า</th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>ออก</th>
@@ -419,11 +419,11 @@ export default function History() {
                     return (
                       <tr key={`${row.date}-${row.user_name}-${idx}`}>
                         <td data-label="วันที่" style={{ whiteSpace: 'nowrap' }}>{formatDate(row.date)}</td>
-                        <td data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
+                        <td className="hide-email" data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
                         <td data-label="พนักงาน" style={{ fontWeight: 600 }}>{row.user_name}</td>
                         <td data-label="แผนก">{row.department || '-'}</td>
                         <td data-label="ตำแหน่ง">{row.position || '-'}</td>
-                        <td data-label="ประเภท">{translateType(row.type)}</td>
+                        <td className="hide-type" data-label="ประเภท">{translateType(row.type)}</td>
                         <td data-label="สถานะ">
                           <span className={`status-badge ${getStatusClass(translateStatus(row.status, row.date))}`}>{translateStatus(row.status, row.date)}</span>
                         </td>
@@ -454,7 +454,7 @@ export default function History() {
             <table>
               <thead>
                 <tr>
-                  <th style={{ whiteSpace: 'nowrap' }}>Email</th>
+                  <th className="hide-email" style={{ whiteSpace: 'nowrap' }}>Email</th>
                   <th style={{ whiteSpace: 'nowrap' }}>พนักงาน</th>
                   <th style={{ whiteSpace: 'nowrap' }}>แผนก</th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>วันทำงาน<br/><small>(ตามตาราง)</small></th>
@@ -487,7 +487,7 @@ export default function History() {
                 ) : (
                   pagedSummary.map((row) => (
                     <tr key={row.email}>
-                      <td data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
+                      <td className="hide-email" data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
                       <td data-label="พนักงาน" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.name}</td>
                       <td data-label="แผนก">{row.department || '-'}</td>
                       <td data-label="วันทำงาน (ตามตาราง)" style={{ textAlign: 'center' }}>{row.scheduledDays}</td>

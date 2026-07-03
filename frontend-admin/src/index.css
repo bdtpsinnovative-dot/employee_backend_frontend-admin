@@ -83,7 +83,7 @@
     th { text-align: left; color: var(--text-gray); font-size: 13px; padding: 12px 15px; font-weight: 600; text-transform: uppercase; border-bottom: 2px solid rgba(0,0,0,0.02); }
     td { padding: 16px 15px; border-top: 1px solid rgba(0,0,0,0.04); font-size: 14px; color: var(--text-main); vertical-align: middle; }
 
-    .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; min-width: 85px; text-align: center; border: 1px solid rgba(255,255,255,0.9); }
+    .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; min-width: 85px; text-align: center; border: 1px solid rgba(255,255,255,0.9); white-space: nowrap; }
     .profile-cell { display: flex; align-items: center; gap: 15px; }
     .profile-initial { width: 42px; height: 42px; border-radius: 50%; background-image: var(--primary-gradient); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08); }
 
@@ -353,4 +353,27 @@
   font-weight: 700;
   border: none;
   box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+/* Compact Table Styles for History Page to prevent scrolling */
+#history table {
+  min-width: auto;
+}
+#history th {
+  padding: 8px 6px;
+  font-size: 11px;
+}
+#history td {
+  padding: 10px 6px;
+  font-size: 12px;
+}
+@media (max-width: 1400px) {
+  .hide-email {
+    display: none;
+  }
+}
+@media (max-width: 1200px) {
+  .hide-type {
+    display: none;
+  }
 }
