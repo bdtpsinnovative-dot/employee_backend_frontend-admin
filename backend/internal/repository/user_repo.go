@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // UserRepo จัดการ SQL queries สำหรับตาราง users
@@ -51,8 +51,8 @@ func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*domain.User,
 // Create สร้าง user ใหม่ (สถานะ pending รอ Admin อนุมัติ)
 func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO users (id, auth_id, email, first_name, last_name, department, position, role, status, device_id, avatar_url)
-		VALUES (:id, :auth_id, :email, :first_name, :last_name, :department, :position, :role, :status, :device_id, :avatar_url)
+		INSERT INTO users (id, auth_id, email, first_name, last_name, department, position, role, status, device_id, avatar_url, face_embedding)
+		VALUES (:id, :auth_id, :email, :first_name, :last_name, :department, :position, :role, :status, :device_id, :avatar_url, :face_embedding)
 	`, user)
 	return err
 }
@@ -77,6 +77,41 @@ func (r *UserRepo) UpdateProfileAndRole(ctx context.Context, id uuid.UUID, first
 // UpdateDeviceID ผูก/ปลดเครื่องมือถือ (เซ็ต device_id หรือ NULL)
 func (r *UserRepo) UpdateDeviceID(ctx context.Context, id uuid.UUID, deviceID *string) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE users SET device_id = $1 WHERE id = $2`, deviceID, id)
+	return err
+}
+
+// UpdateFaceEmbedding replaces the stored biometric template.
+func (r *UserRepo) UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, faceEmbedding string) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		`UPDATE users SET face_embedding = $1::vector, updated_at = NOW() WHERE id = $2`,
+		faceEmbedding,
+		id,
+	)
+	return err
+}
+
+// UpdateProfileCompletion saves every field required before entering the app.
+func (r *UserRepo) UpdateProfileCompletion(
+	ctx context.Context,
+	id uuid.UUID,
+	firstName, lastName, avatarURL, faceEmbedding string,
+) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		`UPDATE users
+		 SET first_name = $1,
+		     last_name = $2,
+		     avatar_url = $3,
+		     face_embedding = $4::vector,
+		     updated_at = NOW()
+		 WHERE id = $5`,
+		firstName,
+		lastName,
+		avatarURL,
+		faceEmbedding,
+		id,
+	)
 	return err
 }
 

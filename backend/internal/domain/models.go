@@ -10,19 +10,21 @@ import (
 // Maps to: public.users table
 // Old sheet: ฐานข้อมูลพนักงาน
 type User struct {
-	ID         uuid.UUID  `db:"id" json:"id"`
-	AuthID     uuid.UUID  `db:"auth_id" json:"auth_id"`
-	Email      string     `db:"email" json:"email"`
-	FirstName  string     `db:"first_name" json:"first_name"`
-	LastName   string     `db:"last_name" json:"last_name"`
-	Department string     `db:"department" json:"department"`
-	Position   string     `db:"position" json:"position"`
-	Role       string     `db:"role" json:"role"`       // "employee" | "admin"
-	Status     string     `db:"status" json:"status"`   // "pending" | "active" | "disabled"
-	DeviceID   *string    `db:"device_id" json:"device_id,omitempty"`
-	AvatarURL  *string    `db:"avatar_url" json:"avatar_url,omitempty"`
-	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
+	ID            uuid.UUID `db:"id" json:"id"`
+	AuthID        uuid.UUID `db:"auth_id" json:"auth_id"`
+	Email         string    `db:"email" json:"email"`
+	FirstName     string    `db:"first_name" json:"first_name"`
+	LastName      string    `db:"last_name" json:"last_name"`
+	Department    string    `db:"department" json:"department"`
+	Position      string    `db:"position" json:"position"`
+	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
+	Status        string    `db:"status" json:"status"` // "pending" | "active" | "disabled"
+	DeviceID      *string   `db:"device_id" json:"device_id,omitempty"`
+	AvatarURL     *string   `db:"avatar_url" json:"avatar_url,omitempty"`
+	FaceEmbedding *string   `db:"face_embedding" json:"-"`
+	HasFace       bool      `db:"-" json:"has_face_embedding"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (u User) FullName() string {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // UserService จัดการ business logic เกี่ยวกับผู้ใช้
@@ -19,7 +19,7 @@ func NewUserService(ur *repository.UserRepo) *UserService {
 }
 
 // Register สร้างบัญชีใหม่จาก Supabase Auth (สถานะ pending รอ Admin อนุมัติ)
-func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, firstName, lastName string) (*domain.User, error) {
+func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, firstName, lastName string, avatarURL, faceVector *string) (*domain.User, error) {
 	// ตรวจว่ามี user นี้อยู่แล้วหรือยัง
 	existing, _ := s.userRepo.FindByAuthID(ctx, authID)
 	if existing != nil {
@@ -27,13 +27,15 @@ func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, fir
 	}
 
 	user := &domain.User{
-		ID:        uuid.New(),
-		AuthID:    authID,
-		Email:     email,
-		FirstName: firstName,
-		LastName:  lastName,
-		Role:      "employee",
-		Status:    "pending", // ต้องรอ Admin อนุมัติก่อนใช้งานได้
+		ID:            uuid.New(),
+		AuthID:        authID,
+		Email:         email,
+		FirstName:     firstName,
+		LastName:      lastName,
+		Role:          "employee",
+		Status:        "pending", // ต้องรอ Admin อนุมัติก่อนใช้งานได้
+		AvatarURL:     avatarURL,
+		FaceEmbedding: faceVector,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -41,6 +43,25 @@ func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, fir
 	}
 
 	return user, nil
+}
+
+// CompleteProfile fills every required profile field in one database update.
+func (s *UserService) CompleteProfile(
+	ctx context.Context,
+	userID uuid.UUID,
+	firstName, lastName, avatarURL, faceEmbedding string,
+) error {
+	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
+		return errors.New("ไม่พบข้อมูลผู้ใช้")
+	}
+	return s.userRepo.UpdateProfileCompletion(
+		ctx,
+		userID,
+		firstName,
+		lastName,
+		avatarURL,
+		faceEmbedding,
+	)
 }
 
 // GetByAuthID ดึงข้อมูล user จาก Supabase Auth ID
@@ -73,6 +94,14 @@ func (s *UserService) BindDevice(ctx context.Context, userID uuid.UUID, deviceID
 
 	// ผูกเครื่องใหม่ (หรือยืนยันเครื่องเดิม)
 	return s.userRepo.UpdateDeviceID(ctx, userID, &deviceID)
+}
+
+// UpdateFaceEmbedding stores a newly enrolled face template for an existing user.
+func (s *UserService) UpdateFaceEmbedding(ctx context.Context, userID uuid.UUID, faceEmbedding string) error {
+	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
+		return errors.New("ไม่พบข้อมูลผู้ใช้")
+	}
+	return s.userRepo.UpdateFaceEmbedding(ctx, userID, faceEmbedding)
 }
 
 // ApproveUser อนุมัติบัญชีพนักงาน (Admin เท่านั้น)
