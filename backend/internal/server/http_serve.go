@@ -148,15 +148,21 @@ func registerRoutes(
 		// ใบลา
 		api.POST("/leaves", leaveH.Create)          // ส่งใบลา
 		api.GET("/leaves", leaveH.ListMine)         // ดูใบลาของตัวเอง
+		api.PUT("/leaves/:id", leaveH.Update)       // แก้ไขใบลา
+		api.DELETE("/leaves/:id", leaveH.Delete)    // ยกเลิกใบลา
 		api.GET("/leaves/quota", leaveH.GetMyQuota) // ดูโควต้าวันลา
 
 		// ขอออกหน้างาน
-		api.POST("/offsite", offsiteH.Create)  // ส่งคำขอออกหน้างาน
-		api.GET("/offsite", offsiteH.ListMine) // ดูคำขอของตัวเอง
+		api.POST("/offsite", offsiteH.Create)       // ส่งคำขอออกหน้างาน
+		api.GET("/offsite", offsiteH.ListMine)      // ดูคำขอของตัวเอง
+		api.PUT("/offsite/:id", offsiteH.Update)    // แก้ไขคำขอออกหน้างาน
+		api.DELETE("/offsite/:id", offsiteH.Delete) // ยกเลิกคำขอออกหน้างาน
 
 		// วันหยุด
 		api.GET("/holidays", holidayH.List) // ดูวันหยุดทั้งปี ?year=2026
 
+		// จุดทำงาน
+		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)
 	}
 
 	// ─── เส้นทางแอดมิน (ต้องล็อกอิน + active + role admin) ─

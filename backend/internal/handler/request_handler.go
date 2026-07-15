@@ -68,6 +68,72 @@ func (h *LeaveHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "message": "ส่งใบลาเรียบร้อย รอแอดมินอนุมัติ"})
 }
 
+// Update PUT /api/leaves/:id — แก้ไขใบลา
+func (h *LeaveHandler) Update(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	var body createLeaveBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบ"})
+		return
+	}
+
+	userID, _ := c.Get(middleware.ContextKeyUserID)
+	date, err := parseDate(body.Date)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่ไม่ถูกต้อง"})
+		return
+	}
+
+	req := &domain.LeaveRequest{
+		ID:             id,
+		UserID:         userID.(uuid.UUID),
+		Date:           date,
+		LeaveType:      body.LeaveType,
+		Duration:       body.Duration,
+		Reason:         body.Reason,
+		MedicalCertURL: body.MedicalCertURL,
+	}
+
+	if body.SwapDate != nil {
+		sd, err := parseDate(*body.SwapDate)
+		if err == nil {
+			req.SwapDate = &sd
+		}
+	}
+
+	if err := h.svc.Update(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "แก้ไขใบลาล้มเหลว หรือคำขอนี้ไม่ได้อยู่ในสถานะรอนุมัติ"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "แก้ไขใบลาเรียบร้อย"})
+}
+
+// Delete DELETE /api/leaves/:id — ยกเลิกใบลา
+func (h *LeaveHandler) Delete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	userID, _ := c.Get(middleware.ContextKeyUserID)
+
+	if err := h.svc.Delete(c.Request.Context(), id, userID.(uuid.UUID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ยกเลิกใบลาล้มเหลว หรือคำขอนี้ไม่ได้อยู่ในสถานะรอนุมัติ"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ยกเลิกใบลาเรียบร้อย"})
+}
+
 // ListMine GET /api/leaves — ดูใบลาของตัวเอง
 func (h *LeaveHandler) ListMine(c *gin.Context) {
 	userID, _ := c.Get(middleware.ContextKeyUserID)
@@ -205,6 +271,62 @@ func (h *OffsiteHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "message": "ส่งคำขอออกหน้างานเรียบร้อย รอแอดมินอนุมัติ"})
+}
+
+// Update PUT /api/offsite/:id — แก้ไขคำขอออกหน้างาน
+func (h *OffsiteHandler) Update(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	var body createOffsiteBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบ"})
+		return
+	}
+
+	userID, _ := c.Get(middleware.ContextKeyUserID)
+	date, err := parseDate(body.Date)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่ไม่ถูกต้อง"})
+		return
+	}
+
+	req := &domain.OffsiteRequest{
+		ID:     id,
+		UserID: userID.(uuid.UUID),
+		Date:   date,
+		Reason: body.Reason,
+	}
+
+	if err := h.svc.Update(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "แก้ไขคำขอล้มเหลว หรือคำขอนี้ไม่ได้อยู่ในสถานะรอนุมัติ"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "แก้ไขคำขอออกหน้างานเรียบร้อย"})
+}
+
+// Delete DELETE /api/offsite/:id — ยกเลิกคำขอออกหน้างาน
+func (h *OffsiteHandler) Delete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	userID, _ := c.Get(middleware.ContextKeyUserID)
+
+	if err := h.svc.Delete(c.Request.Context(), id, userID.(uuid.UUID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ยกเลิกคำขอล้มเหลว หรือคำขอนี้ไม่ได้อยู่ในสถานะรอนุมัติ"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ยกเลิกคำขอออกหน้างานเรียบร้อย"})
 }
 
 // ListMine GET /api/offsite — ดูคำขอของตัวเอง

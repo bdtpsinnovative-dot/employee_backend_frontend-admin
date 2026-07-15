@@ -101,10 +101,6 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 				break
 			}
 		}
-
-		if matchedLocationID == nil {
-			return nil, errors.New("คุณอยู่นอกรัศมีที่ทำงาน ไม่สามารถเช็คอินได้ กรุณาเดินเข้าใกล้ออฟฟิศแล้วลองใหม่")
-		}
 	}
 
 	// 3. คำนวณสถานะสาย (หลัง 09:00 = สาย)
@@ -113,7 +109,9 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 	isLate := isPastLateHour || isAtLateHourButPastMinute
 
 	status := "on_time"
-	if isLate {
+	if isOffsite {
+		status = "offsite"
+	} else if isLate {
 		status = "late"
 	}
 

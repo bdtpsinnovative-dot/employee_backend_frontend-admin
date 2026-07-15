@@ -98,3 +98,31 @@ func (r *OffsiteRepo) HasApprovedForDate(ctx context.Context, userID uuid.UUID, 
 	}
 	return count > 0, nil
 }
+
+// GetByID ดึงคำขอออกหน้างานตาม ID
+func (r *OffsiteRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.OffsiteRequest, error) {
+	var req domain.OffsiteRequest
+	err := r.db.GetContext(ctx, &req, "SELECT * FROM offsite_requests WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+// Update แก้ไขคำขอออกหน้างาน
+func (r *OffsiteRepo) Update(ctx context.Context, req *domain.OffsiteRequest) error {
+	_, err := r.db.NamedExecContext(ctx, `
+		UPDATE offsite_requests 
+		SET date = :date, reason = :reason
+		WHERE id = :id AND user_id = :user_id AND status = 'pending'
+	`, req)
+	return err
+}
+
+// Delete ลบคำขอออกหน้างาน
+func (r *OffsiteRepo) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM offsite_requests WHERE id = $1 AND user_id = $2 AND status = 'pending'
+	`, id, userID)
+	return err
+}

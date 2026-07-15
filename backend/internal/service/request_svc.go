@@ -50,6 +50,16 @@ func (s *LeaveService) UpdateStatus(ctx context.Context, id uuid.UUID, status st
 	return s.leaveRepo.UpdateStatus(ctx, id, status, reviewedBy)
 }
 
+// Update แก้ไขใบลา (เฉพาะที่ยัง pending)
+func (s *LeaveService) Update(ctx context.Context, req *domain.LeaveRequest) error {
+	return s.leaveRepo.Update(ctx, req)
+}
+
+// Delete ยกเลิก/ลบใบลา (เฉพาะที่ยัง pending)
+func (s *LeaveService) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	return s.leaveRepo.Delete(ctx, id, userID)
+}
+
 // GetLeaveBalances ดึงโควต้าวันลาที่เหลือของ user ในปีนั้น
 func (s *LeaveService) GetLeaveBalances(ctx context.Context, userID uuid.UUID, year int) ([]domain.LeaveBalance, error) {
 	// 1. Fetch quota (fallback to default if not found)
@@ -163,6 +173,16 @@ func (s *OffsiteService) ListByMonthAllUsers(ctx context.Context, year, month in
 // UpdateStatus อนุมัติ/ปฏิเสธคำขอ (Admin)
 func (s *OffsiteService) UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error {
 	return s.offsiteRepo.UpdateStatus(ctx, id, status, reviewedBy)
+}
+
+// Update แก้ไขคำขอออกหน้างาน (เฉพาะที่ยัง pending)
+func (s *OffsiteService) Update(ctx context.Context, req *domain.OffsiteRequest) error {
+	return s.offsiteRepo.Update(ctx, req)
+}
+
+// Delete ยกเลิก/ลบคำขอออกหน้างาน (เฉพาะที่ยัง pending)
+func (s *OffsiteService) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	return s.offsiteRepo.Delete(ctx, id, userID)
 }
 
 // HolidayService จัดการ business logic เกี่ยวกับวันหยุด

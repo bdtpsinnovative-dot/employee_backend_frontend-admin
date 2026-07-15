@@ -156,3 +156,31 @@ func (r *LeaveRepo) GetLeaveUsageStats(ctx context.Context, userID uuid.UUID, ye
 	}
 	return stats, nil
 }
+
+// GetByID ดึงใบลาตาม ID
+func (r *LeaveRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.LeaveRequest, error) {
+	var req domain.LeaveRequest
+	err := r.db.GetContext(ctx, &req, "SELECT * FROM leave_requests WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+// Update แก้ไขใบลา
+func (r *LeaveRepo) Update(ctx context.Context, req *domain.LeaveRequest) error {
+	_, err := r.db.NamedExecContext(ctx, `
+		UPDATE leave_requests 
+		SET date = :date, leave_type = :leave_type, duration = :duration, swap_date = :swap_date, reason = :reason, medical_cert_url = :medical_cert_url
+		WHERE id = :id AND user_id = :user_id AND status = 'pending'
+	`, req)
+	return err
+}
+
+// Delete ลบใบลา
+func (r *LeaveRepo) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM leave_requests WHERE id = $1 AND user_id = $2 AND status = 'pending'
+	`, id, userID)
+	return err
+}
