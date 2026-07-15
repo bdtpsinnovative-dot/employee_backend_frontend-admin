@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - SUPABASE_URL=https://your-project.supabase.co
+      - SUPABASE_ANON_KEY=your-anon-key
+      - SUPABASE_DATABASE_URL=postgresql://postgres:your-password@db.your-project.supabase.co:5432/postgres
+      - SUPABASE_JWT_SECRET=your-jwt-secret
+    restart: always
