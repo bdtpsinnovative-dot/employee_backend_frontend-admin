@@ -38,7 +38,7 @@ func (h *AttendanceHandler) CheckIn(c *gin.Context) {
 
 	userID, _ := c.Get(middleware.ContextKeyUserID)
 
-	faceVectorStr, err := formatFaceVector(body.FaceVector, true)
+	faceVectorStr, err := formatFaceVector(body.FaceVector, false)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -146,4 +146,34 @@ func (h *AttendanceHandler) History(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": records})
+}
+
+// GetSummary GET /api/attendance/summary?date=2026-07-02
+func (h *AttendanceHandler) GetSummary(c *gin.Context) {
+	dateStr := c.DefaultQuery("date", "")
+	if dateStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุวันที่ ?date=2026-07-02"})
+		return
+	}
+
+	date, err := parseDate(dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่ไม่ถูกต้อง ใช้ YYYY-MM-DD"})
+		return
+	}
+
+	total, attended, late, err := h.svc.GetTodaySummary(c.Request.Context(), date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลสรุปล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"total_employees": total,
+			"attended_today":  attended,
+			"late_today":      late,
+		},
+	})
 }

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,11 +14,17 @@ import (
 
 // LeaveHandler รับ HTTP Request เกี่ยวกับใบลา
 type LeaveHandler struct {
-	svc *service.LeaveService
+	svc      *service.LeaveService
+	userSvc  *service.UserService
+	notifSvc *service.NotificationService
 }
 
-func NewLeaveHandler(svc *service.LeaveService) *LeaveHandler {
-	return &LeaveHandler{svc: svc}
+func NewLeaveHandler(svc *service.LeaveService, userSvc *service.UserService, notifSvc *service.NotificationService) *LeaveHandler {
+	return &LeaveHandler{
+		svc:      svc,
+		userSvc:  userSvc,
+		notifSvc: notifSvc,
+	}
 }
 
 type createLeaveBody struct {
@@ -63,6 +71,28 @@ func (h *LeaveHandler) Create(c *gin.Context) {
 	if err := h.svc.Create(c.Request.Context(), req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ส่งใบลาล้มเหลว"})
 		return
+	}
+
+	// บันทึก notification แจ้งเตือนแอดมินทุกคน
+	if h.userSvc != nil && h.notifSvc != nil {
+		employee, userErr := h.userSvc.GetByID(c.Request.Context(), userID.(uuid.UUID))
+		if userErr == nil && employee != nil {
+			employeeName := employee.FullName()
+			admins, listErr := h.userSvc.ListAll(c.Request.Context())
+			if listErr == nil {
+				for _, admin := range admins {
+					if admin.Role == "admin" {
+						h.notifSvc.Notify(
+							context.Background(),
+							admin.ID,
+							"คำขอลาใหม่ 📝",
+							employeeName+" ยื่นคำขอ"+body.LeaveType+" วันที่ "+body.Date,
+							fmt.Sprintf("leave:%s", req.ID.String()),
+						)
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "message": "ส่งใบลาเรียบร้อย รอแอดมินอนุมัติ"})
@@ -232,11 +262,17 @@ func (h *LeaveHandler) UpdateUserQuota(c *gin.Context) {
 
 // OffsiteHandler รับ HTTP Request เกี่ยวกับคำขอออกหน้างาน
 type OffsiteHandler struct {
-	svc *service.OffsiteService
+	svc      *service.OffsiteService
+	userSvc  *service.UserService
+	notifSvc *service.NotificationService
 }
 
-func NewOffsiteHandler(svc *service.OffsiteService) *OffsiteHandler {
-	return &OffsiteHandler{svc: svc}
+func NewOffsiteHandler(svc *service.OffsiteService, userSvc *service.UserService, notifSvc *service.NotificationService) *OffsiteHandler {
+	return &OffsiteHandler{
+		svc:      svc,
+		userSvc:  userSvc,
+		notifSvc: notifSvc,
+	}
 }
 
 type createOffsiteBody struct {
@@ -268,6 +304,28 @@ func (h *OffsiteHandler) Create(c *gin.Context) {
 	if err := h.svc.Create(c.Request.Context(), req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ส่งคำขอล้มเหลว"})
 		return
+	}
+
+	// บันทึก notification แจ้งเตือนแอดมินทุกคน
+	if h.userSvc != nil && h.notifSvc != nil {
+		employee, userErr := h.userSvc.GetByID(c.Request.Context(), userID.(uuid.UUID))
+		if userErr == nil && employee != nil {
+			employeeName := employee.FullName()
+			admins, listErr := h.userSvc.ListAll(c.Request.Context())
+			if listErr == nil {
+				for _, admin := range admins {
+					if admin.Role == "admin" {
+						h.notifSvc.Notify(
+							context.Background(),
+							admin.ID,
+							"คำขอออกหน้างานใหม่ 📍",
+							employeeName+" ยื่นคำขอปฏิบัติงานนอกสถานที่ วันที่ "+body.Date,
+							fmt.Sprintf("leave:%s", req.ID.String()),
+						)
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "message": "ส่งคำขอออกหน้างานเรียบร้อย รอแอดมินอนุมัติ"})

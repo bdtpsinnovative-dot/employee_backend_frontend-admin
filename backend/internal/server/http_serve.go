@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -37,14 +38,32 @@ func New(cfg *config.Config) (*Server, error) {
 	offsiteRepo := repository.NewOffsiteRepo(db)
 	holidayRepo := repository.NewHolidayRepo(db)
 	locationRepo := repository.NewLocationRepo(db)
+	taskRepo := repository.NewTaskRepo(db)
+	brandRepo := repository.NewBrandRepo(db)
+	categoryRepo := repository.NewTaskCategoryRepo(db)
+	subItemRepo := repository.NewTaskSubItemRepo(db)
+	listRepo := repository.NewTaskListRepo(db)
+	cardRepo := repository.NewTaskCardRepo(db)
+	attachmentRepo := repository.NewCardAttachmentRepo(db)
+	notifRepo := repository.NewNotificationRepo(db)
+	settingRepo := repository.NewSettingRepo(db)
+
+	// Run card_attachments table migration (idempotent)
+	if err := attachmentRepo.EnsureTable(context.Background()); err != nil {
+		fmt.Printf("Warning: card_attachments table migration failed: %v\n", err)
+	}
 
 	// --- สร้าง Services (ชั้น Business Logic) ---
+	firebaseSvc := service.NewFirebaseService()
 	userSvc := service.NewUserService(userRepo)
-	attendanceSvc := service.NewAttendanceService(attendanceRepo, locationRepo, offsiteRepo, userRepo, cfg)
+	settingSvc := service.NewSettingService(settingRepo)
+	attendanceSvc := service.NewAttendanceService(attendanceRepo, locationRepo, offsiteRepo, userRepo, settingRepo, cfg)
 	leaveSvc := service.NewLeaveService(leaveRepo, leaveQuotaRepo)
 	offsiteSvc := service.NewOffsiteService(offsiteRepo)
 	holidaySvc := service.NewHolidayService(holidayRepo)
 	locationSvc := service.NewLocationService(locationRepo)
+	notifSvc := service.NewNotificationService(notifRepo, userRepo, firebaseSvc)
+	taskSvc := service.NewTaskService(taskRepo, userRepo, firebaseSvc, notifSvc)
 	storageSvc, err := service.NewStorageService()
 	if err != nil {
 		fmt.Printf("Warning: Could not initialize StorageService (R2): %v\n", err)
@@ -54,10 +73,14 @@ func New(cfg *config.Config) (*Server, error) {
 	authH := handler.NewAuthHandler(cfg.SupabaseURL, cfg.SupabaseAnonKey)
 	userH := handler.NewUserHandler(userSvc)
 	attendanceH := handler.NewAttendanceHandler(attendanceSvc)
-	leaveH := handler.NewLeaveHandler(leaveSvc)
-	offsiteH := handler.NewOffsiteHandler(offsiteSvc)
+	leaveH := handler.NewLeaveHandler(leaveSvc, userSvc, notifSvc)
+	offsiteH := handler.NewOffsiteHandler(offsiteSvc, userSvc, notifSvc)
 	holidayH := handler.NewHolidayHandler(holidaySvc)
-	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc)
+	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc, firebaseSvc, notifSvc)
+	taskH := handler.NewTaskHandler(taskSvc, subItemRepo)
+	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo)
+	notifH := handler.NewNotificationHandler(notifSvc)
+	settingH := handler.NewSettingHandler(settingSvc)
 	var uploadH *handler.UploadHandler
 	if storageSvc != nil {
 		uploadH = handler.NewUploadHandler(storageSvc)
@@ -74,7 +97,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, notifH, settingH)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -100,6 +123,10 @@ func registerRoutes(
 	holidayH *handler.HolidayHandler,
 	adminH *handler.AdminHandler,
 	uploadH *handler.UploadHandler,
+	taskH *handler.TaskHandler,
+	brandCategoryH *handler.BrandCategoryHandler,
+	notifH *handler.NotificationHandler,
+	settingH *handler.SettingHandler,
 ) {
 	// ตรวจสอบว่า server ยังทำงานอยู่ (ไม่ต้องล็อกอิน)
 	r.GET("/ping", func(c *gin.Context) {
@@ -138,12 +165,15 @@ func registerRoutes(
 	{
 		// ข้อมูลผู้ใช้
 		api.PUT("/users/me/device", userH.BindDevice) // ผูกเครื่องมือถือ
+		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken) // บันทึก FCM Token
+		api.PUT("/users/me/profile/info", userH.UpdateProfileInfo) // อัปเดตชื่อและรูปโปรไฟล์
 
 		// เข้า-ออกงาน
 		api.POST("/attendance/checkin", attendanceH.CheckIn)   // เช็คอิน (ตรวจ GPS + Device)
 		api.POST("/attendance/checkout", attendanceH.CheckOut) // เช็คเอาท์
 		api.GET("/attendance", attendanceH.GetByDate)          // ดูสถานะวันนี้ ?date=2026-07-02
 		api.GET("/attendance/history", attendanceH.History)    // ดูประวัติย้อนหลัง ?month=2026-07
+		api.GET("/attendance/summary", attendanceH.GetSummary) // สรุปเวลาทำงานของทุกคนวันนี้
 
 		// ใบลา
 		api.POST("/leaves", leaveH.Create)          // ส่งใบลา
@@ -163,6 +193,39 @@ func registerRoutes(
 
 		// จุดทำงาน
 		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)
+
+		// มอบหมายงาน (Tasks)
+		api.GET("/tasks", taskH.ListMyTasks)                    // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)  // อัปเดตสถานะงาน (พนักงาน)
+		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
+		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
+		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
+		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)        // เพิ่ม List/รายการ
+		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)      // ลบ List/รายการ
+		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)        // อัปเดต List/รายการ (ลำดับ)
+		api.POST("/tasks/lists/:id/cards", brandCategoryH.CreateTaskCard)  // เพิ่ม Card/การ์ด
+		api.PATCH("/tasks/cards/:id", brandCategoryH.UpdateTaskCard)       // อัปเดต Card (ชื่อ/รายละเอียด/สถานะ)
+		api.DELETE("/tasks/cards/:id", brandCategoryH.DeleteTaskCard)      // ลบ Card/การ์ด
+		api.POST("/tasks/cards/:id/sub-items", brandCategoryH.CreateCardSubItem) // เพิ่ม Sub-item ใน Card
+		api.PATCH("/tasks/sub-items/:id/detail", brandCategoryH.UpdateCardSubItemDetail) // อัปเดตรายละเอียดรายการย่อย (พนักงาน + แอดมิน)
+		api.DELETE("/tasks/sub-items/:id", brandCategoryH.DeleteTaskSubItem) // ลบรายการย่อย
+		api.POST("/tasks/sub-items/:id/verifications", brandCategoryH.CreateSubItemVerification) // บันทึกผลการตรวจสอบรายการย่อย
+		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)   // เพิ่มไฟล์แนบในการ์ด
+		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)     // ดึงไฟล์แนบทั้งหมดของการ์ด
+		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment) // ลบไฟล์แนบ
+
+
+		// การแจ้งเตือน (Notifications)
+		api.GET("/notifications", notifH.GetMyNotifications)          // ดึงรายการแจ้งเตือน
+		api.PATCH("/notifications/read-all", notifH.MarkAllRead)       // mark ทั้งหมดว่าอ่านแล้ว
+		api.PATCH("/notifications/:id/read", notifH.MarkRead)          // mark รายการเดียวว่าอ่านแล้ว
+
+		// การตั้งค่าระบบ (Settings)
+		api.GET("/settings/checkin-mode", settingH.GetCheckInMode)
+
+		// ข้อมูลแบรนด์และหมวดหมู่ของพนักงาน
+		api.GET("/brands", brandCategoryH.ListBrands)
+		api.GET("/task-categories", brandCategoryH.ListTaskCategories)
 	}
 
 	// ─── เส้นทางแอดมิน (ต้องล็อกอิน + active + role admin) ─
@@ -202,6 +265,25 @@ func registerRoutes(
 		admin.GET("/locations", adminH.ListLocations)         // ดูจุดทำงานทั้งหมด
 		admin.POST("/locations", adminH.CreateLocation)       // เพิ่มจุดทำงาน (สาขาใหม่)
 		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
+
+		// จัดการงาน (Tasks)
+		admin.POST("/tasks", taskH.CreateTask)           // มอบหมายงานใหม่
+		admin.GET("/tasks", taskH.ListAllTasks)          // ดึงงานของทุกคน
+		admin.DELETE("/tasks/:id", taskH.DeleteTask)     // ลบงาน
+		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
+
+		// จัดการ Brand
+		admin.GET("/brands", brandCategoryH.ListBrands)           // ดึง Brand ทั้งหมด
+		admin.POST("/brands", brandCategoryH.CreateBrand)         // เพิ่ม Brand ใหม่
+		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand)   // ลบ Brand
+
+		// จัดการหมวดหมู่งาน (Task Categories)
+		admin.GET("/task-categories", brandCategoryH.ListTaskCategories)           // ดึงหมวดหมู่ทั้งหมด
+		admin.POST("/task-categories", brandCategoryH.CreateTaskCategory)          // เพิ่มหมวดหมู่ใหม่
+		admin.DELETE("/task-categories/:id", brandCategoryH.DeleteTaskCategory)    // ลบหมวดหมู่
+
+		// จัดการตั้งค่าระบบ (Settings)
+		admin.PUT("/settings/checkin-mode", settingH.SetCheckInMode)
 	}
 }
 
@@ -232,6 +314,7 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 			c.Set(middleware.ContextKeyUserID, user.ID)
 			c.Set(middleware.ContextKeyRole, user.Role)
 			c.Set(middleware.ContextKeyStatus, user.Status)
+			c.Set("user_fullname", user.FullName())
 		}
 
 		c.Next()

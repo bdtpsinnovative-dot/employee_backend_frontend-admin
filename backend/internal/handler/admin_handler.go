@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -20,6 +22,8 @@ type AdminHandler struct {
 	offsiteSvc    *service.OffsiteService
 	attendanceSvc *service.AttendanceService
 	locationSvc   *service.LocationService
+	firebaseSvc   *service.FirebaseService
+	notifSvc      *service.NotificationService
 }
 
 func NewAdminHandler(
@@ -28,6 +32,8 @@ func NewAdminHandler(
 	os *service.OffsiteService,
 	as *service.AttendanceService,
 	locS *service.LocationService,
+	fs *service.FirebaseService,
+	ns *service.NotificationService,
 ) *AdminHandler {
 	return &AdminHandler{
 		userSvc:       us,
@@ -35,6 +41,8 @@ func NewAdminHandler(
 		offsiteSvc:    os,
 		attendanceSvc: as,
 		locationSvc:   locS,
+		firebaseSvc:   fs,
+		notifSvc:      ns,
 	}
 }
 
@@ -160,17 +168,19 @@ func (h *AdminHandler) GetAllRequests(c *gin.Context) {
 }
 
 type HistoryRecord struct {
-	Date       string     `json:"date"`
-	UserName   string     `json:"user_name"`
-	Email      string     `json:"email"`
-	Department string     `json:"department"`
-	Position   string     `json:"position"`
-	Status     string     `json:"status"`
-	Type       string     `json:"type"` // attendance, leave, offsite
-	Reason     string     `json:"reason"`
-	CheckInAt  *time.Time `json:"check_in_at,omitempty"`
-	CheckOutAt *time.Time `json:"check_out_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
+	Date          string     `json:"date"`
+	UserName      string     `json:"user_name"`
+	Email         string     `json:"email"`
+	Department    string     `json:"department"`
+	Position      string     `json:"position"`
+	Status        string     `json:"status"`
+	Type          string     `json:"type"` // attendance, leave, offsite
+	Reason        string     `json:"reason"`
+	CheckInAt     *time.Time `json:"check_in_at,omitempty"`
+	CheckOutAt    *time.Time `json:"check_out_at,omitempty"`
+	CheckInPhoto  *string    `json:"check_in_photo,omitempty"`
+	CheckOutPhoto *string    `json:"check_out_photo,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // GetMonthlyHistory GET /admin/history/monthly?month=YYYY-MM
@@ -215,17 +225,19 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			createdAt = *a.CheckInAt
 		}
 		records = append(records, HistoryRecord{
-				Date:       a.Date.Format("2006-01-02"),
-				UserName:   u.FullName(),
-				Email:      u.Email,
-				Department: u.Department,
-				Position:   u.Position,
-				Status:     a.Status,
-				Type:       "attendance",
-				Reason:     "",
-				CheckInAt:  a.CheckInAt,
-				CheckOutAt: a.CheckOutAt,
-				CreatedAt:  createdAt,
+				Date:          a.Date.Format("2006-01-02"),
+				UserName:      u.FullName(),
+				Email:         u.Email,
+				Department:    u.Department,
+				Position:      u.Position,
+				Status:        a.Status,
+				Type:          "attendance",
+				Reason:        "",
+				CheckInAt:     a.CheckInAt,
+				CheckOutAt:    a.CheckOutAt,
+				CheckInPhoto:  a.CheckInPhoto,
+				CheckOutPhoto: a.CheckOutPhoto,
+				CreatedAt:     createdAt,
 			})
 	}
 
@@ -235,15 +247,16 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			continue
 		}
 		records = append(records, HistoryRecord{
-				Date:       l.Date.Format("2006-01-02"),
-				UserName:   u.FullName(),
-				Email:      u.Email,
-				Department: u.Department,
-				Position:   u.Position,
-				Status:     l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
-				Type:       "leave",
-				Reason:     l.Reason,
-				CreatedAt:  l.CreatedAt,
+				Date:         l.Date.Format("2006-01-02"),
+				UserName:     u.FullName(),
+				Email:        u.Email,
+				Department:   u.Department,
+				Position:     u.Position,
+				Status:       l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
+				Type:         "leave",
+				Reason:       l.Reason,
+				CheckInPhoto: l.MedicalCertURL,
+				CreatedAt:    l.CreatedAt,
 			})
 	}
 
@@ -293,10 +306,28 @@ func (h *AdminHandler) UpdateLeaveStatus(c *gin.Context) {
 		return
 	}
 
+	// Fetch request details before updating to know the user_id
+	req, getErr := h.leaveSvc.GetByID(c.Request.Context(), id)
+
 	adminID, _ := c.Get(middleware.ContextKeyUserID)
 	if err := h.leaveSvc.UpdateStatus(c.Request.Context(), id, body.Status, adminID.(uuid.UUID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะล้มเหลว"})
 		return
+	}
+
+	// บันทึก notification ลง DB และส่ง push ผ่าน notifSvc
+	if getErr == nil && req != nil && h.notifSvc != nil {
+		statusThai := "ปฏิเสธ"
+		if body.Status == "approved" {
+			statusThai = "อนุมัติ"
+		}
+		h.notifSvc.Notify(
+			context.Background(),
+			req.UserID,
+			"ผลการอนุมัติใบลา",
+			"ใบลาของคุณได้รับการ"+statusThai+"แล้ว",
+			fmt.Sprintf("leave:%s", req.ID.String()),
+		)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะใบลาสำเร็จ"})
@@ -316,10 +347,28 @@ func (h *AdminHandler) UpdateOffsiteStatus(c *gin.Context) {
 		return
 	}
 
+	// Fetch request details before updating to know the user_id
+	req, getErr := h.offsiteSvc.GetByID(c.Request.Context(), id)
+
 	adminID, _ := c.Get(middleware.ContextKeyUserID)
 	if err := h.offsiteSvc.UpdateStatus(c.Request.Context(), id, body.Status, adminID.(uuid.UUID)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะล้มเหลว"})
 		return
+	}
+
+	// บันทึก notification ลง DB และส่ง push ผ่าน notifSvc
+	if getErr == nil && req != nil && h.notifSvc != nil {
+		statusThai := "ปฏิเสธ"
+		if body.Status == "approved" {
+			statusThai = "อนุมัติ"
+		}
+		h.notifSvc.Notify(
+			context.Background(),
+			req.UserID,
+			"ผลการอนุมัติใบปฏิบัติงานนอกสถานที่",
+			"คำขอออกหน้างานของคุณได้รับการ"+statusThai+"แล้ว",
+			fmt.Sprintf("leave:%s", req.ID.String()),
+		)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะคำขอออกหน้างานสำเร็จ"})

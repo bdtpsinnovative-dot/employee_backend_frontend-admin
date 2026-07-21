@@ -149,6 +149,41 @@ func (h *UserHandler) CompleteProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "บันทึกโปรไฟล์สำเร็จ"})
 }
 
+type updateProfileInfoBody struct {
+	FirstName string `json:"first_name" binding:"required"`
+	LastName  string `json:"last_name" binding:"required"`
+	AvatarURL string `json:"avatar_url" binding:"required"`
+}
+
+// UpdateProfileInfo updates name and avatar only.
+func (h *UserHandler) UpdateProfileInfo(c *gin.Context) {
+	var body updateProfileInfoBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบถ้วน"})
+		return
+	}
+
+	firstName := strings.TrimSpace(body.FirstName)
+	lastName := strings.TrimSpace(body.LastName)
+	avatarURL := strings.TrimSpace(body.AvatarURL)
+	if firstName == "" || lastName == "" || avatarURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล หรือรูปภาพว่างไม่ได้"})
+		return
+	}
+
+	userID, exists := currentUserID(c)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบผู้ใช้"})
+		return
+	}
+
+	if err := h.svc.UpdateProfileInfo(c.Request.Context(), userID, firstName, lastName, avatarURL); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกข้อมูลไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "บันทึกข้อมูลเรียบร้อย"})
+}
+
 type bindDeviceBody struct {
 	DeviceID string `json:"device_id" binding:"required"`
 }
@@ -244,4 +279,34 @@ func formatFaceVector(values []float64, required bool) (*string, error) {
 
 func stringPointer(value string) *string {
 	return &value
+}
+
+type fcmTokenBody struct {
+	FcmToken string `json:"fcm_token" binding:"required"`
+}
+
+func (h *UserHandler) UpdateFcmToken(c *gin.Context) {
+	userIDVal, exists := c.Get(middleware.ContextKeyUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "กรุณาเข้าสู่ระบบ"})
+		return
+	}
+	userID := userIDVal.(uuid.UUID)
+
+	var body fcmTokenBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูล fcm_token ไม่ถูกต้อง"})
+		return
+	}
+
+	err := h.svc.UpdateFcmToken(c.Request.Context(), userID, body.FcmToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":      true,
+		"message": "อัปเดต FCM Token สำเร็จ",
+	})
 }

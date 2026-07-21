@@ -20,6 +20,7 @@ type AttendanceService struct {
 	locationRepo   *repository.LocationRepo
 	offsiteRepo    *repository.OffsiteRepo
 	userRepo       *repository.UserRepo
+	settingRepo    *repository.SettingRepo
 	cfg            *config.Config
 }
 
@@ -28,6 +29,7 @@ func NewAttendanceService(
 	lr *repository.LocationRepo,
 	or *repository.OffsiteRepo,
 	ur *repository.UserRepo,
+	sr *repository.SettingRepo,
 	cfg *config.Config,
 ) *AttendanceService {
 	return &AttendanceService{
@@ -35,6 +37,7 @@ func NewAttendanceService(
 		locationRepo:   lr,
 		offsiteRepo:    or,
 		userRepo:       ur,
+		settingRepo:    sr,
 		cfg:            cfg,
 	}
 }
@@ -61,17 +64,26 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 		return nil, errors.New("คุณเช็คอินวันนี้ไปแล้ว")
 	}
 
-	// 1.5 ตรวจใบหน้า (Face Matching)
-	if req.FaceVector == nil || *req.FaceVector == "" {
-		return nil, errors.New("ไม่พบข้อมูลใบหน้า กรุณาสแกนใบหน้าเพื่อเช็คอิน")
+	// 1.5 ตรวจใบหน้า (Face Matching) เฉพาะเมื่อโหมดเช็คอินเป็น "face" เท่านั้น
+	checkInMode := "face"
+	if s.settingRepo != nil {
+		if val, err := s.settingRepo.Get(ctx, "checkin_mode"); err == nil && val != "" {
+			checkInMode = val
+		}
 	}
-	distance, err := s.userRepo.CompareFaceDistance(ctx, req.UserID, *req.FaceVector)
-	if err != nil {
-		// ถ้า err แสดงว่าไม่มี face_embedding ในฐานข้อมูล
-		return nil, errors.New("กรุณาลงทะเบียนใบหน้าก่อนทำการเช็คอิน")
-	}
-	if distance > 0.75 {
-		return nil, errors.New("ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้")
+
+	if checkInMode == "face" {
+		if req.FaceVector == nil || *req.FaceVector == "" {
+			return nil, errors.New("ไม่พบข้อมูลใบหน้า กรุณาสแกนใบหน้าเพื่อเช็คอิน")
+		}
+		distance, err := s.userRepo.CompareFaceDistance(ctx, req.UserID, *req.FaceVector)
+		if err != nil {
+			// ถ้า err แสดงว่าไม่มี face_embedding ในฐานข้อมูล
+			return nil, errors.New("กรุณาลงทะเบียนใบหน้าก่อนทำการเช็คอิน")
+		}
+		if distance > 0.75 {
+			return nil, errors.New("ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้")
+		}
 	}
 
 	// 2. ตรวจ Geofence (ADR 0004)
@@ -243,5 +255,42 @@ func (s *AttendanceService) CreateManual(ctx context.Context, userID uuid.UUID, 
 	}
 
 	return att, nil
+}
+
+type TodaySummary struct {
+	TotalEmployees int `json:"total_employees"`
+	AttendedToday  int `json:"attended_today"`
+	LateToday      int `json:"late_today"`
+}
+
+func (s *AttendanceService) GetTodaySummary(ctx context.Context, date time.Time) (int, int, int, error) {
+	users, err := s.userRepo.ListAll(ctx)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	totalActive := 0
+	for _, u := range users {
+		if u.Status == "active" {
+			totalActive++
+		}
+	}
+
+	records, err := s.attendanceRepo.ListByDate(ctx, date)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	attended := 0
+	late := 0
+	for _, r := range records {
+		if r.Status == "on_time" || r.Status == "late" || r.Status == "half_day" || r.Status == "offsite" {
+			attended++
+		}
+		if r.Status == "late" {
+			late++
+		}
+	}
+
+	return totalActive, attended, late, nil
 }
 

@@ -64,6 +64,14 @@ func (s *UserService) CompleteProfile(
 	)
 }
 
+// UpdateProfileInfo updates a user's first name, last name, and avatar URL.
+func (s *UserService) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, avatarURL string) error {
+	if _, err := s.userRepo.FindByID(ctx, id); err != nil {
+		return errors.New("ไม่พบข้อมูลผู้ใช้")
+	}
+	return s.userRepo.UpdateProfileInfo(ctx, id, firstName, lastName, avatarURL)
+}
+
 // GetByAuthID ดึงข้อมูล user จาก Supabase Auth ID
 func (s *UserService) GetByAuthID(ctx context.Context, authID uuid.UUID) (*domain.User, error) {
 	return s.userRepo.FindByAuthID(ctx, authID)
@@ -122,4 +130,12 @@ func (s *UserService) UnbindDevice(ctx context.Context, id uuid.UUID) error {
 // ListAll ดึงรายชื่อพนักงานทั้งหมด (Admin เท่านั้น)
 func (s *UserService) ListAll(ctx context.Context) ([]domain.User, error) {
 	return s.userRepo.ListAll(ctx)
+}
+
+// UpdateFcmToken saves the user's FCM token
+func (s *UserService) UpdateFcmToken(ctx context.Context, userID uuid.UUID, fcmToken string) error {
+	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
+		return errors.New("ไม่พบข้อมูลผู้ใช้")
+	}
+	return s.userRepo.UpdateFcmToken(ctx, userID, fcmToken)
 }

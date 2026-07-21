@@ -2,8 +2,11 @@ package handler
 
 import (
 	"math"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestFormatFaceVector(t *testing.T) {
@@ -39,5 +42,21 @@ func TestFormatFaceVectorAllowsMissingOptionalVector(t *testing.T) {
 	formatted, err := formatFaceVector(nil, false)
 	if err != nil || formatted != nil {
 		t.Fatalf("expected an omitted optional vector, got value=%v error=%v", formatted, err)
+	}
+}
+
+func TestParseYearMonthSupportsCombinedMonthQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	req := httptest.NewRequest("GET", "/attendance/history?month=2026-07", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	year, month, err := parseYearMonth(c)
+	if err != nil {
+		t.Fatalf("parseYearMonth returned an error for combined month query: %v", err)
+	}
+	if year != 2026 || month != 7 {
+		t.Fatalf("expected year=2026 month=7, got year=%d month=%d", year, month)
 	}
 }
