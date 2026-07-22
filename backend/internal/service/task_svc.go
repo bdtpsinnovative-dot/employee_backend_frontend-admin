@@ -57,6 +57,15 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
+	content := "มอบหมายงานใหม่"
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    t.ID,
+		UserID:    assignedBy,
+		EventType: "system",
+		Action:    "created",
+		Content:   &content,
+	})
+
 	// บันทึก notification ลง DB + ส่ง push ผ่าน notifSvc สำหรับทุกคน
 	if s.notifSvc != nil {
 		for _, uID := range assigneeIDs {
@@ -94,6 +103,15 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 		return err
 	}
 
+	content := "อัปเดตสถานะงานเป็น: " + status
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    id,
+		UserID:    userID,
+		EventType: "system",
+		Action:    "status_changed",
+		Content:   &content,
+	})
+
 	// Trigger Push Notification to admins when employee updates status
 	if !isAdmin && s.userRepo != nil && s.firebaseSvc != nil {
 		employee, userErr := s.userRepo.FindByID(ctx, userID)
@@ -127,4 +145,25 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 
 func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	return s.taskRepo.Delete(ctx, id)
+}
+
+func (s *TaskService) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]domain.TaskEvent, error) {
+	return s.taskRepo.ListTaskEvents(ctx, taskID)
+}
+
+func (s *TaskService) AddTaskComment(ctx context.Context, taskID, userID uuid.UUID, content string) (*domain.TaskEvent, error) {
+	e := &domain.TaskEvent{
+		ID:        uuid.New(),
+		TaskID:    taskID,
+		UserID:    userID,
+		EventType: "comment",
+		Action:    "commented",
+		Content:   &content,
+	}
+	err := s.taskRepo.CreateTaskEvent(ctx, e)
+	return e, err
+}
+
+func (s *TaskService) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, error) {
+	return s.taskRepo.ListAllTaskEvents(ctx)
 }

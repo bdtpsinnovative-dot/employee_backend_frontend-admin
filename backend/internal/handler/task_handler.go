@@ -193,3 +193,55 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะงานสำเร็จ"})
 }
+
+// ListTaskEvents GET /api/tasks/:id/events
+func (h *TaskHandler) ListTaskEvents(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+	events, err := h.taskSvc.ListTaskEvents(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลประวัติล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": events})
+}
+
+type addTaskCommentReq struct {
+	Content string `json:"content" binding:"required"`
+}
+
+// AddTaskComment POST /api/tasks/:id/events
+func (h *TaskHandler) AddTaskComment(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+	var req addTaskCommentReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาพิมพ์ข้อความ"})
+		return
+	}
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+
+	event, err := h.taskSvc.AddTaskComment(c.Request.Context(), id, userID, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มคอมเมนต์ล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": event})
+}
+
+// ListAllTaskEvents GET /admin/tasks/events
+func (h *TaskHandler) ListAllTaskEvents(c *gin.Context) {
+	events, err := h.taskSvc.ListAllTaskEvents(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลประวัติทั้งหมดล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": events})
+}

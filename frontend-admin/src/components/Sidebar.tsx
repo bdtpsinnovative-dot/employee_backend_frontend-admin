@@ -105,6 +105,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <NavLink to="/history" className={navLinkClass}>
         <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
       </NavLink>
+      <NavLink to="/task-logs" className={navLinkClass}>
+        <i className="fa-solid fa-timeline"></i> ประวัติงาน (Activity)
+      </NavLink>
 
       <div
         className="nav-item logout"

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -147,4 +148,73 @@ func (r *TaskRepo) Delete(ctx context.Context, id uuid.UUID) error {
 		DELETE FROM tasks WHERE id = $1
 	`, id)
 	return err
+}
+
+func (r *TaskRepo) CreateTaskEvent(ctx context.Context, e *domain.TaskEvent) error {
+	if e.ID == uuid.Nil {
+		e.ID = uuid.New()
+	}
+	_, err := r.db.NamedExecContext(ctx, `
+		INSERT INTO task_events (id, task_id, user_id, event_type, action, content, created_at)
+		VALUES (:id, :task_id, :user_id, :event_type, :action, :content, NOW())
+	`, e)
+	return err
+}
+
+func (r *TaskRepo) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]domain.TaskEvent, error) {
+	query := `
+		SELECT te.id, te.task_id, te.user_id, te.event_type, te.action, te.content, te.created_at,
+		       u.first_name, u.last_name, u.avatar_url
+		FROM task_events te
+		LEFT JOIN users u ON te.user_id = u.id
+		WHERE te.task_id = $1
+		ORDER BY te.created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query task events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []domain.TaskEvent
+	for rows.Next() {
+		var ev domain.TaskEvent
+		if err := rows.Scan(
+			&ev.ID, &ev.TaskID, &ev.UserID, &ev.EventType, &ev.Action, &ev.Content, &ev.CreatedAt,
+			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan task event: %w", err)
+		}
+		events = append(events, ev)
+	}
+	return events, nil
+}
+
+// ListAllTaskEvents ดึงประวัติของทุกงาน (สำหรับหน้ารวม Activity Log) เรียงจากใหม่ไปเก่า
+func (r *TaskRepo) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, error) {
+	query := `
+		SELECT te.id, te.task_id, te.user_id, te.event_type, te.action, te.content, te.created_at,
+		       u.first_name, u.last_name, u.avatar_url
+		FROM task_events te
+		LEFT JOIN users u ON te.user_id = u.id
+		ORDER BY te.created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all task events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []domain.TaskEvent
+	for rows.Next() {
+		var ev domain.TaskEvent
+		if err := rows.Scan(
+			&ev.ID, &ev.TaskID, &ev.UserID, &ev.EventType, &ev.Action, &ev.Content, &ev.CreatedAt,
+			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan task event: %w", err)
+		}
+		events = append(events, ev)
+	}
+	return events, nil
 }

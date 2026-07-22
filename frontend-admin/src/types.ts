@@ -154,3 +154,16 @@ export interface AdminTask {
   sub_items?: TaskSubItem[];
   assignee_ids?: string[];
 }
+
+export interface TaskEvent {
+  id: string;
+  task_id: string;
+  user_id: string;
+  event_type: 'comment' | 'system';
+  action: string;
+  content?: string;
+  created_at: string;
+  user_first_name?: string;
+  user_last_name?: string;
+  user_avatar_url?: string;
+}

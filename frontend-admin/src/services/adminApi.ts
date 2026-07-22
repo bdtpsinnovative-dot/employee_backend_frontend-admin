@@ -13,6 +13,7 @@ import type {
   Brand,
   TaskCategory,
   AdminTask,
+  TaskEvent,
 } from '../types';
 
 // ────────────────── Users ──────────────────
@@ -238,4 +239,19 @@ export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_
 
 export async function deleteAdminTask(id: string): Promise<void> {
   await api.delete(`/admin/tasks/${id}`);
+}
+
+export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
+  const { data } = await api.get<ApiResponse<TaskEvent[]>>(`/api/tasks/${taskId}/events`);
+  return data.data ?? [];
+}
+
+export async function fetchAllTaskEvents(): Promise<TaskEvent[]> {
+  const { data } = await api.get<ApiResponse<TaskEvent[]>>('/admin/tasks/events');
+  return data.data ?? [];
+}
+
+export async function addTaskComment(taskId: string, content: string): Promise<TaskEvent> {
+  const { data } = await api.post<ApiResponse<TaskEvent>>(`/api/tasks/${taskId}/events`, { content });
+  return data.data;
 }

@@ -265,3 +265,19 @@ type TaskCard struct {
 }
 
 
+
+// TaskEvent represents an activity log or comment on a task.
+type TaskEvent struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	TaskID    uuid.UUID `db:"task_id" json:"task_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	EventType string    `db:"event_type" json:"event_type"` // "comment" | "system"
+	Action    string    `db:"action" json:"action"`
+	Content   *string   `db:"content" json:"content,omitempty"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	
+	// Joined fields
+	UserFirstName string  `db:"user_first_name" json:"user_first_name,omitempty"`
+	UserLastName  string  `db:"user_last_name" json:"user_last_name,omitempty"`
+	UserAvatarURL *string `db:"user_avatar_url" json:"user_avatar_url,omitempty"`
+}
