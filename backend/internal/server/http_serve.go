@@ -164,6 +164,7 @@ func registerRoutes(
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
 	{
 		// ข้อมูลผู้ใช้
+		api.GET("/users/active", userH.ListActiveUsers) // ดึงพนักงานที่ active
 		api.PUT("/users/me/device", userH.BindDevice) // ผูกเครื่องมือถือ
 		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken) // บันทึก FCM Token
 		api.PUT("/users/me/profile/info", userH.UpdateProfileInfo) // อัปเดตชื่อและรูปโปรไฟล์
@@ -203,6 +204,7 @@ func registerRoutes(
 		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
 		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
 		api.POST("/tasks", taskH.CreateTask)                               // มอบหมายงานใหม่ (พนักงาน + แอดมิน)
+		api.PUT("/tasks/:id", taskH.UpdateTask)                            // แก้ไขงานหลัก (พนักงาน + แอดมิน)
 		api.DELETE("/tasks/:id", taskH.DeleteTask)                         // ลบงาน
 		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)        // เพิ่ม List/รายการ
 		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)      // ลบ List/รายการ

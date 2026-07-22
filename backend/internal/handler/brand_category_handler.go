@@ -199,10 +199,7 @@ func (h *BrandCategoryHandler) ToggleTaskSubItem(c *gin.Context) {
 		Status string `json:"status"`
 		IsDone *bool  `json:"is_done"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
-		return
-	}
+	_ = c.ShouldBindJSON(&req)
 
 	status := req.Status
 	if status == "" && req.IsDone != nil {
@@ -214,7 +211,16 @@ func (h *BrandCategoryHandler) ToggleTaskSubItem(c *gin.Context) {
 	}
 
 	if status == "" {
-		status = "pending"
+		item, err := h.subItemRepo.GetByID(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบรายการย่อย"})
+			return
+		}
+		if item.IsDone || item.Status == "completed" {
+			status = "pending"
+		} else {
+			status = "completed"
+		}
 	}
 
 	if err := h.subItemRepo.UpdateSubItemStatus(c.Request.Context(), id, status); err != nil {

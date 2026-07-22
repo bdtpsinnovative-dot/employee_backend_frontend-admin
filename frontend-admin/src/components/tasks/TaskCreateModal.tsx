@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, CheckSquare } from 'lucide-react';
-import type { User as UserType, Brand, TaskCategory } from '../../types';
+import type { User as UserType, Brand, TaskCategory, AdminTask } from '../../types';
 import type { TaskStatus } from './taskUtils';
 
 interface TaskCreateModalProps {
@@ -10,6 +10,7 @@ interface TaskCreateModalProps {
   users: UserType[];
   brands: Brand[];
   categories: TaskCategory[];
+  initialData?: AdminTask;
   onSubmit: (data: {
     title: string;
     description: string;
@@ -27,16 +28,44 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   users,
   brands,
   categories,
+  initialData,
   onSubmit,
 }) => {
-  const [title, setTitle] = useState('');
-  const [desc, setDesc] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
-  const [brandId, setBrandId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [desc, setDesc] = useState(initialData?.description || '');
+  const [dueDate, setDueDate] = useState(
+    initialData?.due_date ? initialData.due_date.split('T')[0] : ''
+  );
+  
+  const initialAssignees = initialData?.assignee_ids && initialData.assignee_ids.length > 0
+    ? initialData.assignee_ids
+    : initialData?.assigned_to ? [initialData.assigned_to] : [];
+    
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>(initialAssignees);
+  const [brandId, setBrandId] = useState(initialData?.brand_id || '');
+  const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   const [subItems, setSubItems] = useState<string[]>(['']);
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setTitle(initialData?.title || '');
+      setDesc(initialData?.description || '');
+      setDueDate(initialData?.due_date ? initialData.due_date.split('T')[0] : '');
+      const initAssignees = initialData?.assignee_ids && initialData.assignee_ids.length > 0
+        ? initialData.assignee_ids
+        : initialData?.assigned_to ? [initialData.assigned_to] : [];
+      setSelectedAssignees(initAssignees);
+      setBrandId(initialData?.brand_id || '');
+      setCategoryId(initialData?.category_id || '');
+      // We don't populate subItems here because subItems edit should be in the drawer
+      if (!initialData) {
+        setSubItems(['']);
+      } else {
+        setSubItems([]); // Empty for edit mode since we edit sub-items elsewhere
+      }
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -97,12 +126,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80">
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">มอบหมายงานใหม่ (Create Task)</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800">
+            {initialData ? 'แก้ไขรายละเอียดงาน' : 'มอบหมายงานใหม่ (Assign Task)'}
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
@@ -216,48 +247,48 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 </select>
               </div>
             </div>
+            {/* Checklist Items - Only show in create mode */}
+            {!initialData && (
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="font-bold text-slate-700 flex items-center gap-1">
+                    <CheckSquare className="w-3.5 h-3.5 text-slate-400" />
+                    <span>รายการย่อย (Checklist Subtasks)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddSubItem}
+                    className="text-indigo-600 hover:underline flex items-center gap-0.5 font-semibold"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>เพิ่มข้อ</span>
+                  </button>
+                </div>
 
-            {/* Checklist Items */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-700 flex items-center gap-1">
-                  <CheckSquare className="w-3.5 h-3.5 text-slate-400" />
-                  <span>รายการย่อย (Checklist Subtasks)</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAddSubItem}
-                  className="text-indigo-600 hover:underline flex items-center gap-0.5 font-semibold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>เพิ่มข้อ</span>
-                </button>
+                <div className="space-y-2">
+                  {subItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder={`ข้อย่อยที่ ${idx + 1}`}
+                        value={item}
+                        onChange={e => handleUpdateSubItem(idx, e.target.value)}
+                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                      />
+                      {subItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSubItem(idx)}
+                          className="text-slate-400 hover:text-red-600 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-
-              <div className="space-y-2">
-                {subItems.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder={`ข้อย่อยที่ ${idx + 1}`}
-                      value={item}
-                      onChange={e => handleUpdateSubItem(idx, e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                    {subItems.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubItem(idx)}
-                        className="text-slate-400 hover:text-red-600 p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
+            )}
             {/* Buttons */}
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
               <button
@@ -270,9 +301,9 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-lg shadow-sm"
+                className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
               >
-                {loading ? 'กำลังสร้างงาน...' : 'มอบหมายงาน'}
+                {loading ? 'กำลังบันทึก...' : initialData ? 'บันทึกการแก้ไข' : 'สร้างงาน'}
               </button>
             </div>
           </form>

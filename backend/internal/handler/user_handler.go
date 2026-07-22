@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -310,3 +311,22 @@ func (h *UserHandler) UpdateFcmToken(c *gin.Context) {
 		"message": "อัปเดต FCM Token สำเร็จ",
 	})
 }
+
+// ListActiveUsers GET /api/users/active — ดึงเฉพาะพนักงานที่ active
+func (h *UserHandler) ListActiveUsers(c *gin.Context) {
+	users, err := h.svc.ListAll(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลพนักงานล้มเหลว"})
+		return
+	}
+
+	activeUsers := make([]domain.User, 0, len(users))
+	for _, u := range users {
+		if u.Status == "active" {
+			activeUsers = append(activeUsers, u)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": activeUsers})
+}
+

@@ -48,6 +48,38 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 	return tasks, nil
 }
 
+func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
+	if len(tasks) == 0 {
+		return tasks, nil
+	}
+	var subItems []struct {
+		domain.TaskSubItem
+		TaskID uuid.UUID `db:"task_id"`
+	}
+	err := r.db.SelectContext(ctx, &subItems, `
+		SELECT id, task_id, title, is_done, sort_order
+		FROM task_sub_items
+		WHERE card_id IS NULL
+		ORDER BY sort_order ASC, created_at ASC
+	`)
+	if err != nil {
+		// Sub-items are optional; don't fail the whole list
+		return tasks, nil
+	}
+	subMap := make(map[uuid.UUID][]domain.TaskSubItem)
+	for _, s := range subItems {
+		subMap[s.TaskID] = append(subMap[s.TaskID], s.TaskSubItem)
+	}
+	for i, t := range tasks {
+		if items, ok := subMap[t.ID]; ok {
+			tasks[i].SubItems = items
+		} else {
+			tasks[i].SubItems = []domain.TaskSubItem{}
+		}
+	}
+	return tasks, nil
+}
+
 func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
@@ -65,7 +97,11 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.populateAssigneeIDs(ctx, tasks)
+	tasks, err = r.populateAssigneeIDs(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateSubItems(ctx, tasks)
 }
 
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
@@ -87,7 +123,11 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	if err != nil {
 		return nil, err
 	}
-	return r.populateAssigneeIDs(ctx, tasks)
+	tasks, err = r.populateAssigneeIDs(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateSubItems(ctx, tasks)
 }
 
 func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, error) {

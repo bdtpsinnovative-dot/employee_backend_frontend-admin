@@ -120,6 +120,84 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
 
+type updateTaskReq struct {
+	AssignedTo  string   `json:"assigned_to"`
+	AssigneeIDs []string `json:"assignee_ids"`
+	Title       string   `json:"title" binding:"required"`
+	Description string   `json:"description"`
+	DueDate     string   `json:"due_date"` // YYYY-MM-DD
+	BrandID     string   `json:"brand_id"`
+	CategoryID  string   `json:"category_id"`
+}
+
+// UpdateTask PUT /api/tasks/:id
+func (h *TaskHandler) UpdateTask(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ของงานไม่ถูกต้อง"})
+		return
+	}
+
+	var req updateTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้องหรือใส่ข้อมูลไม่ครบ"})
+		return
+	}
+
+	var assigneeUUIDs []uuid.UUID
+	for _, aID := range req.AssigneeIDs {
+		if u, err := uuid.Parse(aID); err == nil {
+			assigneeUUIDs = append(assigneeUUIDs, u)
+		}
+	}
+	if len(assigneeUUIDs) == 0 && req.AssignedTo != "" {
+		if u, err := uuid.Parse(req.AssignedTo); err == nil {
+			assigneeUUIDs = append(assigneeUUIDs, u)
+		}
+	}
+
+	if len(assigneeUUIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
+		return
+	}
+
+	dueDate, err := time.Parse("2006-01-02", req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)"})
+		return
+	}
+
+	var brandID *uuid.UUID
+	if req.BrandID != "" {
+		parsed, err := uuid.Parse(req.BrandID)
+		if err == nil {
+			brandID = &parsed
+		}
+	}
+	var categoryID *uuid.UUID
+	if req.CategoryID != "" {
+		parsed, err := uuid.Parse(req.CategoryID)
+		if err == nil {
+			categoryID = &parsed
+		}
+	}
+
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	isAdmin := roleRaw.(string) == "admin"
+
+	task, err := h.taskSvc.UpdateTask(c.Request.Context(), id, assigneeUUIDs, req.Title, req.Description, dueDate, userID, isAdmin, brandID, categoryID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
+}
+
 // ListAllTasks GET /admin/tasks (Admin only)
 func (h *TaskHandler) ListAllTasks(c *gin.Context) {
 	tasks, err := h.taskSvc.ListAllTasks(c.Request.Context())

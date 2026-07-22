@@ -138,6 +138,8 @@ export interface TaskSubItem {
   is_done: boolean;
   sort_order: number;
   created_at: string;
+  admin_comment?: string;
+  verification_notes?: string;
 }
 
 export interface AdminTask {

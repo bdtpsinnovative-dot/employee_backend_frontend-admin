@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CheckCircle2,
@@ -12,8 +12,9 @@ import {
   CheckSquare,
   Copy,
   Check,
+  Plus,
 } from 'lucide-react';
-import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../../types';
+import type { AdminTask, User, Brand, TaskCategory, TaskEvent, TaskSubItem } from '../../types';
 import { avatarUrl, formatRelativeDueDate, type TaskStatus } from './taskUtils';
 
 interface TaskDetailDrawerProps {
@@ -29,6 +30,8 @@ interface TaskDetailDrawerProps {
   onClose: () => void;
   onStatusChange: (task: AdminTask, status: TaskStatus) => void;
   onDeleteTask: (id: string) => void;
+  onEditTask?: (task: AdminTask) => void;
+  onRefresh?: () => void;
 }
 
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -44,26 +47,47 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onClose,
   onStatusChange,
   onDeleteTask,
+  onEditTask,
+  onRefresh,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
 
-  if (!task) return null;
-
-  const isCompleted = task.status === 'completed';
-  const brand = task.brand_id ? brandMap[task.brand_id] : null;
-  const category = task.category_id ? categoryMap[task.category_id] : null;
-  const dueInfo = formatRelativeDueDate(task.due_date, isCompleted);
+  const isCompleted = (task?.status ?? '') === 'completed';
+  const brand = task?.brand_id ? brandMap[task.brand_id] : null;
+  const category = task?.category_id ? categoryMap[task.category_id] : null;
+  const dueInfo = formatRelativeDueDate(task?.due_date ?? '', isCompleted);
 
   // Assignees
-  const assigneeIds = task.assignee_ids && task.assignee_ids.length > 0
+  const assigneeIds = task && task.assignee_ids && task.assignee_ids.length > 0
     ? task.assignee_ids
-    : task.assigned_to
+    : task?.assigned_to
     ? [task.assigned_to]
     : [];
   const assignees = assigneeIds.map((id) => userMap[id]).filter(Boolean);
 
   // Subtasks
-  const subItems = task.sub_items || [];
+  const [subItems, setSubItems] = useState<TaskSubItem[]>([]);
+
+  useEffect(() => {
+    if (!task?.id) return;
+    let isMounted = true;
+    const fetchItems = async () => {
+      try {
+        const { fetchTaskSubItems } = await import('../../services/adminApi');
+        const items = await fetchTaskSubItems(task.id);
+        if (isMounted) {
+          setSubItems(items);
+        }
+      } catch (err) {
+        console.error('Failed to load sub items', err);
+      }
+    };
+    fetchItems();
+    return () => { isMounted = false; };
+  }, [task?.id]);
+
+  if (!task) return null;
+
   const completedSubCount = subItems.filter((s) => s.is_done).length;
 
   const handleCopyLink = () => {
@@ -108,6 +132,16 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               >
                 {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
               </button>
+
+              {onEditTask && (
+                <button
+                  onClick={() => onEditTask(task)}
+                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="แก้ไขรายละเอียดงาน"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                </button>
+              )}
 
               <button
                 onClick={() => onDeleteTask(task.id)}
@@ -234,32 +268,108 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             </div>
 
             {/* Checklist Subtasks */}
-            {subItems.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <CheckSquare className="w-4 h-4 text-indigo-600" />
-                    <span>รายการย่อย (Checklist {completedSubCount}/{subItems.length})</span>
-                  </h3>
-                </div>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckSquare className="w-4 h-4 text-indigo-600" />
+                  <span>รายการย่อย (Checklist {completedSubCount}/{subItems.length})</span>
+                </h3>
+              </div>
 
-                <div className="space-y-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200">
-                  {subItems.map((sub) => (
-                    <div key={sub.id} className="flex items-center gap-2 text-xs text-slate-700">
+              <div className="space-y-2 bg-slate-50/50 p-3 rounded-xl border border-slate-200">
+                {subItems.map((sub) => (
+                  <div key={sub.id} className="space-y-1 text-xs text-slate-700 group">
+                    <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={sub.is_done}
-                        readOnly
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                        onChange={async () => {
+                          const nextDone = !sub.is_done;
+                          setSubItems(prev => prev.map(s => s.id === sub.id ? { ...s, is_done: nextDone } : s));
+                          try {
+                            const { toggleTaskSubItem } = await import('../../services/adminApi');
+                            await toggleTaskSubItem(sub.id, nextDone);
+                            if (onRefresh) onRefresh();
+                          } catch (e: any) {
+                            setSubItems(prev => prev.map(s => s.id === sub.id ? { ...s, is_done: !nextDone } : s));
+                          }
+                        }}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 cursor-pointer"
                       />
-                      <span className={sub.is_done ? 'line-through text-slate-400' : 'font-medium'}>
+                      <span className={`flex-1 ${sub.is_done ? 'line-through text-slate-400' : 'font-medium'}`}>
                         {sub.title}
                       </span>
+                      <button
+                        onClick={async () => {
+                          setSubItems(prev => prev.filter(s => s.id !== sub.id));
+                          try {
+                            const { deleteTaskSubItem } = await import('../../services/adminApi');
+                            await deleteTaskSubItem(sub.id);
+                            if (onRefresh) onRefresh();
+                          } catch (e: any) {
+                            const { fetchTaskSubItems } = await import('../../services/adminApi');
+                            const items = await fetchTaskSubItems(task.id);
+                            setSubItems(items);
+                          }
+                        }}
+                        className="text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  ))}
-                </div>
+                    <input
+                      type="text"
+                      defaultValue={sub.admin_comment || ''}
+                      placeholder="Note / Remark..."
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={async (e) => {
+                        const note = e.target.value.trim();
+                        if (note === (sub.admin_comment || '')) return;
+                        try {
+                          const { updateTaskSubItemNote } = await import('../../services/adminApi');
+                          await updateTaskSubItemNote(sub.id, note);
+                          setSubItems(prev => prev.map(s => s.id === sub.id ? { ...s, admin_comment: note } : s));
+                        } catch (err) {
+                          console.error('Failed to save note', err);
+                        }
+                      }}
+                      className="w-full ml-6 max-w-[calc(100%-1.5rem)] px-2 py-1 bg-white border border-slate-200 rounded-md text-[10px] text-slate-600 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-400"
+                    />
+                  </div>
+                ))}
+                
+                {/* Add Sub-item Form */}
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const form = e.target as HTMLFormElement;
+                    const input = form.elements.namedItem('title') as HTMLInputElement;
+                    if (!input.value.trim()) return;
+                    try {
+                      const { createTaskSubItem } = await import('../../services/adminApi');
+                      const newSubItem = await createTaskSubItem(task.id, input.value.trim());
+                      setSubItems(prev => [...prev, newSubItem]);
+                      input.value = '';
+                      if (onRefresh) onRefresh();
+                    } catch (err: any) {
+                      alert(err.message || 'Error creating sub-item');
+                    }
+                  }}
+                  className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200"
+                >
+                  <Plus className="w-4 h-4 text-slate-400" />
+                  <input
+                    name="title"
+                    type="text"
+                    placeholder="เพิ่มรายการย่อยใหม่..."
+                    className="flex-1 bg-transparent border-none focus:ring-0 text-xs px-1 placeholder-slate-400"
+                  />
+                  <button type="submit" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                    เพิ่ม
+                  </button>
+                </form>
               </div>
-            )}
+            </div>
 
             {/* Timeline & Discussion Feed */}
             <div className="space-y-4 pt-4 border-t border-slate-200">

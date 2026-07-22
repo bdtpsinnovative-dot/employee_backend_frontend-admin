@@ -128,6 +128,16 @@ func (r *TaskSubItemRepo) DeleteByTask(ctx context.Context, taskID uuid.UUID) er
 	return err
 }
 
+// GetByID ดึง sub-item ตาม ID
+func (r *TaskSubItemRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.TaskSubItem, error) {
+	var item domain.TaskSubItem
+	err := r.db.GetContext(ctx, &item, `SELECT * FROM task_sub_items WHERE id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 // UpdateSubItemStatus อัปเดตสถานะของ sub-item (pending, in_progress, completed)
 func (r *TaskSubItemRepo) UpdateSubItemStatus(ctx context.Context, id uuid.UUID, status string) error {
 	isDone := status == "completed"

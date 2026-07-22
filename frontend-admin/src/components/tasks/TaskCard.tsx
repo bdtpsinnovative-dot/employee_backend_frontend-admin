@@ -107,23 +107,43 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </h3>
       </div>
 
-      {/* Subtasks Progress Bar (Render if subtasks exist) */}
+      {/* Subtasks Progress */}
       {subItemsCount > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
+          {/* Progress bar + percentage */}
           <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
             <span className="inline-flex items-center gap-1">
               <CheckSquare className="w-3 h-3 text-indigo-500" />
-              <span>Checklist</span>
+              <span>รายการย่อย</span>
             </span>
-            <span>
-              {completedSubItems}/{subItemsCount}
+            <span className={`font-bold ${completedSubItems === subItemsCount ? 'text-emerald-600' : 'text-slate-600'}`}>
+              {Math.round((completedSubItems / subItemsCount) * 100)}%
+              <span className="font-normal text-slate-400 ml-1">({completedSubItems}/{subItemsCount})</span>
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+              className={`h-full rounded-full transition-all duration-300 ${completedSubItems === subItemsCount ? 'bg-emerald-500' : 'bg-indigo-500'}`}
               style={{ width: `${(completedSubItems / subItemsCount) * 100}%` }}
             />
+          </div>
+          {/* Sub-items preview list (max 3) */}
+          <div className="space-y-0.5 pt-0.5">
+            {subItems.slice(0, 3).map((sub) => (
+              <div key={sub.id} className="flex items-center gap-1.5 text-[11px]">
+                <div className={`w-3 h-3 rounded-sm border flex items-center justify-center shrink-0 ${sub.is_done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                  {sub.is_done && (
+                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  )}
+                </div>
+                <span className={`truncate ${sub.is_done ? 'line-through text-slate-400' : 'text-slate-600'}`}>
+                  {sub.title}
+                </span>
+              </div>
+            ))}
+            {subItemsCount > 3 && (
+              <p className="text-[10px] text-slate-400 pl-4.5">+{subItemsCount - 3} รายการอื่นๆ...</p>
+            )}
           </div>
         </div>
       )}

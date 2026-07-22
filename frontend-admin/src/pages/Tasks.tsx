@@ -1,18 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchAdminTasks,
-  createAdminTask,
-  deleteAdminTask,
-  updateAdminTaskStatus,
-  fetchUsers,
-  fetchBrands,
   fetchTaskCategories,
-  createBrand,
-  deleteBrand,
   createTaskCategory,
   deleteTaskCategory,
+  fetchBrands,
+  fetchUsers,
+  createAdminTask,
+  updateAdminTask,
+  updateAdminTaskStatus,
+  deleteAdminTask,
   fetchTaskEvents,
   addTaskComment,
+  createBrand,
+  deleteBrand,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
@@ -44,6 +45,7 @@ export default function Tasks() {
 
   // ─── Modals & Drawers ───
   const [showCreateModal, setShowCreateModal]       = useState(false);
+  const [editingTask, setEditingTask]               = useState<AdminTask | null>(null);
   const [defaultCreateStatus, setDefaultCreateStatus] = useState<TaskStatus | undefined>();
   const [showSettingsModal, setShowSettingsModal]   = useState(false);
 
@@ -91,7 +93,17 @@ export default function Tasks() {
       setTaskEvents([]);
       setCommentText('');
     }
-  }, [selectedTask]);
+  }, [selectedTask?.id]); // Only refetch events if task ID changes
+
+  // ─── Sync selectedTask with tasks list ───
+  useEffect(() => {
+    if (selectedTask) {
+      const updated = tasks.find((t) => t.id === selectedTask.id);
+      if (updated) {
+        setSelectedTask(updated);
+      }
+    }
+  }, [tasks]);
 
   // ─── Lookup Maps ───
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
@@ -142,6 +154,27 @@ export default function Tasks() {
       category_id: data.category_id,
       sub_items: data.sub_items,
     });
+    await loadAll();
+  };
+
+  const handleUpdateTask = async (data: {
+    title: string;
+    description: string;
+    due_date: string;
+    assignee_ids: string[];
+    brand_id?: string;
+    category_id?: string;
+  }) => {
+    if (!editingTask) return;
+    await updateAdminTask(editingTask.id, {
+      title: data.title,
+      description: data.description,
+      due_date: data.due_date,
+      assignee_ids: data.assignee_ids,
+      brand_id: data.brand_id,
+      category_id: data.category_id,
+    });
+    setEditingTask(null);
     await loadAll();
   };
 
@@ -305,17 +338,29 @@ export default function Tasks() {
         onClose={() => setSelectedTask(null)}
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
+        onEditTask={(t) => setEditingTask(t)}
+        onRefresh={() => {
+          loadAll();
+          // Also optionally reload the selected task if we have an endpoint for it.
+          // Since loadAll fetches all tasks, it will refresh the data, but we might want to manually sync the selectedTask.
+          // For now, loadAll() is okay if the user reopens the drawer or the drawer re-renders based on updated tasks array.
+          // Let's also update selectedTask manually from the fetched list later if needed.
+        }}
       />
 
       {/* Task Create Modal */}
       <TaskCreateModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        isOpen={showCreateModal || editingTask !== null}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingTask(null);
+        }}
         defaultStatus={defaultCreateStatus}
         users={users}
         brands={brands}
         categories={categories}
-        onSubmit={handleCreateTask}
+        initialData={editingTask || undefined}
+        onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
       />
 
       {/* Task Brand Settings Modal */}
