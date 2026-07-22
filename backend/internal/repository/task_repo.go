@@ -52,9 +52,11 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
 		       t.brand_id, t.category_id, t.created_at,
+		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
 		FROM tasks t
+		LEFT JOIN users u ON t.assigned_to = u.id
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
@@ -68,10 +70,12 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT DISTINCT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
 		       t.brand_id, t.category_id, t.created_at,
+		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
 		FROM tasks t
 		LEFT JOIN task_assignees ta ON t.id = ta.task_id
+		LEFT JOIN users u ON t.assigned_to = u.id
 		WHERE t.assigned_to = $1 OR ta.user_id = $1
 		ORDER BY t.created_at DESC
 	`, userID)
@@ -84,9 +88,11 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, error) {
 	var task domain.Task
 	err := r.db.GetContext(ctx, &task, `
-		SELECT id, assigned_to, title, description, due_date, status, assigned_by,
-		       brand_id, category_id, created_at 
-		FROM tasks 
+		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
+		       t.brand_id, t.category_id, t.created_at,
+		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
+		FROM tasks t
+		LEFT JOIN users u ON t.assigned_to = u.id
 		WHERE id = $1
 	`, id)
 	if err != nil {

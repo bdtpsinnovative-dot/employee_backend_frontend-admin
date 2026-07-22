@@ -150,9 +150,10 @@ type Task struct {
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 	// Joined fields (not stored in tasks table)
 	SubItems    []TaskSubItem `db:"-" json:"sub_items,omitempty"`
-	AssigneeIDs []uuid.UUID   `db:"-" json:"assignee_ids,omitempty"`
-	CardTotal   int           `db:"card_total" json:"card_total"`
-	CardDone    int           `db:"card_done" json:"card_done"`
+	AssigneeIDs    []uuid.UUID   `db:"-" json:"assignee_ids,omitempty"`
+	AssignedToName string        `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
+	CardTotal      int           `db:"card_total" json:"card_total"`
+	CardDone       int           `db:"card_done" json:"card_done"`
 }
 
 // Notification represents an in-app notification record for an employee.
