@@ -83,6 +83,62 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	return t, nil
 }
 
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
+	task, err := s.taskRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	// Verify ownership unless the request is made by an Admin
+	if !isAdmin {
+		isAssigned := false
+		if task.AssignedTo != nil && *task.AssignedTo == userID {
+			isAssigned = true
+		}
+		if task.AssignedBy != nil && *task.AssignedBy == userID {
+			isAssigned = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			if aid == userID {
+				isAssigned = true
+				break
+			}
+		}
+		if !isAssigned {
+			return nil, fmt.Errorf("permission denied: you cannot edit this task")
+		}
+	}
+
+	var primaryAssignee *uuid.UUID
+	if len(assigneeIDs) > 0 {
+		primaryAssignee = &assigneeIDs[0]
+	}
+
+	task.Title = title
+	task.Description = description
+	task.DueDate = dueDate
+	task.BrandID = brandID
+	task.CategoryID = categoryID
+	task.AssigneeIDs = assigneeIDs
+	task.AssignedTo = primaryAssignee
+
+	err = s.taskRepo.Update(ctx, task)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update task: %w", err)
+	}
+
+	content := "แก้ไขรายละเอียดงาน"
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    task.ID,
+		UserID:    userID,
+		EventType: "system",
+		Action:    "task_updated",
+		Content:   &content,
+	})
+
+	return task, nil
+}
+
 func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID, isAdmin bool) error {
 	log.Printf("[UpdateTaskStatus Debug] Start id=%s, status=%s, userID=%s, isAdmin=%v", id, status, userID, isAdmin)
 	task, err := s.taskRepo.FindByID(ctx, id)

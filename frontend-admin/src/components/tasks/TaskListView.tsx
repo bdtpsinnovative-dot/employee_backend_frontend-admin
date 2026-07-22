@@ -31,16 +31,16 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   onStatusChange,
   onOpenCreateModal,
 }) => {
-  // Group tasks by Brand (Phases)
-  const brandIds = Array.from(new Set(tasks.map((t) => t.brand_id || 'unassigned')));
+  // Group tasks by Category (Phases)
+  const categoryIds = Array.from(new Set(tasks.map((t) => t.category_id || 'unassigned')));
 
-  const phaseGroups = brandIds.map((bId, idx) => {
-    const brand = bId !== 'unassigned' ? brandMap[bId] : null;
-    const groupTasks = tasks.filter((t) => (t.brand_id || 'unassigned') === bId);
+  const phaseGroups = categoryIds.map((cId, idx) => {
+    const category = cId !== 'unassigned' ? categoryMap[cId] : null;
+    const groupTasks = tasks.filter((t) => (t.category_id || 'unassigned') === cId);
     return {
       phaseNumber: idx + 1,
-      brandId: bId,
-      brandName: brand ? brand.name : 'งานทั่วไป (General Phase)',
+      categoryId: cId,
+      categoryName: category ? category.name : 'ไม่มีหมวดหมู่ (Uncategorized)',
       tasks: groupTasks,
     };
   });
@@ -53,10 +53,10 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
           {/* Clean Light Slate Header Bar */}
           <thead>
             <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
-              <th className="px-2 py-2 w-16 border-r border-slate-200 text-center">
+              <th className="px-2 py-2 w-32 border-r border-slate-200 text-center">
                 <div className="flex flex-col items-center justify-center text-slate-700">
                   <Layers className="w-3.5 h-3.5 text-blue-600 mb-0.5" />
-                  <span>PHASE</span>
+                  <span>GROUP</span>
                 </div>
               </th>
               <th className="px-2 py-2 w-24 border-r border-slate-200 text-center">Priority</th>
@@ -75,10 +75,10 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               if (group.tasks.length === 0) return null;
 
               return (
-                <React.Fragment key={group.brandId}>
+                <React.Fragment key={group.categoryId}>
                   {group.tasks.map((task, taskIdx) => {
                     const isFirstRowInPhase = taskIdx === 0;
-                    const category = task.category_id ? categoryMap[task.category_id] : null;
+                    const brand = task.brand_id ? brandMap[task.brand_id] : null;
                     const isDone = task.status === 'completed';
                     const dueInfo = formatRelativeDueDate(task.due_date, isDone);
                     const priority = getTaskPriority(task);
@@ -99,21 +99,21 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                       <tr
                         key={task.id}
                         onClick={() => onSelectTask(task)}
-                        className="hover:bg-slate-50 transition-colors border-b border-slate-200/80 cursor-pointer group"
+                        className={`group cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-200/80 ${isDone ? 'opacity-80 bg-slate-50/50' : ''}`}
                       >
-                        {/* 1. Minimalist Vertically Merged Phase Column */}
-                        {isFirstRowInPhase && (
+                        {/* 1. Category Column (Group) */}
+                        {isFirstRowInPhase ? (
                           <td
                             rowSpan={group.tasks.length}
-                            className="bg-slate-50/80 p-2 text-center align-middle border-r border-slate-200 w-16"
+                            className="w-32 border-r border-slate-200 align-top p-0 bg-slate-50/30"
                           >
-                            <div className="flex flex-col items-center justify-center gap-1.5 h-full">
-                              <span className="w-7 h-7 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-2xs">
-                                {group.phaseNumber}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-800 uppercase tracking-tight text-center leading-tight truncate w-full px-1" title={group.brandName}>
-                                {group.brandName}
-                              </span>
+                            <div className="flex h-full min-h-[4rem] items-center justify-center p-2 relative">
+                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 rounded-r" />
+                              <div className="flex flex-col justify-center px-2">
+                                <span className="font-bold text-slate-800 text-[11px] break-words">
+                                  {group.categoryName}
+                                </span>
+                              </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -126,7 +126,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                               </button>
                             </div>
                           </td>
-                        )}
+                        ) : null}
 
                         {/* 2. Priority Column */}
                         <td
@@ -260,10 +260,10 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
 
                         {/* 9. Tags Column */}
                         <td className="px-2 py-2 align-middle text-center">
-                          {category ? (
+                          {brand ? (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md whitespace-nowrap">
                               <Tag className="w-2 h-2 text-blue-600" />
-                              <span className="truncate max-w-[50px]">{category.name}</span>
+                              <span className="truncate max-w-[50px]">{brand.name}</span>
                             </span>
                           ) : (
                             <span className="text-slate-400 italic text-[10px]">-</span>

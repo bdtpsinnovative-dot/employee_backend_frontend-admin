@@ -203,6 +203,7 @@ func registerRoutes(
 		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
 		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
 		api.POST("/tasks", taskH.CreateTask)                               // มอบหมายงานใหม่ (พนักงาน + แอดมิน)
+		api.DELETE("/tasks/:id", taskH.DeleteTask)                         // ลบงาน
 		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)        // เพิ่ม List/รายการ
 		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)      // ลบ List/รายการ
 		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)        // อัปเดต List/รายการ (ลำดับ)
