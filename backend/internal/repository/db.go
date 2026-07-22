@@ -40,6 +40,7 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS admin_comment TEXT;
+		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium';
 		ALTER TABLE task_sub_items ADD COLUMN IF NOT EXISTS admin_comment TEXT;
 		ALTER TABLE card_attachments ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
 	`)

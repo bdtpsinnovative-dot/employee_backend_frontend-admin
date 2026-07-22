@@ -298,8 +298,8 @@ func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]doma
 
 func (r *TaskCardRepo) Create(ctx context.Context, card *domain.TaskCard) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO task_cards (id, list_id, title, description, status, sort_order, created_at, start_date, due_date)
-		VALUES (:id, :list_id, :title, :description, :status, :sort_order, :created_at, :start_date, :due_date)
+		INSERT INTO task_cards (id, list_id, title, description, status, sort_order, created_at, start_date, due_date, priority)
+		VALUES (:id, :list_id, :title, :description, :status, :sort_order, :created_at, :start_date, :due_date, :priority)
 	`, card)
 	return err
 }
@@ -314,12 +314,12 @@ func (r *TaskCardRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, description string, startDate, dueDate *time.Time, adminComment *string) error {
+func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, description string, startDate, dueDate *time.Time, adminComment *string, priority string) error {
 	if adminComment != nil {
-		_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, admin_comment = $5 WHERE id = $6`, title, description, startDate, dueDate, *adminComment, id)
+		_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, admin_comment = $5, priority = $6 WHERE id = $7`, title, description, startDate, dueDate, *adminComment, priority, id)
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4 WHERE id = $5`, title, description, startDate, dueDate, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, priority = $5 WHERE id = $6`, title, description, startDate, dueDate, priority, id)
 	return err
 }
 

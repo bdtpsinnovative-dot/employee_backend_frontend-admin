@@ -257,6 +257,7 @@ type TaskCard struct {
 	CreatedAt   time.Time        `db:"created_at" json:"created_at"`
 	StartDate   *time.Time       `db:"start_date" json:"start_date,omitempty"`
 	DueDate     *time.Time       `db:"due_date" json:"due_date,omitempty"`
+	Priority    string           `db:"priority" json:"priority"`
 	SubItems    []TaskSubItem    `db:"-" json:"sub_items"`
 	Attachments []CardAttachment `db:"-" json:"attachments"`
 	AdminComment *string         `db:"admin_comment" json:"admin_comment,omitempty"`
