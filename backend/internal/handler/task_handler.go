@@ -1,15 +1,16 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type TaskHandler struct {
@@ -187,6 +188,7 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 
 	err = h.taskSvc.UpdateTaskStatus(c.Request.Context(), id, req.Status, userID, isAdmin)
 	if err != nil {
+		log.Printf("[UpdateTaskStatus Error] ID: %s, Error: %v", id, err)
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}

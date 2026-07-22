@@ -40,8 +40,8 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 			ids = []uuid.UUID{}
 		}
 		// Fallback to assigned_to if assignee_ids is empty for backwards compatibility
-		if len(ids) == 0 && t.AssignedTo != uuid.Nil {
-			ids = append(ids, t.AssignedTo)
+		if len(ids) == 0 && t.AssignedTo != nil && *t.AssignedTo != uuid.Nil {
+			ids = append(ids, *t.AssignedTo)
 		}
 		tasks[i].AssigneeIDs = ids
 	}
@@ -54,10 +54,12 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
 		       t.brand_id, t.category_id, t.created_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
+		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
+		LEFT JOIN users u2 ON t.assigned_by = u2.id
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
@@ -72,11 +74,13 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		SELECT DISTINCT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
 		       t.brand_id, t.category_id, t.created_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
+		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
 		FROM tasks t
 		LEFT JOIN task_assignees ta ON t.id = ta.task_id
 		LEFT JOIN users u ON t.assigned_to = u.id
+		LEFT JOIN users u2 ON t.assigned_by = u2.id
 		WHERE t.assigned_to = $1 OR ta.user_id = $1
 		ORDER BY t.created_at DESC
 	`, userID)
@@ -91,9 +95,11 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 	err := r.db.GetContext(ctx, &task, `
 		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
 		       t.brand_id, t.category_id, t.created_at,
-		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
+		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
+		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
+		LEFT JOIN users u2 ON t.assigned_by = u2.id
 		WHERE id = $1
 	`, id)
 	if err != nil {
@@ -164,9 +170,11 @@ func (r *TaskRepo) CreateTaskEvent(ctx context.Context, e *domain.TaskEvent) err
 func (r *TaskRepo) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]domain.TaskEvent, error) {
 	query := `
 		SELECT te.id, te.task_id, te.user_id, te.event_type, te.action, te.content, te.created_at,
-		       u.first_name, u.last_name, u.avatar_url
+		       u.first_name, u.last_name, u.avatar_url,
+		       COALESCE(t.title, '') AS task_title
 		FROM task_events te
 		LEFT JOIN users u ON te.user_id = u.id
+		LEFT JOIN tasks t ON te.task_id = t.id
 		WHERE te.task_id = $1
 		ORDER BY te.created_at ASC
 	`
@@ -181,7 +189,7 @@ func (r *TaskRepo) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]doma
 		var ev domain.TaskEvent
 		if err := rows.Scan(
 			&ev.ID, &ev.TaskID, &ev.UserID, &ev.EventType, &ev.Action, &ev.Content, &ev.CreatedAt,
-			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL,
+			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL, &ev.TaskTitle,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan task event: %w", err)
 		}
@@ -194,9 +202,11 @@ func (r *TaskRepo) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]doma
 func (r *TaskRepo) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, error) {
 	query := `
 		SELECT te.id, te.task_id, te.user_id, te.event_type, te.action, te.content, te.created_at,
-		       u.first_name, u.last_name, u.avatar_url
+		       u.first_name, u.last_name, u.avatar_url,
+		       COALESCE(t.title, '') AS task_title
 		FROM task_events te
 		LEFT JOIN users u ON te.user_id = u.id
+		LEFT JOIN tasks t ON te.task_id = t.id
 		ORDER BY te.created_at DESC
 	`
 	rows, err := r.db.QueryContext(ctx, query)
@@ -210,7 +220,7 @@ func (r *TaskRepo) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, e
 		var ev domain.TaskEvent
 		if err := rows.Scan(
 			&ev.ID, &ev.TaskID, &ev.UserID, &ev.EventType, &ev.Action, &ev.Content, &ev.CreatedAt,
-			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL,
+			&ev.UserFirstName, &ev.UserLastName, &ev.UserAvatarURL, &ev.TaskTitle,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan task event: %w", err)
 		}

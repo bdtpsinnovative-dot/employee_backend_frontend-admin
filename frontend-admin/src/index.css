@@ -377,3 +377,441 @@
     display: none;
   }
 }
+
+/* ==========================================================================
+   Task Logs & Audit Ledger Styles (Glassmorphism Design)
+   ========================================================================== */
+.task-logs-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 40px;
+}
+
+.task-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.task-logs-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-logs-header p {
+  font-size: 13px;
+  color: var(--text-gray);
+  margin-top: 4px;
+}
+
+.task-logs-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.task-metric-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border-base);
+  border-top-color: var(--glass-border-highlight);
+  border-left-color: var(--glass-border-highlight);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.task-metric-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.task-metric-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.task-metric-icon.blue { background: rgba(37, 99, 235, 0.12); color: var(--blue); }
+.task-metric-icon.green { background: rgba(34, 197, 94, 0.12); color: var(--green); }
+.task-metric-icon.purple { background: rgba(109, 40, 217, 0.12); color: var(--purple); }
+.task-metric-icon.amber { background: rgba(245, 158, 11, 0.12); color: var(--yellow); }
+
+.task-metric-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.task-metric-label {
+  font-size: 12px;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.task-logs-control-bar {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border-base);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-logs-control-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-search-box {
+  flex: 1;
+  min-width: 260px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.task-search-box input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  font-size: 13px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  outline: none;
+  transition: all 0.2s;
+}
+
+.task-search-box input:focus {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.task-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-gray);
+  pointer-events: none;
+}
+
+.task-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.task-tab-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-gray);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.task-tab-btn.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.task-logs-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border-base);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.task-timeline-feed {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.task-date-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-date-pill {
+  padding: 4px 12px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue-dark);
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+}
+
+.task-date-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.task-timeline-list {
+  position: relative;
+  padding-left: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.task-timeline-list::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.task-timeline-item {
+  position: relative;
+}
+
+.task-timeline-node {
+  position: absolute;
+  left: -28px;
+  top: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.task-timeline-node.system {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.task-timeline-node.comment {
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.task-event-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: background 0.2s ease;
+}
+
+.task-event-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.task-event-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.task-operator-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-operator-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.task-operator-avatar-fallback {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 700;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-tag-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue-dark);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.task-tag-link:hover {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+.task-comment-quote {
+  background: rgba(255, 255, 255, 0.9);
+  border-left: 4px solid var(--purple);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.status-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.status-badge-pill.done { background: #dcfce7; color: #15803d; border-color: #86efac; }
+.status-badge-pill.in_progress { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.status-badge-pill.todo { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.status-badge-pill.review { background: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
+.status-badge-pill.cancel { background: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+
+/* ─── Asana Task Management Custom Animations & Utilities ─── */
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes checkmarkPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-drawer-slide-in {
+  animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-backdrop-fade-in {
+  animation: backdropFadeIn 0.25s ease-out forwards;
+}
+
+.animate-checkmark-pulse {
+  animation: checkmarkPulse 0.35s ease-in-out;
+}
+
+/* Asana Board & List Base Styles */
+.task-card-asana {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+.task-card-asana:hover {
+  border-color: #a5b4fc;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+  transform: translateY(-1px);
+}
+
+.task-board-column {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  min-height: 500px;
+}
+
+/* Custom Thin Scrollbar for Asana Boards */
+.asana-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.asana-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.asana-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+.asana-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}

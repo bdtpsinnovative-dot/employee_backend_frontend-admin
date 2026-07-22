@@ -166,4 +166,5 @@ export interface TaskEvent {
   user_first_name?: string;
   user_last_name?: string;
   user_avatar_url?: string;
+  task_title?: string;
 }

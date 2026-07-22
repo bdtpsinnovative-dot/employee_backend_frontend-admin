@@ -139,7 +139,7 @@ type LeaveBalance struct {
 // Task represents a work task assigned to an employee.
 type Task struct {
 	ID          uuid.UUID  `db:"id" json:"id"`
-	AssignedTo  uuid.UUID  `db:"assigned_to" json:"assigned_to"`
+	AssignedTo  *uuid.UUID `db:"assigned_to" json:"assigned_to"`
 	Title       string     `db:"title" json:"title"`
 	Description string     `db:"description" json:"description"`
 	DueDate     time.Time  `db:"due_date" json:"due_date"`
@@ -149,9 +149,10 @@ type Task struct {
 	CategoryID  *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 	// Joined fields (not stored in tasks table)
-	SubItems    []TaskSubItem `db:"-" json:"sub_items,omitempty"`
+	SubItems       []TaskSubItem `db:"-" json:"sub_items,omitempty"`
 	AssigneeIDs    []uuid.UUID   `db:"-" json:"assignee_ids,omitempty"`
 	AssignedToName string        `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
+	AssignedByName string        `db:"assigned_by_name" json:"assigned_by_name,omitempty"`
 	CardTotal      int           `db:"card_total" json:"card_total"`
 	CardDone       int           `db:"card_done" json:"card_done"`
 }
@@ -280,4 +281,5 @@ type TaskEvent struct {
 	UserFirstName string  `db:"user_first_name" json:"user_first_name,omitempty"`
 	UserLastName  string  `db:"user_last_name" json:"user_last_name,omitempty"`
 	UserAvatarURL *string `db:"user_avatar_url" json:"user_avatar_url,omitempty"`
+	TaskTitle     string  `db:"task_title" json:"task_title,omitempty"`
 }

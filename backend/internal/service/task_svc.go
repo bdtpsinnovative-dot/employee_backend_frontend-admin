@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,9 +36,9 @@ func (s *TaskService) ListTasksByUser(ctx context.Context, userID uuid.UUID) ([]
 }
 
 func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
-	var primaryAssignee uuid.UUID
+	var primaryAssignee *uuid.UUID
 	if len(assigneeIDs) > 0 {
-		primaryAssignee = assigneeIDs[0]
+		primaryAssignee = &assigneeIDs[0]
 	}
 	t := &domain.Task{
 		ID:          uuid.New(),
@@ -83,23 +84,41 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 }
 
 func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID, isAdmin bool) error {
+	log.Printf("[UpdateTaskStatus Debug] Start id=%s, status=%s, userID=%s, isAdmin=%v", id, status, userID, isAdmin)
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
+		log.Printf("[UpdateTaskStatus Debug] FindByID failed: %v", err)
 		return fmt.Errorf("task not found: %w", err)
 	}
 
 	// Verify ownership unless the request is made by an Admin
-	if !isAdmin && task.AssignedTo != userID {
-		return fmt.Errorf("permission denied: task is not assigned to you")
+	if !isAdmin {
+		log.Printf("[UpdateTaskStatus Debug] Checking ownership for employee %s", userID)
+		isAssigned := false
+		if task.AssignedTo != nil && *task.AssignedTo == userID {
+			isAssigned = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			if aid == userID {
+				isAssigned = true
+				break
+			}
+		}
+		if !isAssigned {
+			log.Printf("[UpdateTaskStatus Debug] Ownership check failed")
+			return fmt.Errorf("permission denied: task is not assigned to you")
+		}
 	}
 
 	// Valid status values
 	if status != "pending" && status != "in_progress" && status != "completed" {
+		log.Printf("[UpdateTaskStatus Debug] Invalid status: %s", status)
 		return fmt.Errorf("invalid status value")
 	}
 
 	err = s.taskRepo.UpdateStatus(ctx, id, status)
 	if err != nil {
+		log.Printf("[UpdateTaskStatus Debug] UpdateStatus failed: %v", err)
 		return err
 	}
 
