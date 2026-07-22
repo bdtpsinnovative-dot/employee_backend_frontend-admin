@@ -73,6 +73,8 @@ export interface HistoryRecord {
   reason: string;
   check_in_at?: string;
   check_out_at?: string;
+  check_in_photo?: string;
+  check_out_photo?: string;
   created_at: string;
 }
 
@@ -115,4 +117,40 @@ export interface LeaveQuota {
   annual_leave: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Brand {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface TaskCategory {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface TaskSubItem {
+  id: string;
+  task_id: string;
+  title: string;
+  is_done: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface AdminTask {
+  id: string;
+  assigned_to: string;
+  title: string;
+  description: string;
+  due_date: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  assigned_by?: string;
+  brand_id?: string;
+  category_id?: string;
+  created_at: string;
+  sub_items?: TaskSubItem[];
+  assignee_ids?: string[];
 }

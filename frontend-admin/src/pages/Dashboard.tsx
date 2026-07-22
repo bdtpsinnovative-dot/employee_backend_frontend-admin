@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory } from '../services/adminApi';
+import { useOutletContext, Link } from 'react-router-dom';
+import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory, fetchCheckInMode, updateCheckInMode } from '../services/adminApi';
 import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
 
 export default function Dashboard() {
@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [offsite, setOffsite] = useState<OffsiteRequest[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkInMode, setCheckInMode] = useState<string>('face');
+  const [updatingMode, setUpdatingMode] = useState<boolean>(false);
 
   // ประวัติของพนักงานรายบุคคลที่ถูกเลือก
   const [selectedUserHistory, setSelectedUserHistory] = useState<{
@@ -37,15 +39,17 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const currentYear = new Date().getFullYear();
-      const [usersData, allRequestsData, holidaysData] = await Promise.all([
+      const [usersData, allRequestsData, holidaysData, modeData] = await Promise.all([
         fetchUsers(),
         fetchAllRequests(),
         fetchHolidays(currentYear),
+        fetchCheckInMode(),
       ]);
       setUsers(usersData ?? []);
       setLeaves(allRequestsData.leaves ?? []);
       setOffsite(allRequestsData.offsite ?? []);
       setHolidays(holidaysData ?? []);
+      setCheckInMode(modeData ?? 'face');
     } catch (err) {
       console.error('โหลดข้อมูล Dashboard ล้มเหลว:', err);
     }
@@ -53,6 +57,18 @@ export default function Dashboard() {
       await loadAttendance();
     }
     setLoading(false);
+  }
+
+  async function handleToggleCheckInMode(mode: 'face' | 'selfie') {
+    setUpdatingMode(true);
+    try {
+      await updateCheckInMode(mode);
+      setCheckInMode(mode);
+    } catch (err) {
+      alert('อัปเดตโหมดลงเวลาล้มเหลว: ' + err);
+    } finally {
+      setUpdatingMode(false);
+    }
   }
 
   async function loadAttendance() {
@@ -459,6 +475,150 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {!selectedUser && (
+        <div className="shortcuts-grid" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '15px',
+          marginBottom: '25px'
+        }}>
+          <Link to="/requests" className="shortcut-card glass-panel" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '16px',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            border: '1px solid var(--border-color)',
+            transition: 'all 0.2s'
+          }}>
+            <div style={{ background: 'rgba(37, 99, 235, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="fa-solid fa-envelope-open-text" style={{ color: 'var(--primary)', fontSize: '20px' }}></i>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>งานรอดำเนินการ (Inbox)</h4>
+              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>อนุมัติใบลา/ขอออกหน้างาน</span>
+            </div>
+          </Link>
+
+          <Link to="/employees" className="shortcut-card glass-panel" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '16px',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            border: '1px solid var(--border-color)',
+            transition: 'all 0.2s'
+          }}>
+            <div style={{ background: 'rgba(22, 163, 74, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="fa-solid fa-list-check" style={{ color: '#16a34a', fontSize: '20px' }}></i>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>มอบหมายงาน / หน้าที่</h4>
+              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>จัดการสิทธิ์และพนักงาน</span>
+            </div>
+          </Link>
+
+          <Link to="/daily-record" className="shortcut-card glass-panel" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '16px',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            textDecoration: 'none',
+            color: 'inherit',
+            border: '1px solid var(--border-color)',
+            transition: 'all 0.2s'
+          }}>
+            <div style={{ background: 'rgba(217, 119, 6, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="fa-solid fa-map-location-dot" style={{ color: '#d97706', fontSize: '20px' }}></i>
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>บันทึกเวลารายวัน</h4>
+              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>ตรวจพิกัดเช็คอินแผนที่</span>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {!selectedUser && (
+        <div className="glass-panel" style={{
+          padding: '20px',
+          borderRadius: '16px',
+          background: 'white',
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+          marginBottom: '25px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '15px'
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fa-solid fa-gears" style={{ color: 'var(--primary)' }}></i>
+              ตั้งค่าวิธีการลงเวลาเข้างานของระบบ
+            </h3>
+            <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: 'var(--text-gray)' }}>
+              เลือกโหมดการลงเวลาที่พนักงานต้องใช้งาน (พนักงานจะสแกนเข้างานตามโหมดที่เลือกไว้)
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => handleToggleCheckInMode('face')}
+              disabled={updatingMode}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                border: checkInMode === 'face' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                background: checkInMode === 'face' ? 'rgba(37, 99, 235, 0.08)' : 'white',
+                color: checkInMode === 'face' ? 'var(--primary)' : 'var(--text-main)',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                opacity: updatingMode ? 0.7 : 1
+              }}
+            >
+              <i className="fa-solid fa-user-shield" style={{ fontSize: '16px' }}></i>
+              สแกนใบหน้า (Face Recognition)
+            </button>
+            <button
+              onClick={() => handleToggleCheckInMode('selfie')}
+              disabled={updatingMode}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                border: checkInMode === 'selfie' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                background: checkInMode === 'selfie' ? 'rgba(37, 99, 235, 0.08)' : 'white',
+                color: checkInMode === 'selfie' ? 'var(--primary)' : 'var(--text-main)',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                opacity: updatingMode ? 0.7 : 1
+              }}
+            >
+              <i className="fa-solid fa-camera-retro" style={{ fontSize: '16px' }}></i>
+              เซลฟี่กล้องหน้า (Selfie Photo)
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="dashboard-grid">
         {/* การ์ด 1: พนักงานทั้งหมด / ลาสะสม */}

@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import AdminLayout from './components/AdminLayout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Requests from './pages/Requests';
-import Employees from './pages/Employees';
-import Holidays from './pages/Holidays';
-import DailyRecord from './pages/DailyRecord';
-import History from './pages/History';
+
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Requests = lazy(() => import('./pages/Requests'));
+const Employees = lazy(() => import('./pages/Employees'));
+const Holidays = lazy(() => import('./pages/Holidays'));
+const DailyRecord = lazy(() => import('./pages/DailyRecord'));
+const History = lazy(() => import('./pages/History'));
+const Tasks = lazy(() => import('./pages/Tasks'));
 
 import { fetchMe } from './services/adminApi';
 
@@ -71,26 +73,35 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <AdminLayout />
-            </RequireAuth>
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="requests" element={<Requests />} />
-          <Route path="employees" element={<Employees />} />
-          <Route path="holidays" element={<Holidays />} />
-          <Route path="daily-record" element={<DailyRecord />} />
-          <Route path="history" element={<History />} />
-        </Route>
-      </Routes>
+      <Suspense
+        fallback={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-gray)' }}>
+            กำลังโหลดข้อมูล...
+          </div>
+        }
+      >
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <AdminLayout />
+              </RequireAuth>
+            }
+          >
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="requests" element={<Requests />} />
+            <Route path="employees" element={<Employees />} />
+            <Route path="holidays" element={<Holidays />} />
+            <Route path="daily-record" element={<DailyRecord />} />
+            <Route path="history" element={<History />} />
+            <Route path="tasks" element={<Tasks />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

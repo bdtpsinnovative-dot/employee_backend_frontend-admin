@@ -47,6 +47,7 @@ export default function History() {
   );
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<'log' | 'summary'>('log');
+  const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
 
   const [selectedYear, selectedMonth] = useMemo(() => {
     const [y, m] = filterMonth.split('-');
@@ -428,10 +429,42 @@ export default function History() {
                           <span className={`status-badge ${getStatusClass(translateStatus(row.status, row.date))}`}>{translateStatus(row.status, row.date)}</span>
                         </td>
                         <td data-label="เข้า" style={{ textAlign: 'center', color: row.type === 'attendance' && row.status === 'late' ? 'var(--danger-color)' : 'inherit', fontWeight: row.type === 'attendance' && row.status === 'late' ? 'bold' : 'normal' }}>
-                          {row.type === 'attendance' ? formatTime(row.check_in_at) : '-'}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center', width: '100%' }}>
+                            {row.type === 'attendance' ? formatTime(row.check_in_at) : '-'}
+                            {row.check_in_photo && (
+                              <i
+                                className="fa-solid fa-image"
+                                style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
+                                onClick={() => {
+                                  const rawUrl = row.check_in_photo!;
+                                  const httpUrl = rawUrl.startsWith('r2://')
+                                    ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                                    : rawUrl;
+                                  setActivePhotoUrl(httpUrl);
+                                }}
+                                title="ดูรูปถ่ายเช็คอิน"
+                              ></i>
+                            )}
+                          </div>
                         </td>
                         <td data-label="ออก" style={{ textAlign: 'center', color: row.check_out_at ? 'inherit' : 'orange' }}>
-                          {row.type === 'attendance' ? (row.check_out_at ? formatTime(row.check_out_at) : 'ยังไม่ออก') : '-'}
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center', width: '100%' }}>
+                            {row.type === 'attendance' ? (row.check_out_at ? formatTime(row.check_out_at) : 'ยังไม่ออก') : '-'}
+                            {row.check_out_photo && (
+                              <i
+                                className="fa-solid fa-image"
+                                style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
+                                onClick={() => {
+                                  const rawUrl = row.check_out_photo!;
+                                  const httpUrl = rawUrl.startsWith('r2://')
+                                    ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                                    : rawUrl;
+                                  setActivePhotoUrl(httpUrl);
+                                }}
+                                title="ดูรูปถ่ายเช็คเอาท์"
+                              ></i>
+                            )}
+                          </div>
                         </td>
                         <td data-label="นาทีสาย" style={{ textAlign: 'center', color: late > 0 ? 'var(--danger-color)' : 'inherit', fontWeight: late > 0 ? 600 : 400 }}>
                           {row.type === 'attendance' && late > 0 ? late : '-'}
@@ -527,6 +560,61 @@ export default function History() {
           </button>
         </div>
       </div>
+
+      {activePhotoUrl && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease'
+        }} onClick={() => setActivePhotoUrl(null)}>
+          <div style={{
+            background: 'white',
+            padding: '12px',
+            borderRadius: '16px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
+            maxWidth: '450px',
+            width: '90%',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }} onClick={(e) => e.stopPropagation()}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 600 }}>รูปภาพการลงเวลาย้อนหลัง</h4>
+            <img
+              src={activePhotoUrl}
+              alt="History record"
+              style={{
+                width: '100%',
+                maxHeight: '350px',
+                borderRadius: '8px',
+                objectFit: 'cover'
+              }}
+            />
+            <button
+              onClick={() => setActivePhotoUrl(null)}
+              style={{
+                marginTop: '15px',
+                padding: '8px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--primary)',
+                color: 'white',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

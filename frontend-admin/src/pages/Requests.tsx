@@ -159,7 +159,14 @@ export default function Requests() {
                     )}
                     {row.medicalCertUrl && (
                       <div style={{ marginTop: '4px' }}>
-                        <a href={row.medicalCertUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--primary)', textDecoration: 'underline' }}>
+                        <a
+                          href={row.medicalCertUrl.startsWith('r2://')
+                            ? row.medicalCertUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                            : row.medicalCertUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: '12px', color: 'var(--primary)', textDecoration: 'underline' }}
+                        >
                           <i className="fa-solid fa-paperclip"></i> ดูใบรับรองแพทย์
                         </a>
                       </div>

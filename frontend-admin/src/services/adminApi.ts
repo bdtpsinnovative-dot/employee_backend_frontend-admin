@@ -9,7 +9,10 @@ import type {
   WorkLocation,
   PendingRequestsData,
   HistoryRecord,
-  LeaveQuota
+  LeaveQuota,
+  Brand,
+  TaskCategory,
+  AdminTask,
 } from '../types';
 
 // ────────────────── Users ──────────────────
@@ -163,4 +166,76 @@ export async function updateUserQuota(
   await api.put(`/admin/users/${id}/quota`, body, {
     params: { year },
   });
+}
+
+// ────────────────── Settings (Admin) ──────────────────
+
+export async function fetchCheckInMode(): Promise<string> {
+  const { data } = await api.get<{ ok: boolean; checkin_mode: string }>('/api/settings/checkin-mode');
+  return data.checkin_mode;
+}
+
+export async function updateCheckInMode(mode: 'face' | 'selfie'): Promise<void> {
+  await api.put('/admin/settings/checkin-mode', { checkin_mode: mode });
+}
+
+// ────────────────── Brands (Admin) ──────────────────
+
+export async function fetchBrands(): Promise<Brand[]> {
+  const { data } = await api.get<ApiResponse<Brand[]>>('/admin/brands');
+  return data.data ?? [];
+}
+
+export async function createBrand(name: string): Promise<Brand> {
+  const { data } = await api.post<ApiResponse<Brand>>('/admin/brands', { name });
+  return data.data;
+}
+
+export async function deleteBrand(id: string): Promise<void> {
+  await api.delete(`/admin/brands/${id}`);
+}
+
+// ────────────────── Task Categories (Admin) ──────────────────
+
+export async function fetchTaskCategories(): Promise<TaskCategory[]> {
+  const { data } = await api.get<ApiResponse<TaskCategory[]>>('/admin/task-categories');
+  return data.data ?? [];
+}
+
+export async function createTaskCategory(name: string): Promise<TaskCategory> {
+  const { data } = await api.post<ApiResponse<TaskCategory>>('/admin/task-categories', { name });
+  return data.data;
+}
+
+export async function deleteTaskCategory(id: string): Promise<void> {
+  await api.delete(`/admin/task-categories/${id}`);
+}
+
+// ────────────────── Admin Tasks ──────────────────
+
+export async function fetchAdminTasks(): Promise<AdminTask[]> {
+  const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
+  return data.data ?? [];
+}
+
+export async function createAdminTask(body: {
+  assigned_to?: string;
+  assignee_ids?: string[];
+  title: string;
+  description?: string;
+  due_date: string;
+  brand_id?: string;
+  category_id?: string;
+  sub_items?: string[];
+}): Promise<AdminTask> {
+  const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
+  return data.data;
+}
+
+export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'completed'): Promise<void> {
+  await api.patch(`/api/tasks/${id}/status`, { status });
+}
+
+export async function deleteAdminTask(id: string): Promise<void> {
+  await api.delete(`/admin/tasks/${id}`);
 }

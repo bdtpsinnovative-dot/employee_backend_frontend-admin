@@ -18,6 +18,7 @@ export default function DailyRecord() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -209,12 +210,32 @@ export default function DailyRecord() {
                             display = { text: 'ทำงานวันหยุด', color: '#D97706', bg: 'rgba(253, 230, 138, 0.75)' };
                           }
                           return (
-                            <span className="status-badge" style={{ color: display.color, background: display.bg, border: '1px solid rgba(255,255,255,0.5)' }}>
+                            <span className="status-badge" style={{ color: display.color, background: display.bg, border: '1px solid rgba(255,255,255,0.5)', display: 'inline-flex', alignItems: 'center' }}>
                               {display.text}
                               {rec.attendance.check_in_at && (
                                 <span style={{ marginLeft: '8px', fontSize: '11px', opacity: 0.7 }}>
                                   เข้า {new Date(rec.attendance.check_in_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
+                              )}
+                              {rec.attendance.check_in_photo && (
+                                <i
+                                  className="fa-solid fa-image"
+                                  style={{
+                                    marginLeft: '8px',
+                                    color: 'var(--primary)',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    transition: 'transform 0.1s'
+                                  }}
+                                  onClick={() => {
+                                    const rawUrl = rec.attendance!.check_in_photo!;
+                                    const httpUrl = rawUrl.startsWith('r2://')
+                                      ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                                      : rawUrl;
+                                    setActivePhotoUrl(httpUrl);
+                                  }}
+                                  title="ดูรูปภาพเช็คอิน"
+                                ></i>
                               )}
                             </span>
                           );
@@ -265,6 +286,61 @@ export default function DailyRecord() {
           </tbody>
         </table>
       </div>
+
+      {activePhotoUrl && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease'
+        }} onClick={() => setActivePhotoUrl(null)}>
+          <div style={{
+            background: 'white',
+            padding: '12px',
+            borderRadius: '16px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)',
+            maxWidth: '450px',
+            width: '90%',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }} onClick={(e) => e.stopPropagation()}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 600 }}>รูปภาพการลงเวลาเข้างาน</h4>
+            <img
+              src={activePhotoUrl}
+              alt="Check-in"
+              style={{
+                width: '100%',
+                maxHeight: '350px',
+                borderRadius: '8px',
+                objectFit: 'cover'
+              }}
+            />
+            <button
+              onClick={() => setActivePhotoUrl(null)}
+              style={{
+                marginTop: '15px',
+                padding: '8px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--primary)',
+                color: 'white',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

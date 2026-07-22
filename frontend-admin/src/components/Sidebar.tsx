@@ -94,6 +94,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <NavLink to="/holidays" className={navLinkClass}>
         <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
       </NavLink>
+      <NavLink to="/tasks" className={navLinkClass}>
+        <i className="fa-solid fa-clipboard-list"></i> จัดการงาน
+      </NavLink>
 
       <div className="menu-category">การปฏิบัติงาน</div>
       <NavLink to="/daily-record" className={navLinkClass}>
