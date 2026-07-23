@@ -16,6 +16,7 @@ import {
   deleteBrand,
   approveSubmission,
   requestRevision,
+  fetchMe,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
@@ -32,6 +33,7 @@ export default function Tasks() {
   const [users, setUsers]           = useState<User[]>([]);
   const [brands, setBrands]         = useState<Brand[]>([]);
   const [categories, setCategories] = useState<TaskCategory[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
 
@@ -44,6 +46,7 @@ export default function Tasks() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
+  const [ownershipMode, setOwnershipMode]       = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
 
   // ─── Modals & Drawers ───
   const [showCreateModal, setShowCreateModal]       = useState(false);
@@ -62,16 +65,18 @@ export default function Tasks() {
     setLoading(true);
     setError(null);
     try {
-      const [t, u, b, c] = await Promise.all([
+      const [t, u, b, c, me] = await Promise.all([
         fetchAdminTasks(),
         fetchUsers(),
         fetchBrands(),
         fetchTaskCategories(),
+        fetchMe(),
       ]);
       setTasks(t);
       setUsers(u.filter((usr) => usr.status === 'active'));
       setBrands(b);
       setCategories(c);
+      setCurrentUser(me);
     } catch (e: any) {
       setError(e.message || 'โหลดข้อมูลงานล้มเหลว');
     } finally {
@@ -262,6 +267,18 @@ export default function Tasks() {
       if (prio !== selectedPriority) return false;
     }
 
+    if (ownershipMode === 'created_by_me') {
+      if (task.assigned_by !== currentUser?.id) return false;
+    } else if (ownershipMode === 'assigned_to_me') {
+      const ids =
+        task.assignee_ids && task.assignee_ids.length > 0
+          ? task.assignee_ids
+          : task.assigned_to
+          ? [task.assigned_to]
+          : [];
+      if (!ids.includes(currentUser?.id || '')) return false;
+    }
+
     return true;
   });
 
@@ -271,6 +288,7 @@ export default function Tasks() {
     selectedCategory,
     selectedAssignee,
     selectedPriority,
+    ownershipMode !== 'all' ? ownershipMode : '',
   ].filter(Boolean).length;
 
   const handleClearFilters = () => {
@@ -279,6 +297,7 @@ export default function Tasks() {
     setSelectedCategory('');
     setSelectedAssignee('');
     setSelectedPriority('');
+    setOwnershipMode('all');
   };
 
   return (
@@ -297,6 +316,8 @@ export default function Tasks() {
         onAssigneeChange={setSelectedAssignee}
         selectedPriority={selectedPriority}
         onPriorityChange={setSelectedPriority}
+        ownershipMode={ownershipMode}
+        onOwnershipChange={setOwnershipMode}
         brands={brands}
         categories={categories}
         users={users}

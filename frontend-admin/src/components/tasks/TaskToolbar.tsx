@@ -22,6 +22,8 @@ interface TaskToolbarProps {
   onAssigneeChange: (u: string) => void;
   selectedPriority: string;
   onPriorityChange: (p: string) => void;
+  ownershipMode: 'all' | 'created_by_me' | 'assigned_to_me';
+  onOwnershipChange: (mode: 'all' | 'created_by_me' | 'assigned_to_me') => void;
   brands: Brand[];
   categories: TaskCategory[];
   users: User[];
@@ -44,6 +46,8 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   onAssigneeChange,
   selectedPriority,
   onPriorityChange,
+  ownershipMode,
+  onOwnershipChange,
   brands,
   categories,
   users,
@@ -162,6 +166,17 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
                 {c.name}
               </option>
             ))}
+          </select>
+
+          {/* Ownership Filter */}
+          <select
+            value={ownershipMode}
+            onChange={(e) => onOwnershipChange(e.target.value as any)}
+            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
+          >
+            <option value="all">งานทั้งหมด</option>
+            <option value="created_by_me">งานที่ฉันสร้าง</option>
+            <option value="assigned_to_me">งานที่ฉันรับผิดชอบ</option>
           </select>
 
           {/* Priority Filter */}
