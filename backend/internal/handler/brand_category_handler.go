@@ -4,21 +4,21 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // BrandCategoryHandler จัดการ Brand และ TaskCategory
 type BrandCategoryHandler struct {
-	brandRepo          *repository.BrandRepo
-	categoryRepo       *repository.TaskCategoryRepo
-	subItemRepo        *repository.TaskSubItemRepo
-	listRepo           *repository.TaskListRepo
-	cardRepo           *repository.TaskCardRepo
-	attachmentRepo     *repository.CardAttachmentRepo
+	brandRepo      *repository.BrandRepo
+	categoryRepo   *repository.TaskCategoryRepo
+	subItemRepo    *repository.TaskSubItemRepo
+	listRepo       *repository.TaskListRepo
+	cardRepo       *repository.TaskCardRepo
+	attachmentRepo *repository.CardAttachmentRepo
 }
 
 func NewBrandCategoryHandler(
@@ -178,15 +178,6 @@ func (h *BrandCategoryHandler) CreateTaskSubItem(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
-	// Auto-assign to the first available card if the Trello board is already initialized
-	lists, _ := h.listRepo.ListByTask(c.Request.Context(), taskID)
-	if len(lists) > 0 {
-		cards, _ := h.cardRepo.ListByList(c.Request.Context(), lists[0].ID)
-		if len(cards) > 0 {
-			item.CardID = &cards[0].ID
-		}
-	}
-
 	if err := h.subItemRepo.CreateBatch(c.Request.Context(), []domain.TaskSubItem{item}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มรายการย่อยล้มเหลว"})
 		return
@@ -194,7 +185,6 @@ func (h *BrandCategoryHandler) CreateTaskSubItem(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": item})
 }
-
 
 // ToggleTaskSubItem PATCH /api/tasks/sub-items/:id/toggle
 func (h *BrandCategoryHandler) ToggleTaskSubItem(c *gin.Context) {
@@ -248,70 +238,74 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 		return
 	}
 
-	// 1. Fetch lists
-	lists, err := h.listRepo.ListByTask(c.Request.Context(), taskID)
+	// 1. Fetch sub-items for the task
+	subItems, err := h.subItemRepo.ListByTask(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงรายการล้มเหลว"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลรายการย่อยล้มเหลว"})
 		return
 	}
 
-	// 2. If lists is empty, auto-create default list and card for backward compatibility
-	if len(lists) == 0 {
-		defaultList := domain.TaskList{
-			ID:        uuid.New(),
-			TaskID:    taskID,
-			Name:      "ทำอะไร",
-			SortOrder: 0,
-			CreatedAt: time.Now(),
+	// 2. Mock 3 fixed lists
+	todoID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	doingID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	doneID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+
+	lists := []domain.TaskList{
+		{ID: todoID, TaskID: taskID, Name: "Todo", SortOrder: 1},
+		{ID: doingID, TaskID: taskID, Name: "Doing", SortOrder: 2},
+		{ID: doneID, TaskID: taskID, Name: "Done", SortOrder: 3},
+	}
+
+	var todoCards []domain.TaskCard
+	var doingCards []domain.TaskCard
+	var doneCards []domain.TaskCard
+
+	for _, si := range subItems {
+		// Map SubItem to TaskCard
+		status := si.Status
+		if si.IsDone {
+			status = "completed"
 		}
-		if err := h.listRepo.Create(c.Request.Context(), &defaultList); err == nil {
-			defaultCard := domain.TaskCard{
-				ID:          uuid.New(),
-				ListID:      defaultList.ID,
-				Title:       "การ์ดงาน",
-				Description: "การ์ดงานตั้งต้น",
-				Status:      "pending",
-				SortOrder:   0,
-				CreatedAt:   time.Now(),
-			}
-			if err := h.cardRepo.Create(c.Request.Context(), &defaultCard); err == nil {
-				// Link all existing task sub-items to this card!
-				_ = h.subItemRepo.LinkSubItemsToCard(c.Request.Context(), defaultCard.ID, taskID)
-			}
-			// reload lists
-			lists, _ = h.listRepo.ListByTask(c.Request.Context(), taskID)
+
+		var listID uuid.UUID
+		if status == "completed" {
+			listID = doneID
+		} else if status == "in_progress" {
+			listID = doingID
+		} else {
+			listID = todoID
 		}
-	} else {
-		// Auto-link any orphaned sub-items (created without card_id via legacy API) to the first available card
-		cards, _ := h.cardRepo.ListByList(c.Request.Context(), lists[0].ID)
-		if len(cards) > 0 {
-			_ = h.subItemRepo.LinkSubItemsToCard(c.Request.Context(), cards[0].ID, taskID)
+
+		card := domain.TaskCard{
+			ID:           si.ID, // use sub-item ID as card ID
+			ListID:       listID,
+			Title:        si.Title,
+			Description:  si.Description,
+			Status:       status,
+			SortOrder:    si.SortOrder,
+			CreatedAt:    si.CreatedAt,
+			StartDate:    si.StartDate,
+			DueDate:      si.DueDate,
+			Priority:     si.Priority,
+			AdminComment: si.AdminComment,
+			SubItems:     []domain.TaskSubItem{si}, // include itself as subitem for UI mapping if needed
+		}
+
+		// Map verifications (which might be requested by UI)
+		// For now we don't query it unless we need it, but let's just leave SubItems loaded.
+
+		if listID == doneID {
+			doneCards = append(doneCards, card)
+		} else if listID == doingID {
+			doingCards = append(doingCards, card)
+		} else {
+			todoCards = append(todoCards, card)
 		}
 	}
 
-	// 3. Load cards, sub-items, and attachments
-	for i := range lists {
-		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
-		if err != nil {
-			continue
-		}
-		for j := range cards {
-			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cards[j].ID)
-			if err == nil {
-				cards[j].SubItems = subItems
-			} else {
-				cards[j].SubItems = []domain.TaskSubItem{}
-			}
-			// Also load card attachments from card_attachments table
-			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cards[j].ID)
-			if err == nil {
-				cards[j].Attachments = attachments
-			} else {
-				cards[j].Attachments = []domain.CardAttachment{}
-			}
-		}
-		lists[i].Cards = cards
-	}
+	lists[0].Cards = todoCards
+	lists[1].Cards = doingCards
+	lists[2].Cards = doneCards
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": lists})
 }
@@ -412,37 +406,68 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 	}
 
 	var req struct {
+		TaskID      string     `json:"task_id"`
 		Title       string     `json:"title"`
 		Description string     `json:"description"`
 		StartDate   *time.Time `json:"start_date"`
 		DueDate     *time.Time `json:"due_date"`
 		Priority    string     `json:"priority"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อการ์ด"})
+	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" || req.TaskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบถ้วน"})
 		return
 	}
 
-	card := domain.TaskCard{
+	taskID, err := uuid.Parse(req.TaskID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "TaskID ไม่ถูกต้อง"})
+		return
+	}
+
+	status := "pending"
+	isDone := false
+	if listID.String() == "00000000-0000-0000-0000-000000000003" {
+		status = "completed"
+		isDone = true
+	} else if listID.String() == "00000000-0000-0000-0000-000000000002" {
+		status = "in_progress"
+	}
+
+	priority := req.Priority
+	if priority == "" {
+		priority = "medium"
+	}
+
+	si := domain.TaskSubItem{
 		ID:          uuid.New(),
-		ListID:      listID,
+		TaskID:      taskID,
 		Title:       req.Title,
 		Description: req.Description,
-		Status:      "pending",
+		IsDone:      isDone,
+		Status:      status,
 		SortOrder:   99,
 		CreatedAt:   time.Now(),
 		StartDate:   req.StartDate,
 		DueDate:     req.DueDate,
-		Priority:    req.Priority,
+		Priority:    priority,
 	}
 
-	if card.Priority == "" {
-		card.Priority = "medium"
-	}
-
-	if err := h.cardRepo.Create(c.Request.Context(), &card); err != nil {
+	if err := h.subItemRepo.Create(c.Request.Context(), &si); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างการ์ดล้มเหลว"})
 		return
+	}
+
+	card := domain.TaskCard{
+		ID:          si.ID,
+		ListID:      listID,
+		Title:       si.Title,
+		Description: si.Description,
+		Status:      status,
+		SortOrder:   si.SortOrder,
+		CreatedAt:   si.CreatedAt,
+		StartDate:   si.StartDate,
+		DueDate:     si.DueDate,
+		Priority:    si.Priority,
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": card})
@@ -471,25 +496,33 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		return
 	}
 
-	if req.Status != "" {
-		if err := h.cardRepo.UpdateStatus(c.Request.Context(), cardID, req.Status); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะการ์ดล้มเหลว"})
-			return
-		}
-	}
-
 	if req.ListID != nil {
-		if err := h.cardRepo.MoveToList(c.Request.Context(), cardID, *req.ListID); err != nil {
+		status := "pending"
+		if req.ListID.String() == "00000000-0000-0000-0000-000000000003" {
+			status = "completed"
+		} else if req.ListID.String() == "00000000-0000-0000-0000-000000000002" {
+			status = "in_progress"
+		}
+
+		if err := h.subItemRepo.UpdateSubItemStatus(c.Request.Context(), cardID, status); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "ย้ายการ์ดไปยังรายการอื่นล้มเหลว"})
 			return
 		}
 	}
 
-	if req.Title != "" || req.StartDate != nil || req.DueDate != nil || req.AdminComment != nil || req.Description != "" || req.Priority != "" {
-		if req.Priority == "" {
-			req.Priority = "medium"
+	if req.Status != "" {
+		if err := h.subItemRepo.UpdateSubItemStatus(c.Request.Context(), cardID, req.Status); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะการ์ดล้มเหลว"})
+			return
 		}
-		err = h.cardRepo.UpdateCard(c.Request.Context(), cardID, req.Title, req.Description, req.StartDate, req.DueDate, req.AdminComment, req.Priority)
+	}
+
+	if req.Title != "" || req.StartDate != nil || req.DueDate != nil || req.AdminComment != nil || req.Description != "" || req.Priority != "" {
+		priority := req.Priority
+		if priority == "" {
+			priority = "medium" // default if not provided
+		}
+		err = h.subItemRepo.UpdateSubItemDetail(c.Request.Context(), cardID, req.Title, req.Description, priority, req.StartDate, req.DueDate, nil, nil, nil, req.AdminComment)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลการ์ดล้มเหลว"})
 			return
@@ -507,7 +540,7 @@ func (h *BrandCategoryHandler) DeleteTaskCard(c *gin.Context) {
 		return
 	}
 
-	if err := h.cardRepo.Delete(c.Request.Context(), cardID); err != nil {
+	if err := h.subItemRepo.Delete(c.Request.Context(), cardID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบการ์ดล้มเหลว"})
 		return
 	}
@@ -567,6 +600,8 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 
 	var req struct {
 		Title             string     `json:"title"`
+		Description       string     `json:"description"`
+		Priority          string     `json:"priority"`
 		StartDate         *time.Time `json:"start_date"`
 		DueDate           *time.Time `json:"due_date"`
 		LinkURL           *string    `json:"link_url"`
@@ -579,10 +614,17 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 		return
 	}
 
+	priority := req.Priority
+	if priority == "" {
+		priority = "medium"
+	}
+
 	err = h.subItemRepo.UpdateSubItemDetail(
 		c.Request.Context(),
 		subItemID,
 		req.Title,
+		req.Description,
+		priority,
 		req.StartDate,
 		req.DueDate,
 		req.LinkURL,

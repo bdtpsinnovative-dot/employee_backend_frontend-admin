@@ -27,6 +27,12 @@ const COLUMNS: { id: TaskStatus; title: string; icon: React.ReactNode; colorDot:
     colorDot: 'bg-amber-500',
   },
   {
+    id: 'in_review',
+    title: 'รอตรวจ (Review)',
+    icon: <Clock className="w-4 h-4 text-blue-500" />,
+    colorDot: 'bg-blue-500',
+  },
+  {
     id: 'completed',
     title: 'เสร็จสิ้น (Done)',
     icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
@@ -56,7 +62,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-4 md:grid-cols-2 gap-6 p-6 items-start">
       {COLUMNS.map((col) => {
         const columnTasks = tasks.filter((t) => t.status === col.id);
         const isHovered = activeDragColumn === col.id;

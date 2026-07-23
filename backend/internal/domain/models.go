@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,7 +151,7 @@ type Project struct {
 	SortOrder   int        `db:"sort_order" json:"sort_order"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
-	
+
 	// Joined fields
 	Groups  []ProjectGroup `db:"-" json:"groups,omitempty"`
 	Members []User         `db:"-" json:"members,omitempty"`
@@ -158,13 +159,13 @@ type Project struct {
 
 // ProjectGroup represents a group within a project replacing legacy TaskList.
 type ProjectGroup struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	ProjectID   uuid.UUID  `db:"project_id" json:"project_id"`
-	Name        string     `db:"name" json:"name"`
-	Description string     `db:"description" json:"description"`
-	SortOrder   int        `db:"sort_order" json:"sort_order"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
-	
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	SortOrder   int       `db:"sort_order" json:"sort_order"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+
 	// Joined fields
 	Tasks []Task `db:"-" json:"tasks,omitempty"`
 }
@@ -178,31 +179,31 @@ type ProjectMember struct {
 
 // Task represents a work task assigned to an employee.
 type Task struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	ProjectID   *uuid.UUID `db:"project_id" json:"project_id,omitempty"`
-	GroupID     *uuid.UUID `db:"group_id" json:"group_id,omitempty"`
-	AssignedTo  *uuid.UUID `db:"assigned_to" json:"assigned_to"`
-	Title       string     `db:"title" json:"title"`
-	Description string     `db:"description" json:"description"`
-	StartDate   *time.Time `db:"start_date" json:"start_date,omitempty"`
-	DueDate     *time.Time `db:"due_date" json:"due_date"`
-	Priority    string     `db:"priority" json:"priority"` // "low" | "medium" | "high" | "urgent"
-	Status      string     `db:"status" json:"status"` // "pending" | "in_progress" | "in_review" | "completed"
-	RecordKind  string     `db:"record_kind" json:"record_kind"` // "legacy_assignment" | "task"
-	SortOrder   int        `db:"sort_order" json:"sort_order"`
-	AssignedBy  *uuid.UUID `db:"assigned_by" json:"assigned_by,omitempty"`
-	BrandID     *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
-	CategoryID  *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	ProjectID     *uuid.UUID `db:"project_id" json:"project_id,omitempty"`
+	GroupID       *uuid.UUID `db:"group_id" json:"group_id,omitempty"`
+	AssignedTo    *uuid.UUID `db:"assigned_to" json:"assigned_to"`
+	Title         string     `db:"title" json:"title"`
+	Description   string     `db:"description" json:"description"`
+	StartDate     *time.Time `db:"start_date" json:"start_date,omitempty"`
+	DueDate       *time.Time `db:"due_date" json:"due_date"`
+	Priority      string     `db:"priority" json:"priority"`       // "low" | "medium" | "high" | "urgent"
+	Status        string     `db:"status" json:"status"`           // "pending" | "in_progress" | "in_review" | "completed"
+	RecordKind    string     `db:"record_kind" json:"record_kind"` // "legacy_assignment" | "task"
+	SortOrder     int        `db:"sort_order" json:"sort_order"`
+	AssignedBy    *uuid.UUID `db:"assigned_by" json:"assigned_by,omitempty"`
+	BrandID       *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
+	CategoryID    *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 	NeedsRevision bool       `db:"needs_revision" json:"needs_revision"`
 	CompletedAt   *time.Time `db:"completed_at" json:"completed_at,omitempty"`
 	// Joined fields (not stored in tasks table)
-	SubItems       []TaskSubItem    `db:"-" json:"sub_items,omitempty"`
-	AssigneeIDs    []uuid.UUID      `db:"-" json:"assignee_ids,omitempty"`
-	AssignedToName string           `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
-	AssignedByName string           `db:"assigned_by_name" json:"assigned_by_name,omitempty"`
-	CardTotal      int              `db:"card_total" json:"card_total"`
-	CardDone       int              `db:"card_done" json:"card_done"`
+	SubItems         []TaskSubItem   `db:"-" json:"sub_items,omitempty"`
+	AssigneeIDs      []uuid.UUID     `db:"-" json:"assignee_ids,omitempty"`
+	AssignedToName   string          `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
+	AssignedByName   string          `db:"assigned_by_name" json:"assigned_by_name,omitempty"`
+	CardTotal        int             `db:"card_total" json:"card_total"`
+	CardDone         int             `db:"card_done" json:"card_done"`
 	LatestSubmission *TaskSubmission `db:"-" json:"latest_submission,omitempty"`
 	SubmissionCount  int             `db:"submission_count" json:"submission_count"`
 }
@@ -214,7 +215,7 @@ type Notification struct {
 	UserID    uuid.UUID `db:"user_id"    json:"user_id"`
 	Title     string    `db:"title"      json:"title"`
 	Body      string    `db:"body"       json:"body"`
-	Type      string    `db:"type"       json:"type"`      // "leave" | "attendance" | "system" | "announcement"
+	Type      string    `db:"type"       json:"type"` // "leave" | "attendance" | "system" | "announcement"
 	IsRead    bool      `db:"is_read"    json:"is_read"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
@@ -244,21 +245,36 @@ type TaskCategory struct {
 // TaskSubItem represents a checklist item within a task.
 // Maps to: public.task_sub_items table
 type TaskSubItem struct {
-	ID                uuid.UUID  `db:"id" json:"id"`
-	TaskID            uuid.UUID  `db:"task_id" json:"task_id"`
-	CardID            *uuid.UUID `db:"card_id" json:"card_id,omitempty"`
-	Title             string     `db:"title" json:"title"`
-	IsDone            bool       `db:"is_done" json:"is_done"`
-	Status            string     `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
-	SortOrder         int        `db:"sort_order" json:"sort_order"`
-	CreatedAt         time.Time  `db:"created_at" json:"created_at"`
-	StartDate         *time.Time `db:"start_date" json:"start_date,omitempty"`
-	DueDate           *time.Time `db:"due_date" json:"due_date,omitempty"`
-	LinkURL           *string    `db:"link_url" json:"link_url,omitempty"`
-	AttachmentURL     *string    `db:"attachment_url" json:"attachment_url,omitempty"`
+	ID                uuid.UUID             `db:"id" json:"id"`
+	TaskID            uuid.UUID             `db:"task_id" json:"task_id"`
+	CardID            *uuid.UUID            `db:"card_id" json:"card_id,omitempty"`
+	Title             string                `db:"title" json:"title"`
+	Description       string                `db:"description" json:"description"`
+	IsDone            bool                  `db:"is_done" json:"is_done"`
+	Status            string                `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
+	Priority          string                `db:"priority" json:"priority"`
+	SortOrder         int                   `db:"sort_order" json:"sort_order"`
+	CreatedAt         time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time             `db:"updated_at" json:"updated_at"`
+	StartDate         *time.Time            `db:"start_date" json:"start_date,omitempty"`
+	DueDate           *time.Time            `db:"due_date" json:"due_date,omitempty"`
+	LinkURL           *string               `db:"link_url" json:"link_url,omitempty"`
+	AttachmentURL     *string               `db:"attachment_url" json:"attachment_url,omitempty"`
 	VerificationNotes *string               `db:"verification_notes" json:"verification_notes,omitempty"`
 	AdminComment      *string               `db:"admin_comment" json:"admin_comment,omitempty"`
 	Verifications     []SubItemVerification `json:"verifications,omitempty"`
+	CheckItems        []SubtaskCheckItem    `db:"-" json:"check_items"`
+}
+
+// SubtaskCheckItem represents a checklist row inside a task sub-item/subtask.
+type SubtaskCheckItem struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	SubtaskID uuid.UUID `db:"subtask_id" json:"subtask_id"`
+	Title     string    `db:"title" json:"title"`
+	IsDone    bool      `db:"is_done" json:"is_done"`
+	SortOrder int       `db:"sort_order" json:"sort_order"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // SubItemVerification represents a single round of verification/inspection for a checklist sub-item.
@@ -300,22 +316,20 @@ type CardAttachment struct {
 
 // TaskCard represents a card inside a TaskList.
 type TaskCard struct {
-	ID          uuid.UUID        `db:"id" json:"id"`
-	ListID      uuid.UUID        `db:"list_id" json:"list_id"`
-	Title       string           `db:"title" json:"title"`
-	Description string           `db:"description" json:"description"`
-	Status      string           `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
-	SortOrder   int              `db:"sort_order" json:"sort_order"`
-	CreatedAt   time.Time        `db:"created_at" json:"created_at"`
-	StartDate   *time.Time       `db:"start_date" json:"start_date,omitempty"`
-	DueDate     *time.Time       `db:"due_date" json:"due_date,omitempty"`
-	Priority    string           `db:"priority" json:"priority"`
-	SubItems    []TaskSubItem    `db:"-" json:"sub_items"`
-	Attachments []CardAttachment `db:"-" json:"attachments"`
-	AdminComment *string         `db:"admin_comment" json:"admin_comment,omitempty"`
+	ID           uuid.UUID        `db:"id" json:"id"`
+	ListID       uuid.UUID        `db:"list_id" json:"list_id"`
+	Title        string           `db:"title" json:"title"`
+	Description  string           `db:"description" json:"description"`
+	Status       string           `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
+	SortOrder    int              `db:"sort_order" json:"sort_order"`
+	CreatedAt    time.Time        `db:"created_at" json:"created_at"`
+	StartDate    *time.Time       `db:"start_date" json:"start_date,omitempty"`
+	DueDate      *time.Time       `db:"due_date" json:"due_date,omitempty"`
+	Priority     string           `db:"priority" json:"priority"`
+	SubItems     []TaskSubItem    `db:"-" json:"sub_items"`
+	Attachments  []CardAttachment `db:"-" json:"attachments"`
+	AdminComment *string          `db:"admin_comment" json:"admin_comment,omitempty"`
 }
-
-
 
 // TaskEvent represents an activity log or comment on a task.
 type TaskEvent struct {
@@ -327,7 +341,7 @@ type TaskEvent struct {
 	Action    string     `db:"action" json:"action"`
 	Content   *string    `db:"content" json:"content,omitempty"`
 	CreatedAt time.Time  `db:"created_at" json:"created_at"`
-	
+
 	// Joined fields
 	UserFirstName string  `db:"user_first_name" json:"user_first_name,omitempty"`
 	UserLastName  string  `db:"user_last_name" json:"user_last_name,omitempty"`
@@ -349,4 +363,30 @@ type TaskSubmission struct {
 	ReviewedAt  *time.Time `db:"reviewed_at" json:"reviewed_at,omitempty"`
 	ReviewNote  *string    `db:"review_note" json:"review_note,omitempty"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+}
+
+// MarshalJSON ensures that fields previously expected as non-nullable strings
+// in the mobile app do not output as null when nil, preventing type errors.
+func (t Task) MarshalJSON() ([]byte, error) {
+	type Alias Task
+
+	dueDate := time.Time{}.Format(time.RFC3339Nano)
+	if t.DueDate != nil {
+		dueDate = t.DueDate.Format(time.RFC3339Nano)
+	}
+
+	assignedTo := ""
+	if t.AssignedTo != nil {
+		assignedTo = t.AssignedTo.String()
+	}
+
+	return json.Marshal(&struct {
+		Alias
+		DueDate    string `json:"due_date"`
+		AssignedTo string `json:"assigned_to"`
+	}{
+		Alias:      (Alias)(t),
+		DueDate:    dueDate,
+		AssignedTo: assignedTo,
+	})
 }

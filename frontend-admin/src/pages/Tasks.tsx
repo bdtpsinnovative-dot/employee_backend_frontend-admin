@@ -14,6 +14,8 @@ import {
   addTaskComment,
   createBrand,
   deleteBrand,
+  approveSubmission,
+  requestRevision,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
@@ -192,6 +194,29 @@ export default function Tasks() {
     }
   };
 
+  const handleApproveSubmission = async (task: AdminTask) => {
+    if (!task.latest_submission) return;
+    if (!window.confirm('ยืนยันการอนุมัติผลงาน?')) return;
+    try {
+      await approveSubmission(task.id, task.latest_submission.id);
+      await loadAll();
+    } catch (e: any) {
+      alert(e.message || 'อนุมัติผลงานล้มเหลว');
+    }
+  };
+
+  const handleRequestRevision = async (task: AdminTask) => {
+    if (!task.latest_submission) return;
+    const note = window.prompt('ระบุข้อควรแก้ไข:');
+    if (note === null) return;
+    try {
+      await requestRevision(task.id, task.latest_submission.id, note);
+      await loadAll();
+    } catch (e: any) {
+      alert(e.message || 'ขอแก้ไขผลงานล้มเหลว');
+    }
+  };
+
   // Brand / Category handlers
   const handleCreateBrand = async (name: string) => {
     const b = await createBrand(name);
@@ -319,6 +344,8 @@ export default function Tasks() {
                 setDefaultCreateStatus(status);
                 setShowCreateModal(true);
               }}
+              onApproveSubmission={handleApproveSubmission}
+              onRequestRevision={handleRequestRevision}
             />
           )}
         </div>

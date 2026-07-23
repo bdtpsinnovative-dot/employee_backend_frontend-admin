@@ -55,9 +55,13 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		}
 	}
 
+	// ดึง adminUserID จาก JWT token ก่อน เพื่อใช้เป็น fallback
+	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	adminUserID := adminUserIDRaw.(uuid.UUID)
+
+	// ถ้าไม่เลือกผู้รับผิดชอบ → Assign ให้ผู้สร้าง (creator) อัตโนมัติ
 	if len(assigneeUUIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
-		return
+		assigneeUUIDs = append(assigneeUUIDs, adminUserID)
 	}
 
 	var dueDatePtr *time.Time
@@ -100,9 +104,6 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 			groupID = &parsed
 		}
 	}
-
-	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
-	adminUserID := adminUserIDRaw.(uuid.UUID)
 
 	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, dueDatePtr, adminUserID, brandID, categoryID, projectID, groupID)
 	if err != nil {

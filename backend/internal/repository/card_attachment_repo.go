@@ -52,13 +52,14 @@ func (r *CardAttachmentRepo) EnsureTable(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS card_attachments (
 			id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			card_id    UUID NOT NULL REFERENCES task_cards(id) ON DELETE CASCADE,
+			card_id    UUID NOT NULL,
 			url        TEXT NOT NULL,
 			name       TEXT NOT NULL DEFAULT '',
 			type       TEXT NOT NULL DEFAULT 'file' CHECK (type IN ('image', 'file', 'link')),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 		CREATE INDEX IF NOT EXISTS idx_card_attachments_card_id ON card_attachments(card_id);
+		ALTER TABLE card_attachments DROP CONSTRAINT IF EXISTS card_attachments_card_id_fkey;
 	`)
 	return err
 }

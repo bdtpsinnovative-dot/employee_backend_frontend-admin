@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 type TaskRepo struct {
@@ -109,8 +109,9 @@ func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([
 func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
-		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
+		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
@@ -142,8 +143,9 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
-		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.project_id, t.group_id, t.created_at, t.needs_revision, t.completed_at,
+		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
+		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
@@ -174,8 +176,9 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
-		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
+		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
@@ -212,8 +215,9 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, error) {
 	var task domain.Task
 	err := r.db.GetContext(ctx, &task, `
-		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
+		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
@@ -260,6 +264,19 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 		`, t.ID, userID)
 		if err != nil {
 			return err
+		}
+
+		// An assignee must also be a project member, otherwise the task appears
+		// in "My Tasks" but its parent project is hidden from their project list.
+		if t.ProjectID != nil {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO project_members (project_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, *t.ProjectID, userID)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

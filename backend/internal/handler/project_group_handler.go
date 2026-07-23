@@ -47,7 +47,7 @@ func (h *ProjectGroupHandler) CreateGroup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, g)
+	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": g})
 }
 
 func (h *ProjectGroupHandler) ListGroups(c *gin.Context) {
@@ -63,7 +63,7 @@ func (h *ProjectGroupHandler) ListGroups(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, groups)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": groups})
 }
 
 func (h *ProjectGroupHandler) UpdateGroup(c *gin.Context) {
@@ -101,7 +101,7 @@ func (h *ProjectGroupHandler) UpdateGroup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, g)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": g})
 }
 
 func (h *ProjectGroupHandler) DeleteGroup(c *gin.Context) {

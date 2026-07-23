@@ -5,9 +5,9 @@ import (
 
 	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // ─────────────────────────── Brand ───────────────────────────
@@ -174,13 +174,13 @@ func (r *TaskSubItemRepo) LinkSubItemsToCard(ctx context.Context, cardID uuid.UU
 
 func (r *TaskSubItemRepo) Create(ctx context.Context, item *domain.TaskSubItem) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO task_sub_items (id, task_id, card_id, title, is_done, status, sort_order, created_at)
-		VALUES (:id, :task_id, :card_id, :title, :is_done, :status, :sort_order, :created_at)
+		INSERT INTO task_sub_items (id, task_id, card_id, title, description, is_done, status, priority, sort_order, created_at, start_date, due_date)
+		VALUES (:id, :task_id, :card_id, :title, :description, :is_done, :status, :priority, :sort_order, :created_at, :start_date, :due_date)
 	`, item)
 	return err
 }
 
-func (r *TaskSubItemRepo) UpdateSubItemDetail(ctx context.Context, id uuid.UUID, title string, startDate, dueDate *time.Time, linkURL, attachmentURL, verificationNotes, adminComment *string) error {
+func (r *TaskSubItemRepo) UpdateSubItemDetail(ctx context.Context, id uuid.UUID, title string, _ string, _ string, startDate, dueDate *time.Time, linkURL, attachmentURL, verificationNotes, adminComment *string) error {
 	if adminComment != nil {
 		_, err := r.db.ExecContext(ctx, `
 			UPDATE task_sub_items 
@@ -347,5 +347,3 @@ func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID)
 	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
 	return err
 }
-
-

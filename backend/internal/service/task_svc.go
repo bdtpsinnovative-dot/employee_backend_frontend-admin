@@ -120,6 +120,8 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		primaryAssignee = &assigneeIDs[0]
 	}
 
+	oldAssigneeIDs := task.AssigneeIDs
+
 	task.Title = title
 	task.Description = description
 	task.DueDate = dueDate
@@ -141,6 +143,41 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		Action:    "task_updated",
 		Content:   &content,
 	})
+
+	// Check if assignees changed
+	oldMap := make(map[uuid.UUID]bool)
+	for _, id := range oldAssigneeIDs {
+		oldMap[id] = true
+	}
+	var newAssignees []uuid.UUID
+	for _, id := range assigneeIDs {
+		if !oldMap[id] {
+			newAssignees = append(newAssignees, id)
+		}
+	}
+
+	if len(newAssignees) > 0 && s.userRepo != nil && s.firebaseSvc != nil {
+		assignContent := "เปลี่ยนผู้รับผิดชอบงาน"
+		_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+			TaskID:    task.ID,
+			UserID:    userID,
+			EventType: "system",
+			Action:    "task_assigned",
+			Content:   &assignContent,
+		})
+
+		// Notify new assignees
+		for _, aID := range newAssignees {
+			u, err := s.userRepo.FindByID(ctx, aID)
+			if err == nil && u != nil && u.FcmToken != nil && *u.FcmToken != "" {
+				fcmToken := *u.FcmToken
+				taskTitle := task.Title
+				go func() {
+					_ = s.firebaseSvc.SendNotification(context.Background(), fcmToken, "มอบหมายงานใหม่ 📋", "คุณได้รับมอบหมายงานใหม่: "+taskTitle)
+				}()
+			}
+		}
+	}
 
 	return task, nil
 }

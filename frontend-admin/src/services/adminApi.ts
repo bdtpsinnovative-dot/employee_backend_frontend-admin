@@ -24,6 +24,11 @@ export async function fetchUsers(): Promise<User[]> {
   return data.data;
 }
 
+export async function fetchActiveUsers(): Promise<User[]> {
+  const { data } = await api.get<ApiResponse<User[]>>('/api/users/active');
+  return data.data;
+}
+
 export async function approveUser(id: string): Promise<void> {
   await api.patch(`/admin/users/${id}/approve`);
 }
@@ -252,7 +257,7 @@ export async function updateAdminTask(id: string, body: {
   return data.data;
 }
 
-export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'completed'): Promise<void> {
+export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'in_review' | 'completed'): Promise<void> {
   await api.patch(`/api/tasks/${id}/status`, { status });
 }
 
@@ -294,4 +299,12 @@ export async function fetchAllTaskEvents(): Promise<TaskEvent[]> {
 export async function addTaskComment(taskId: string, content: string): Promise<TaskEvent> {
   const { data } = await api.post<ApiResponse<TaskEvent>>(`/api/tasks/${taskId}/events`, { content });
   return data.data;
+}
+
+export async function approveSubmission(taskId: string, submissionId: string): Promise<void> {
+  await api.post(`/admin/tasks/${taskId}/submissions/${submissionId}/approve`);
+}
+
+export async function requestRevision(taskId: string, submissionId: string, note: string): Promise<void> {
+  await api.post(`/admin/tasks/${taskId}/submissions/${submissionId}/request-revision`, { note });
 }

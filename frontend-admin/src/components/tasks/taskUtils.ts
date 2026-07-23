@@ -8,7 +8,7 @@ export function avatarUrl(url?: string | null): string | null {
   return url;
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed';
+export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'completed';
 export type TaskPriority = 'high' | 'medium' | 'low';
 
 export const STATUS_CONFIG: Record<TaskStatus, {
@@ -31,6 +31,13 @@ export const STATUS_CONFIG: Record<TaskStatus, {
     badgeText: 'text-amber-700',
     badgeBorder: 'border-amber-200',
     dotColor: 'bg-amber-500',
+  },
+  in_review: {
+    label: 'รอตรวจ',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-700',
+    badgeBorder: 'border-blue-200',
+    dotColor: 'bg-blue-500',
   },
   completed: {
     label: 'เสร็จสิ้น',
@@ -56,6 +63,11 @@ export function formatRelativeDueDate(dueIso: string, isCompleted: boolean = fal
     return { text: dueIso, variant: 'upcoming' };
   }
 
+  // Check for Go zero time (0001-01-01) which means no due date
+  if (dueDate.getFullYear() <= 1 || dueIso.startsWith('0001-01-01')) {
+    return { text: 'ยังไม่กำหนด', variant: 'upcoming' };
+  }
+
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
@@ -78,7 +90,7 @@ export function formatRelativeDueDate(dueIso: string, isCompleted: boolean = fal
 }
 
 export function getTaskPriority(task: AdminTask): TaskPriority {
-  if (task.due_date && task.status !== 'completed') {
+  if (task.due_date && task.status !== 'completed' && !task.due_date.startsWith('0001-01-01')) {
     const due = new Date(task.due_date);
     const now = new Date();
     const diffHours = (due.getTime() - now.getTime()) / (1000 * 3600);

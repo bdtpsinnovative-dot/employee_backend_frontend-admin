@@ -89,8 +89,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || selectedAssignees.length === 0 || !dueDate) {
-      alert('กรุณากรอกชื่องาน เลือกผู้รับผิดชอบอย่างน้อย 1 คน และกำหนดวันส่ง');
+    if (!title.trim() || !dueDate) {
+      alert('กรุณากรอกชื่องานและกำหนดวันส่ง');
       return;
     }
 
@@ -169,7 +169,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
             <div>
               <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-slate-400" />
-                <span>ผู้รับผิดชอบ (Assignees) *</span>
+                <span>ผู้รับผิดชอบ (Assignees)</span>
               </label>
               <div className="max-h-32 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                 {users.map(u => {
@@ -192,6 +192,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                   );
                 })}
               </div>
+              <p className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400 italic">
+                <span>ⓘ</span>
+                <span>หากไม่เลือก งานจะถูกมอบหมายให้คุณอัตโนมัติ</span>
+              </p>
             </div>
 
             {/* Grid Row: Due Date, Brand, Category */}

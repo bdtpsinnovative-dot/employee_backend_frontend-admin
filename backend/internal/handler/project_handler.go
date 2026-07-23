@@ -48,7 +48,7 @@ func (h *ProjectHandler) CreateProject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, p)
+	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": p})
 }
 
 func (h *ProjectHandler) ListProjects(c *gin.Context) {
@@ -62,7 +62,7 @@ func (h *ProjectHandler) ListProjects(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, projects)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": projects})
 }
 
 func (h *ProjectHandler) GetProject(c *gin.Context) {
@@ -78,7 +78,7 @@ func (h *ProjectHandler) GetProject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, p)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": p})
 }
 
 func (h *ProjectHandler) UpdateProject(c *gin.Context) {
@@ -125,7 +125,7 @@ func (h *ProjectHandler) UpdateProject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, p)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": p})
 }
 
 func (h *ProjectHandler) DeleteProject(c *gin.Context) {
