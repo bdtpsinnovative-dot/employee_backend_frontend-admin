@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Flame,
-  Plus,
+
   Tag,
   Layers,
   CheckSquare,
@@ -32,7 +32,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   categoryMap,
   onSelectTask,
   onStatusChange,
-  onOpenCreateModal,
+
   onApproveSubmission,
   onRequestRevision,
 }) => {
@@ -83,8 +83,8 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                 task.assignee_ids && task.assignee_ids.length > 0
                   ? task.assignee_ids
                   : task.assigned_to
-                  ? [task.assigned_to]
-                  : [];
+                    ? [task.assigned_to]
+                    : [];
               const assignees = assigneeIds.map((id) => userMap[id]).filter(Boolean);
               const firstAssignee = assignees[0];
 
@@ -101,15 +101,14 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   {/* 1. Due Date Column */}
                   <td className="px-3 py-2 border-r border-slate-200/80 text-center align-middle font-medium">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${
-                        dueInfo.variant === 'overdue'
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${dueInfo.variant === 'overdue'
                           ? 'bg-red-50 text-red-700 border-red-200 font-bold'
                           : dueInfo.variant === 'today'
-                          ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
-                          : dueInfo.variant === 'tomorrow'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}
+                            ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
+                            : dueInfo.variant === 'tomorrow'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
                     >
                       {dueInfo.text}
                     </span>
@@ -176,9 +175,8 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                         onChange={(e) =>
                           onStatusChange(task, e.target.value as TaskStatus)
                         }
-                        className={`w-full max-w-[85px] px-1.5 py-1 text-center font-bold text-[10px] rounded-full appearance-none cursor-pointer border transition-all ${
-                          STATUS_CONFIG[task.status as TaskStatus]?.badgeBg || 'bg-slate-100'
-                        } ${STATUS_CONFIG[task.status as TaskStatus]?.badgeText || 'text-slate-700'} ${STATUS_CONFIG[task.status as TaskStatus]?.badgeBorder || 'border-slate-300'}`}
+                        className={`w-full max-w-[85px] px-1.5 py-1 text-center font-bold text-[10px] rounded-full appearance-none cursor-pointer border transition-all ${STATUS_CONFIG[task.status as TaskStatus]?.badgeBg || 'bg-slate-100'
+                          } ${STATUS_CONFIG[task.status as TaskStatus]?.badgeText || 'text-slate-700'} ${STATUS_CONFIG[task.status as TaskStatus]?.badgeBorder || 'border-slate-300'}`}
                       >
                         <option value="pending" className="bg-white text-slate-900 font-medium">Todo</option>
                         <option value="in_progress" className="bg-white text-slate-900 font-medium">Doing</option>
