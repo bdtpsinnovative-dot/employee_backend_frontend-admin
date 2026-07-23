@@ -48,6 +48,33 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 	return tasks, nil
 }
 
+func (r *TaskRepo) populateLatestSubmissions(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
+	if len(tasks) == 0 {
+		return tasks, nil
+	}
+	// Just fetch the latest submission for each task
+	// This could be optimized, but N queries for N tasks is okay if N is small, or we can use DISTINCT ON
+	var allSubs []domain.TaskSubmission
+	err := r.db.SelectContext(ctx, &allSubs, `
+		SELECT DISTINCT ON (task_id) *
+		FROM task_submissions
+		ORDER BY task_id, submitted_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to populate latest submissions: %w", err)
+	}
+	subMap := make(map[uuid.UUID]domain.TaskSubmission)
+	for _, s := range allSubs {
+		subMap[s.TaskID] = s
+	}
+	for i, t := range tasks {
+		if sub, ok := subMap[t.ID]; ok {
+			tasks[i].LatestSubmission = &sub
+		}
+	}
+	return tasks, nil
+}
+
 func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
 	if len(tasks) == 0 {
 		return tasks, nil
@@ -63,8 +90,7 @@ func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([
 		ORDER BY sort_order ASC, created_at ASC
 	`)
 	if err != nil {
-		// Sub-items are optional; don't fail the whole list
-		return tasks, nil
+		return nil, fmt.Errorf("failed to populate sub-items: %w", err)
 	}
 	subMap := make(map[uuid.UUID][]domain.TaskSubItem)
 	for _, s := range subItems {
@@ -84,20 +110,61 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at,
+		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
+		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done,
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
-		ORDER BY t.created_at DESC
+		ORDER BY 
+			t.category_id NULLS LAST,
+			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
+			t.due_date ASC NULLS LAST,
+			t.created_at DESC
 	`)
 	if err != nil {
 		return nil, err
 	}
 	tasks, err = r.populateAssigneeIDs(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	tasks, err = r.populateLatestSubmissions(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateSubItems(ctx, tasks)
+}
+
+func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Task, error) {
+	var tasks []domain.Task
+	err := r.db.SelectContext(ctx, &tasks, `
+		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
+		       t.brand_id, t.category_id, t.project_id, t.group_id, t.created_at, t.needs_revision, t.completed_at,
+		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
+		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
+		FROM tasks t
+		LEFT JOIN users u ON t.assigned_to = u.id
+		LEFT JOIN users u2 ON t.assigned_by = u2.id
+		WHERE t.project_id = $1
+		ORDER BY 
+			t.group_id NULLS LAST,
+			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
+			t.due_date ASC NULLS LAST,
+			t.created_at DESC
+	`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks by project: %w", err)
+	}
+	tasks, err = r.populateAssigneeIDs(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	tasks, err = r.populateLatestSubmissions(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
@@ -107,23 +174,35 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
-		SELECT DISTINCT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at,
+		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
+		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
+		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done,
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
 		FROM tasks t
-		LEFT JOIN task_assignees ta ON t.id = ta.task_id
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
-		WHERE t.assigned_to = $1 OR ta.user_id = $1
-		ORDER BY t.created_at DESC
+		WHERE t.assigned_to = $1 
+		   OR EXISTS (
+		       SELECT 1 FROM task_assignees ta 
+		       WHERE ta.task_id = t.id AND ta.user_id = $1
+		   )
+		ORDER BY 
+			t.category_id NULLS LAST,
+			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
+			t.due_date ASC NULLS LAST,
+			t.created_at DESC
 	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tasks: %w", err)
+	}
+	tasks, err = r.populateAssigneeIDs(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
-	tasks, err = r.populateAssigneeIDs(ctx, tasks)
+	tasks, err = r.populateLatestSubmissions(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
@@ -134,9 +213,10 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 	var task domain.Task
 	err := r.db.GetContext(ctx, &task, `
 		SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
-		       t.brand_id, t.category_id, t.created_at,
+		       t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
-		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name
+		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -146,6 +226,10 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 		return nil, err
 	}
 	tasks, err := r.populateAssigneeIDs(ctx, []domain.Task{task})
+	if err != nil {
+		return nil, err
+	}
+	tasks, err = r.populateLatestSubmissions(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +244,8 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, created_at)
-		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, NOW())
+		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, created_at)
+		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, NOW())
 	`, t)
 	if err != nil {
 		return err
@@ -224,9 +308,23 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 }
 
 func (r *TaskRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
+	var err error
+	if status == "completed" {
+		_, err = r.db.ExecContext(ctx, `
+			UPDATE tasks SET status = $1, completed_at = NOW(), needs_revision = FALSE WHERE id = $2
+		`, status, id)
+	} else {
+		_, err = r.db.ExecContext(ctx, `
+			UPDATE tasks SET status = $1 WHERE id = $2
+		`, status, id)
+	}
+	return err
+}
+
+func (r *TaskRepo) UpdateNeedsRevision(ctx context.Context, id uuid.UUID, needsRevision bool) error {
 	_, err := r.db.ExecContext(ctx, `
-		UPDATE tasks SET status = $1 WHERE id = $2
-	`, status, id)
+		UPDATE tasks SET needs_revision = $1 WHERE id = $2
+	`, needsRevision, id)
 	return err
 }
 
@@ -308,4 +406,35 @@ func (r *TaskRepo) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, e
 		events = append(events, ev)
 	}
 	return events, nil
+}
+
+func (r *TaskRepo) CreateTaskSubmission(ctx context.Context, sub *domain.TaskSubmission) error {
+	if sub.ID == uuid.Nil {
+		sub.ID = uuid.New()
+	}
+	_, err := r.db.NamedExecContext(ctx, `
+		INSERT INTO task_submissions (id, task_id, submitted_by, url, version, status, submitted_at, created_at)
+		VALUES (:id, :task_id, :submitted_by, :url, :version, :status, NOW(), NOW())
+	`, sub)
+	return err
+}
+
+func (r *TaskRepo) GetTaskSubmissions(ctx context.Context, taskID uuid.UUID) ([]domain.TaskSubmission, error) {
+	var subs []domain.TaskSubmission
+	err := r.db.SelectContext(ctx, &subs, `
+		SELECT * FROM task_submissions WHERE task_id = $1 ORDER BY submitted_at DESC
+	`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return subs, nil
+}
+
+func (r *TaskRepo) UpdateSubmissionStatus(ctx context.Context, id uuid.UUID, status string, reviewerID uuid.UUID, note *string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE task_submissions 
+		SET status = $1, reviewed_by = $2, reviewed_at = NOW(), review_note = $3
+		WHERE id = $4
+	`, status, reviewerID, note, id)
+	return err
 }

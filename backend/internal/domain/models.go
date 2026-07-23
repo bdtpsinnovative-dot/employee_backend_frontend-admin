@@ -136,25 +136,75 @@ type LeaveBalance struct {
 	Remaining float64 `json:"remaining"`
 }
 
+// Project represents a project replacing legacy Task/Board.
+type Project struct {
+	ID          uuid.UUID  `db:"id" json:"id"`
+	Name        string     `db:"name" json:"name"`
+	Description string     `db:"description" json:"description"`
+	BrandID     *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
+	OwnerID     *uuid.UUID `db:"owner_id" json:"owner_id,omitempty"`
+	StartDate   *time.Time `db:"start_date" json:"start_date,omitempty"`
+	DueDate     *time.Time `db:"due_date" json:"due_date,omitempty"`
+	Status      string     `db:"status" json:"status"` // "active" | "completed"
+	Progress    float64    `db:"progress" json:"progress"`
+	SortOrder   int        `db:"sort_order" json:"sort_order"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
+	
+	// Joined fields
+	Groups  []ProjectGroup `db:"-" json:"groups,omitempty"`
+	Members []User         `db:"-" json:"members,omitempty"`
+}
+
+// ProjectGroup represents a group within a project replacing legacy TaskList.
+type ProjectGroup struct {
+	ID          uuid.UUID  `db:"id" json:"id"`
+	ProjectID   uuid.UUID  `db:"project_id" json:"project_id"`
+	Name        string     `db:"name" json:"name"`
+	Description string     `db:"description" json:"description"`
+	SortOrder   int        `db:"sort_order" json:"sort_order"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	
+	// Joined fields
+	Tasks []Task `db:"-" json:"tasks,omitempty"`
+}
+
+// ProjectMember represents a user assigned to a project.
+type ProjectMember struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 // Task represents a work task assigned to an employee.
 type Task struct {
 	ID          uuid.UUID  `db:"id" json:"id"`
+	ProjectID   *uuid.UUID `db:"project_id" json:"project_id,omitempty"`
+	GroupID     *uuid.UUID `db:"group_id" json:"group_id,omitempty"`
 	AssignedTo  *uuid.UUID `db:"assigned_to" json:"assigned_to"`
 	Title       string     `db:"title" json:"title"`
 	Description string     `db:"description" json:"description"`
-	DueDate     time.Time  `db:"due_date" json:"due_date"`
-	Status      string     `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
+	StartDate   *time.Time `db:"start_date" json:"start_date,omitempty"`
+	DueDate     *time.Time `db:"due_date" json:"due_date"`
+	Priority    string     `db:"priority" json:"priority"` // "low" | "medium" | "high" | "urgent"
+	Status      string     `db:"status" json:"status"` // "pending" | "in_progress" | "in_review" | "completed"
+	RecordKind  string     `db:"record_kind" json:"record_kind"` // "legacy_assignment" | "task"
+	SortOrder   int        `db:"sort_order" json:"sort_order"`
 	AssignedBy  *uuid.UUID `db:"assigned_by" json:"assigned_by,omitempty"`
 	BrandID     *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
 	CategoryID  *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	NeedsRevision bool       `db:"needs_revision" json:"needs_revision"`
+	CompletedAt   *time.Time `db:"completed_at" json:"completed_at,omitempty"`
 	// Joined fields (not stored in tasks table)
-	SubItems       []TaskSubItem `db:"-" json:"sub_items,omitempty"`
-	AssigneeIDs    []uuid.UUID   `db:"-" json:"assignee_ids,omitempty"`
-	AssignedToName string        `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
-	AssignedByName string        `db:"assigned_by_name" json:"assigned_by_name,omitempty"`
-	CardTotal      int           `db:"card_total" json:"card_total"`
-	CardDone       int           `db:"card_done" json:"card_done"`
+	SubItems       []TaskSubItem    `db:"-" json:"sub_items,omitempty"`
+	AssigneeIDs    []uuid.UUID      `db:"-" json:"assignee_ids,omitempty"`
+	AssignedToName string           `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
+	AssignedByName string           `db:"assigned_by_name" json:"assigned_by_name,omitempty"`
+	CardTotal      int              `db:"card_total" json:"card_total"`
+	CardDone       int              `db:"card_done" json:"card_done"`
+	LatestSubmission *TaskSubmission `db:"-" json:"latest_submission,omitempty"`
+	SubmissionCount  int             `db:"submission_count" json:"submission_count"`
 }
 
 // Notification represents an in-app notification record for an employee.
@@ -269,17 +319,34 @@ type TaskCard struct {
 
 // TaskEvent represents an activity log or comment on a task.
 type TaskEvent struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	TaskID    uuid.UUID `db:"task_id" json:"task_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	EventType string    `db:"event_type" json:"event_type"` // "comment" | "system"
-	Action    string    `db:"action" json:"action"`
-	Content   *string   `db:"content" json:"content,omitempty"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	ProjectID *uuid.UUID `db:"project_id" json:"project_id,omitempty"`
+	TaskID    uuid.UUID  `db:"task_id" json:"task_id"`
+	UserID    uuid.UUID  `db:"user_id" json:"user_id"`
+	EventType string     `db:"event_type" json:"event_type"` // "comment" | "system"
+	Action    string     `db:"action" json:"action"`
+	Content   *string    `db:"content" json:"content,omitempty"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
 	
 	// Joined fields
 	UserFirstName string  `db:"user_first_name" json:"user_first_name,omitempty"`
 	UserLastName  string  `db:"user_last_name" json:"user_last_name,omitempty"`
 	UserAvatarURL *string `db:"user_avatar_url" json:"user_avatar_url,omitempty"`
 	TaskTitle     string  `db:"task_title" json:"task_title,omitempty"`
+}
+
+// TaskSubmission represents a work submission (link) from an employee.
+type TaskSubmission struct {
+	ID          uuid.UUID  `db:"id" json:"id"`
+	ProjectID   *uuid.UUID `db:"project_id" json:"project_id,omitempty"`
+	TaskID      uuid.UUID  `db:"task_id" json:"task_id"`
+	SubmittedBy uuid.UUID  `db:"submitted_by" json:"submitted_by"`
+	URL         string     `db:"url" json:"url"`
+	Version     int        `db:"version" json:"version"`
+	Status      string     `db:"status" json:"status"` // "submitted" | "approved" | "revision_requested" | "superseded"
+	SubmittedAt time.Time  `db:"submitted_at" json:"submitted_at"`
+	ReviewedBy  *uuid.UUID `db:"reviewed_by" json:"reviewed_by,omitempty"`
+	ReviewedAt  *time.Time `db:"reviewed_at" json:"reviewed_at,omitempty"`
+	ReviewNote  *string    `db:"review_note" json:"review_note,omitempty"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 }

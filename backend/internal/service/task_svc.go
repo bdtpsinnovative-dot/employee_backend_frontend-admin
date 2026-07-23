@@ -31,11 +31,15 @@ func (s *TaskService) ListAllTasks(ctx context.Context) ([]domain.Task, error) {
 	return s.taskRepo.ListAll(ctx)
 }
 
+func (s *TaskService) ListTasksByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Task, error) {
+	return s.taskRepo.ListByProject(ctx, projectID)
+}
+
 func (s *TaskService) ListTasksByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
 	return s.taskRepo.ListByUser(ctx, userID)
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
+func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID) (*domain.Task, error) {
 	var primaryAssignee *uuid.UUID
 	if len(assigneeIDs) > 0 {
 		primaryAssignee = &assigneeIDs[0]
@@ -50,6 +54,8 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 		AssignedBy:  &assignedBy,
 		BrandID:     brandID,
 		CategoryID:  categoryID,
+		ProjectID:   projectID,
+		GroupID:     groupID,
 		AssigneeIDs: assigneeIDs,
 	}
 
@@ -83,7 +89,7 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	return t, nil
 }
 
-func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -167,7 +173,7 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 	}
 
 	// Valid status values
-	if status != "pending" && status != "in_progress" && status != "completed" {
+	if status != "pending" && status != "in_progress" && status != "completed" && status != "in_review" {
 		log.Printf("[UpdateTaskStatus Debug] Invalid status: %s", status)
 		return fmt.Errorf("invalid status value")
 	}
@@ -242,3 +248,95 @@ func (s *TaskService) AddTaskComment(ctx context.Context, taskID, userID uuid.UU
 func (s *TaskService) ListAllTaskEvents(ctx context.Context) ([]domain.TaskEvent, error) {
 	return s.taskRepo.ListAllTaskEvents(ctx)
 }
+
+func (s *TaskService) SubmitTaskWork(ctx context.Context, taskID, userID uuid.UUID, url string) (*domain.TaskSubmission, error) {
+	task, err := s.taskRepo.FindByID(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	isAssigned := false
+	if task.AssignedTo != nil && *task.AssignedTo == userID {
+		isAssigned = true
+	}
+	for _, aid := range task.AssigneeIDs {
+		if aid == userID {
+			isAssigned = true
+			break
+		}
+	}
+	if !isAssigned {
+		return nil, fmt.Errorf("permission denied: task is not assigned to you")
+	}
+
+	sub := &domain.TaskSubmission{
+		TaskID:      taskID,
+		SubmittedBy: userID,
+		URL:         url,
+		Version:     task.SubmissionCount + 1,
+		Status:      "submitted",
+	}
+
+	if err := s.taskRepo.CreateTaskSubmission(ctx, sub); err != nil {
+		return nil, fmt.Errorf("failed to create submission: %w", err)
+	}
+
+	if err := s.taskRepo.UpdateStatus(ctx, taskID, "in_review"); err != nil {
+		return nil, fmt.Errorf("failed to update task status: %w", err)
+	}
+
+	content := "ส่งงานเพื่อรอการตรวจ"
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    taskID,
+		UserID:    userID,
+		EventType: "system",
+		Action:    "submitted",
+		Content:   &content,
+	})
+
+	return sub, nil
+}
+
+func (s *TaskService) GetTaskSubmissions(ctx context.Context, taskID uuid.UUID) ([]domain.TaskSubmission, error) {
+	return s.taskRepo.GetTaskSubmissions(ctx, taskID)
+}
+
+func (s *TaskService) ApproveSubmission(ctx context.Context, submissionID, taskID, adminID uuid.UUID) error {
+	if err := s.taskRepo.UpdateSubmissionStatus(ctx, submissionID, "approved", adminID, nil); err != nil {
+		return err
+	}
+	if err := s.taskRepo.UpdateStatus(ctx, taskID, "completed"); err != nil {
+		return err
+	}
+	content := "อนุมัติผลงาน"
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    taskID,
+		UserID:    adminID,
+		EventType: "system",
+		Action:    "approved",
+		Content:   &content,
+	})
+	return nil
+}
+
+func (s *TaskService) RequestRevision(ctx context.Context, submissionID, taskID, adminID uuid.UUID, note string) error {
+	if err := s.taskRepo.UpdateSubmissionStatus(ctx, submissionID, "revision_requested", adminID, &note); err != nil {
+		return err
+	}
+	if err := s.taskRepo.UpdateStatus(ctx, taskID, "in_progress"); err != nil {
+		return err
+	}
+	if err := s.taskRepo.UpdateNeedsRevision(ctx, taskID, true); err != nil {
+		return err
+	}
+	content := "ขอให้แก้ไขงาน: " + note
+	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
+		TaskID:    taskID,
+		UserID:    adminID,
+		EventType: "system",
+		Action:    "revision_requested",
+		Content:   &content,
+	})
+	return nil
+}
+

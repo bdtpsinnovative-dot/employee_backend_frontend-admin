@@ -178,6 +178,15 @@ func (h *BrandCategoryHandler) CreateTaskSubItem(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
+	// Auto-assign to the first available card if the Trello board is already initialized
+	lists, _ := h.listRepo.ListByTask(c.Request.Context(), taskID)
+	if len(lists) > 0 {
+		cards, _ := h.cardRepo.ListByList(c.Request.Context(), lists[0].ID)
+		if len(cards) > 0 {
+			item.CardID = &cards[0].ID
+		}
+	}
+
 	if err := h.subItemRepo.CreateBatch(c.Request.Context(), []domain.TaskSubItem{item}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มรายการย่อยล้มเหลว"})
 		return
@@ -271,6 +280,12 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 			}
 			// reload lists
 			lists, _ = h.listRepo.ListByTask(c.Request.Context(), taskID)
+		}
+	} else {
+		// Auto-link any orphaned sub-items (created without card_id via legacy API) to the first available card
+		cards, _ := h.cardRepo.ListByList(c.Request.Context(), lists[0].ID)
+		if len(cards) > 0 {
+			_ = h.subItemRepo.LinkSubItemsToCard(c.Request.Context(), cards[0].ID, taskID)
 		}
 	}
 

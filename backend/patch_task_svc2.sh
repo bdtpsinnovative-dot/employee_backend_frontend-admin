@@ -1,0 +1,1 @@
+sed -i '' 's/func (s \*TaskService) ListTasksByUser/func (s \*TaskService) ListTasksByProject(ctx context.Context, projectID uuid.UUID) (\[\]domain.Task, error) {\n\treturn s.taskRepo.ListByProject(ctx, projectID)\n}\n\nfunc (s \*TaskService) ListTasksByUser/' backend/internal/service/task_svc.go

@@ -1,0 +1,1 @@
+sed -i '' 's/CategoryID  string   `json:"category_id"`/CategoryID  string   `json:"category_id"`\n\tProjectID   string   `json:"project_id"`\n\tGroupID     string   `json:"group_id"`/' backend/internal/handler/task_handler.go

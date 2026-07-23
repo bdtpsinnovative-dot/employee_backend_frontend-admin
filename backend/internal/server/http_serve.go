@@ -47,6 +47,8 @@ func New(cfg *config.Config) (*Server, error) {
 	attachmentRepo := repository.NewCardAttachmentRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
 	settingRepo := repository.NewSettingRepo(db)
+	projectRepo := repository.NewProjectRepo(db)
+	projectGroupRepo := repository.NewProjectGroupRepo(db)
 
 	// Run card_attachments table migration (idempotent)
 	if err := attachmentRepo.EnsureTable(context.Background()); err != nil {
@@ -64,6 +66,8 @@ func New(cfg *config.Config) (*Server, error) {
 	locationSvc := service.NewLocationService(locationRepo)
 	notifSvc := service.NewNotificationService(notifRepo, userRepo, firebaseSvc)
 	taskSvc := service.NewTaskService(taskRepo, userRepo, firebaseSvc, notifSvc)
+	projectSvc := service.NewProjectService(projectRepo)
+	projectGroupSvc := service.NewProjectGroupService(projectGroupRepo)
 	storageSvc, err := service.NewStorageService()
 	if err != nil {
 		fmt.Printf("Warning: Could not initialize StorageService (R2): %v\n", err)
@@ -81,6 +85,8 @@ func New(cfg *config.Config) (*Server, error) {
 	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
+	projectH := handler.NewProjectHandler(projectSvc)
+	projectGroupH := handler.NewProjectGroupHandler(projectGroupSvc)
 	var uploadH *handler.UploadHandler
 	if storageSvc != nil {
 		uploadH = handler.NewUploadHandler(storageSvc)
@@ -97,7 +103,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, notifH, settingH)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, notifH, settingH, projectH, projectGroupH)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -127,6 +133,8 @@ func registerRoutes(
 	brandCategoryH *handler.BrandCategoryHandler,
 	notifH *handler.NotificationHandler,
 	settingH *handler.SettingHandler,
+	projectH *handler.ProjectHandler,
+	projectGroupH *handler.ProjectGroupHandler,
 ) {
 	// ตรวจสอบว่า server ยังทำงานอยู่ (ไม่ต้องล็อกอิน)
 	r.GET("/ping", func(c *gin.Context) {
@@ -195,6 +203,18 @@ func registerRoutes(
 		// จุดทำงาน
 		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)
 
+		// โครงสร้าง Project (ใหม่)
+		api.GET("/projects", projectH.ListProjects)
+		api.GET("/projects/:id/tasks", taskH.ListProjectTasks)
+		api.POST("/projects", projectH.CreateProject)
+		api.GET("/projects/:id", projectH.GetProject)
+		api.PATCH("/projects/:id", projectH.UpdateProject)
+		api.POST("/projects/:id/members", projectH.AddMember)
+		api.DELETE("/projects/:id/members/:userId", projectH.RemoveMember)
+		api.GET("/projects/:id/groups", projectGroupH.ListGroups)
+		api.POST("/projects/:id/groups", projectGroupH.CreateGroup)
+		api.PATCH("/project-groups/:id", projectGroupH.UpdateGroup)
+
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                    // ดูงานที่ได้รับมอบหมายของตนเอง
 		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)  // อัปเดตสถานะงาน (พนักงาน)
@@ -203,6 +223,8 @@ func registerRoutes(
 		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
 		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
 		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
+		api.POST("/tasks/:id/submissions", taskH.SubmitTaskWork)         // ส่งงาน (พนักงาน)
+		api.GET("/tasks/:id/submissions", taskH.GetTaskSubmissions)      // ดูประวัติการส่งงาน
 		api.POST("/tasks", taskH.CreateTask)                               // มอบหมายงานใหม่ (พนักงาน + แอดมิน)
 		api.PUT("/tasks/:id", taskH.UpdateTask)                            // แก้ไขงานหลัก (พนักงาน + แอดมิน)
 		api.DELETE("/tasks/:id", taskH.DeleteTask)                         // ลบงาน
@@ -272,10 +294,17 @@ func registerRoutes(
 		admin.POST("/locations", adminH.CreateLocation)       // เพิ่มจุดทำงาน (สาขาใหม่)
 		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
 
+		// ลบ Project/Group (Admin Only)
+		admin.DELETE("/projects/:id", projectH.DeleteProject)
+		admin.DELETE("/project-groups/:id", projectGroupH.DeleteGroup)
+
 		// จัดการงาน (Tasks)
 		admin.POST("/tasks", taskH.CreateTask)           // มอบหมายงานใหม่
 		admin.GET("/tasks", taskH.ListAllTasks)          // ดึงงานของทุกคน
 		admin.GET("/tasks/events", taskH.ListAllTaskEvents) // ดึงประวัติงานทั้งหมด (Audit Log)
+		admin.GET("/tasks/:id/submissions", taskH.GetTaskSubmissions) // ดูประวัติการส่งงาน (แอดมิน)
+		admin.POST("/tasks/:id/submissions/:submissionId/approve", taskH.ApproveSubmission) // อนุมัติการส่งงาน (แอดมิน)
+		admin.POST("/tasks/:id/submissions/:submissionId/request-revision", taskH.RequestRevision) // ขอแก้ไขงาน (แอดมิน)
 		admin.DELETE("/tasks/:id", taskH.DeleteTask)     // ลบงาน
 		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
 
