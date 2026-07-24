@@ -285,6 +285,9 @@ func NewTaskCardRepo(db *sqlx.DB) *TaskCardRepo {
 	return &TaskCardRepo{db: db}
 }
 
+// GetDB exposes the underlying DB for advanced queries in handlers.
+func (r *TaskCardRepo) GetDB() *sqlx.DB { return r.db }
+
 func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]domain.TaskCard, error) {
 	var cards []domain.TaskCard
 	err := r.db.SelectContext(ctx, &cards, `

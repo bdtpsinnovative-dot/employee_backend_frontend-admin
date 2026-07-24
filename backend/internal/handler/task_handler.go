@@ -4,21 +4,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type TaskHandler struct {
 	taskSvc     *service.TaskService
 	subItemRepo *repository.TaskSubItemRepo
+	listRepo    *repository.TaskListRepo
+	cardRepo    *repository.TaskCardRepo
 }
 
-func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo) *TaskHandler {
-	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo}
+func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo, listRepo *repository.TaskListRepo, cardRepo *repository.TaskCardRepo) *TaskHandler {
+	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo, listRepo: listRepo, cardRepo: cardRepo}
 }
 
 type createTaskReq struct {
@@ -94,28 +95,6 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	// Create sub-items if any
-	if len(req.SubItems) > 0 && h.subItemRepo != nil {
-		var subItems []domain.TaskSubItem
-		for i, title := range req.SubItems {
-			if title == "" {
-				continue
-			}
-			subItems = append(subItems, domain.TaskSubItem{
-				ID:        uuid.New(),
-				TaskID:    task.ID,
-				Title:     title,
-				IsDone:    false,
-				SortOrder: i,
-				CreatedAt: time.Now(),
-			})
-		}
-		if len(subItems) > 0 {
-			_ = h.subItemRepo.CreateBatch(c.Request.Context(), subItems)
-			task.SubItems = subItems
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
 
@@ -158,6 +137,75 @@ func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
+}
+
+// UpdateTask PATCH /api/tasks/:id
+func (h *TaskHandler) UpdateTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var req createTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้องหรือใส่ข้อมูลไม่ครบ"})
+		return
+	}
+
+	assigneeUUIDs := make([]uuid.UUID, 0, len(req.AssigneeIDs))
+	for _, idStr := range req.AssigneeIDs {
+		if parsed, parseErr := uuid.Parse(idStr); parseErr == nil {
+			assigneeUUIDs = append(assigneeUUIDs, parsed)
+		}
+	}
+	if len(assigneeUUIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
+		return
+	}
+
+	dueDate, err := time.Parse("2006-01-02", req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่กำหนดส่งไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)"})
+		return
+	}
+
+	var brandID *uuid.UUID
+	if req.BrandID != "" {
+		if parsed, parseErr := uuid.Parse(req.BrandID); parseErr == nil {
+			brandID = &parsed
+		}
+	}
+	var categoryID *uuid.UUID
+	if req.CategoryID != "" {
+		if parsed, parseErr := uuid.Parse(req.CategoryID); parseErr == nil {
+			categoryID = &parsed
+		}
+	}
+
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	isAdmin := roleRaw.(string) == "admin"
+
+	task, err := h.taskSvc.UpdateTask(
+		c.Request.Context(),
+		id,
+		assigneeUUIDs,
+		req.Title,
+		req.Description,
+		&dueDate,
+		userID,
+		isAdmin,
+		brandID,
+		categoryID,
+	)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
 
 type updateTaskStatusReq struct {

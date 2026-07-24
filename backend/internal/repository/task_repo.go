@@ -21,12 +21,24 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 	if len(tasks) == 0 {
 		return tasks, nil
 	}
-	// Fetch all assignees for these tasks
+	var taskIDs []uuid.UUID
+	for _, t := range tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+
+	// Fetch all assignees for these tasks in batch
 	var assignees []struct {
 		TaskID uuid.UUID `db:"task_id"`
 		UserID uuid.UUID `db:"user_id"`
 	}
-	err := r.db.SelectContext(ctx, &assignees, `SELECT task_id, user_id FROM task_assignees`)
+
+	query, args, err := sqlx.In(`SELECT task_id, user_id FROM task_assignees WHERE task_id IN (?)`, taskIDs)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+
+	err = r.db.SelectContext(ctx, &assignees, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +260,10 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 	}
 	defer tx.Rollback()
 
+	if (t.AssignedTo == nil || *t.AssignedTo == uuid.Nil) && len(t.AssigneeIDs) > 0 {
+		t.AssignedTo = &t.AssigneeIDs[0]
+	}
+
 	_, err = tx.NamedExecContext(ctx, `
 		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, created_at)
 		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, NOW())
@@ -291,16 +307,23 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 	}
 	defer tx.Rollback()
 
-	// Update main task details
-	_, err = tx.NamedExecContext(ctx, `
+	var assignedTo *uuid.UUID
+	if len(t.AssigneeIDs) > 0 {
+		assignedTo = &t.AssigneeIDs[0]
+	}
+	t.AssignedTo = assignedTo
+
+	// Update main task details including assigned_to
+	_, err = tx.ExecContext(ctx, `
 		UPDATE tasks 
-		SET title = :title, 
-		    description = :description, 
-		    due_date = :due_date, 
-		    brand_id = :brand_id, 
-		    category_id = :category_id
-		WHERE id = :id
-	`, t)
+		SET title = $1, 
+		    description = $2, 
+		    due_date = $3, 
+		    brand_id = $4, 
+		    category_id = $5,
+		    assigned_to = $6
+		WHERE id = $7
+	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.ID)
 	if err != nil {
 		return err
 	}

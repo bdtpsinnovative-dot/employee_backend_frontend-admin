@@ -45,6 +45,8 @@ func New(cfg *config.Config) (*Server, error) {
 	listRepo := repository.NewTaskListRepo(db)
 	cardRepo := repository.NewTaskCardRepo(db)
 	attachmentRepo := repository.NewCardAttachmentRepo(db)
+	commentRepo := repository.NewCardCommentRepo(db)
+	assigneeRepo := repository.NewCardAssigneeRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
 	settingRepo := repository.NewSettingRepo(db)
 
@@ -77,8 +79,8 @@ func New(cfg *config.Config) (*Server, error) {
 	offsiteH := handler.NewOffsiteHandler(offsiteSvc, userSvc, notifSvc)
 	holidayH := handler.NewHolidayHandler(holidaySvc)
 	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc, firebaseSvc, notifSvc)
-	taskH := handler.NewTaskHandler(taskSvc, subItemRepo)
-	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo)
+	taskH := handler.NewTaskHandler(taskSvc, subItemRepo, listRepo, cardRepo)
+	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, commentRepo, assigneeRepo, notifSvc)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
 	var uploadH *handler.UploadHandler
@@ -164,8 +166,8 @@ func registerRoutes(
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
 	{
 		// ข้อมูลผู้ใช้
-		api.PUT("/users/me/device", userH.BindDevice) // ผูกเครื่องมือถือ
-		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken) // บันทึก FCM Token
+		api.PUT("/users/me/device", userH.BindDevice)              // ผูกเครื่องมือถือ
+		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken)       // บันทึก FCM Token
 		api.PUT("/users/me/profile/info", userH.UpdateProfileInfo) // อัปเดตชื่อและรูปโปรไฟล์
 
 		// เข้า-ออกงาน
@@ -195,30 +197,43 @@ func registerRoutes(
 		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)
 
 		// มอบหมายงาน (Tasks)
-		api.GET("/tasks", taskH.ListMyTasks)                    // ดูงานที่ได้รับมอบหมายของตนเอง
-		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)  // อัปเดตสถานะงาน (พนักงาน)
-		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
-		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
-		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
-		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)        // เพิ่ม List/รายการ
-		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)      // ลบ List/รายการ
-		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)        // อัปเดต List/รายการ (ลำดับ)
-		api.POST("/tasks/lists/:id/cards", brandCategoryH.CreateTaskCard)  // เพิ่ม Card/การ์ด
-		api.PATCH("/tasks/cards/:id", brandCategoryH.UpdateTaskCard)       // อัปเดต Card (ชื่อ/รายละเอียด/สถานะ)
-		api.DELETE("/tasks/cards/:id", brandCategoryH.DeleteTaskCard)      // ลบ Card/การ์ด
-		api.POST("/tasks/cards/:id/sub-items", brandCategoryH.CreateCardSubItem) // เพิ่ม Sub-item ใน Card
-		api.PATCH("/tasks/sub-items/:id/detail", brandCategoryH.UpdateCardSubItemDetail) // อัปเดตรายละเอียดรายการย่อย (พนักงาน + แอดมิน)
-		api.DELETE("/tasks/sub-items/:id", brandCategoryH.DeleteTaskSubItem) // ลบรายการย่อย
+		api.GET("/tasks", taskH.ListMyTasks)                                                     // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.PATCH("/tasks/:id", taskH.UpdateTask)                                                // แก้ไขรายละเอียดและผู้รับผิดชอบงาน
+		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)                                   // อัปเดตสถานะงาน (พนักงาน)
+		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem)               // เปลี่ยนสถานะรายการย่อย (พนักงาน)
+		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem)                       // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
+		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)                          // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
+		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)                              // เพิ่ม List/รายการ
+		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)                            // ลบ List/รายการ
+		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)                             // อัปเดต List/รายการ (ลำดับ)
+		api.POST("/tasks/lists/:id/cards", brandCategoryH.CreateTaskCard)                        // เพิ่ม Card/การ์ด
+		api.PATCH("/tasks/cards/:id", brandCategoryH.UpdateTaskCard)                             // อัปเดต Card (ชื่อ/รายละเอียด/สถานะ)
+		api.DELETE("/tasks/cards/:id", brandCategoryH.DeleteTaskCard)                            // ลบ Card/การ์ด
+		api.POST("/tasks/cards/:id/sub-items", brandCategoryH.CreateCardSubItem)                 // เพิ่ม Sub-item ใน Card
+		api.PATCH("/tasks/sub-items/:id/detail", brandCategoryH.UpdateCardSubItemDetail)         // อัปเดตรายละเอียดรายการย่อย (พนักงาน + แอดมิน)
+		api.DELETE("/tasks/sub-items/:id", brandCategoryH.DeleteTaskSubItem)                     // ลบรายการย่อย
 		api.POST("/tasks/sub-items/:id/verifications", brandCategoryH.CreateSubItemVerification) // บันทึกผลการตรวจสอบรายการย่อย
-		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)   // เพิ่มไฟล์แนบในการ์ด
-		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)     // ดึงไฟล์แนบทั้งหมดของการ์ด
-		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment) // ลบไฟล์แนบ
+		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)            // เพิ่มไฟล์แนบในการ์ด
+		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)              // ดึงไฟล์แนบทั้งหมดของการ์ด
+		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment)          // ลบไฟล์แนบ
 
+		// Card Comments (rich text, @mention)
+		api.GET("/tasks/cards/:id/comments", brandCategoryH.GetCardComments)                 // ดึงคอมเมนต์ของการ์ด
+		api.POST("/tasks/cards/:id/comments", brandCategoryH.CreateCardComment)              // เพิ่มคอมเมนต์
+		api.PATCH("/tasks/cards/:id/comments/:commentId", brandCategoryH.UpdateCardComment)  // แก้ไขคอมเมนต์
+		api.DELETE("/tasks/cards/:id/comments/:commentId", brandCategoryH.DeleteCardComment) // ลบคอมเมนต์
+
+		// Card Assignees
+		api.GET("/tasks/cards/:id/assignees", brandCategoryH.GetCardAssignees)    // ดึงผู้รับผิดชอบการ์ด
+		api.PUT("/tasks/cards/:id/assignees", brandCategoryH.UpdateCardAssignees) // ตั้งผู้รับผิดชอบการ์ด
+
+		// Task Members (สมาชิก project/task สำหรับ picker)
+		api.GET("/tasks/:id/members", brandCategoryH.GetTaskMembers) // ดึงสมาชิกทั้งหมดของงาน
 
 		// การแจ้งเตือน (Notifications)
-		api.GET("/notifications", notifH.GetMyNotifications)          // ดึงรายการแจ้งเตือน
-		api.PATCH("/notifications/read-all", notifH.MarkAllRead)       // mark ทั้งหมดว่าอ่านแล้ว
-		api.PATCH("/notifications/:id/read", notifH.MarkRead)          // mark รายการเดียวว่าอ่านแล้ว
+		api.GET("/notifications", notifH.GetMyNotifications)     // ดึงรายการแจ้งเตือน
+		api.PATCH("/notifications/read-all", notifH.MarkAllRead) // mark ทั้งหมดว่าอ่านแล้ว
+		api.PATCH("/notifications/:id/read", notifH.MarkRead)    // mark รายการเดียวว่าอ่านแล้ว
 
 		// การตั้งค่าระบบ (Settings)
 		api.GET("/settings/checkin-mode", settingH.GetCheckInMode)
@@ -267,20 +282,20 @@ func registerRoutes(
 		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
 
 		// จัดการงาน (Tasks)
-		admin.POST("/tasks", taskH.CreateTask)           // มอบหมายงานใหม่
-		admin.GET("/tasks", taskH.ListAllTasks)          // ดึงงานของทุกคน
-		admin.DELETE("/tasks/:id", taskH.DeleteTask)     // ลบงาน
+		admin.POST("/tasks", taskH.CreateTask)                             // มอบหมายงานใหม่
+		admin.GET("/tasks", taskH.ListAllTasks)                            // ดึงงานของทุกคน
+		admin.DELETE("/tasks/:id", taskH.DeleteTask)                       // ลบงาน
 		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
 
 		// จัดการ Brand
-		admin.GET("/brands", brandCategoryH.ListBrands)           // ดึง Brand ทั้งหมด
-		admin.POST("/brands", brandCategoryH.CreateBrand)         // เพิ่ม Brand ใหม่
-		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand)   // ลบ Brand
+		admin.GET("/brands", brandCategoryH.ListBrands)         // ดึง Brand ทั้งหมด
+		admin.POST("/brands", brandCategoryH.CreateBrand)       // เพิ่ม Brand ใหม่
+		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand) // ลบ Brand
 
 		// จัดการหมวดหมู่งาน (Task Categories)
-		admin.GET("/task-categories", brandCategoryH.ListTaskCategories)           // ดึงหมวดหมู่ทั้งหมด
-		admin.POST("/task-categories", brandCategoryH.CreateTaskCategory)          // เพิ่มหมวดหมู่ใหม่
-		admin.DELETE("/task-categories/:id", brandCategoryH.DeleteTaskCategory)    // ลบหมวดหมู่
+		admin.GET("/task-categories", brandCategoryH.ListTaskCategories)        // ดึงหมวดหมู่ทั้งหมด
+		admin.POST("/task-categories", brandCategoryH.CreateTaskCategory)       // เพิ่มหมวดหมู่ใหม่
+		admin.DELETE("/task-categories/:id", brandCategoryH.DeleteTaskCategory) // ลบหมวดหมู่
 
 		// จัดการตั้งค่าระบบ (Settings)
 		admin.PUT("/settings/checkin-mode", settingH.SetCheckInMode)

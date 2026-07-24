@@ -330,6 +330,52 @@ type TaskCard struct {
 	SubItems     []TaskSubItem    `db:"-" json:"sub_items"`
 	Attachments  []CardAttachment `db:"-" json:"attachments"`
 	AdminComment *string          `db:"admin_comment" json:"admin_comment,omitempty"`
+	Assignees    []UserSummary    `db:"-" json:"assignees"`
+}
+
+// UserSummary is a lightweight user representation for cards/comments.
+type UserSummary struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	FirstName string    `db:"first_name" json:"first_name"`
+	LastName  string    `db:"last_name" json:"last_name"`
+	AvatarURL *string   `db:"avatar_url" json:"avatar_url,omitempty"`
+	Position  string    `db:"position" json:"position"`
+}
+
+// CardAssignee maps a user to a card.
+type CardAssignee struct {
+	CardID     uuid.UUID  `db:"card_id" json:"card_id"`
+	UserID     uuid.UUID  `db:"user_id" json:"user_id"`
+	AssignedBy *uuid.UUID `db:"assigned_by" json:"assigned_by,omitempty"`
+	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
+}
+
+// CardComment is a rich-text comment on a card.
+type CardComment struct {
+	ID           uuid.UUID           `db:"id" json:"id"`
+	CardID       uuid.UUID           `db:"card_id" json:"card_id"`
+	AuthorID     uuid.UUID           `db:"author_id" json:"author_id"`
+	ContentDelta json.RawMessage     `db:"content_delta" json:"content_delta"`
+	PlainText    string              `db:"plain_text" json:"plain_text"`
+	IsEdited     bool                `db:"is_edited" json:"is_edited"`
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time           `db:"updated_at" json:"updated_at"`
+
+	// Joined fields
+	Author      *UserSummary         `db:"-" json:"author,omitempty"`
+	Mentions    []uuid.UUID          `db:"-" json:"mentioned_user_ids,omitempty"`
+	Attachments []CommentAttachment  `db:"-" json:"attachments,omitempty"`
+}
+
+// CommentAttachment is a file or image attached to a comment.
+type CommentAttachment struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CommentID uuid.UUID `db:"comment_id" json:"comment_id"`
+	URL       string    `db:"url" json:"url"`
+	Name      string    `db:"name" json:"name"`
+	Type      string    `db:"type" json:"type"` // "image" | "file"
+	SizeBytes *int64    `db:"size_bytes" json:"size_bytes,omitempty"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 // TaskEvent represents an activity log or comment on a task.

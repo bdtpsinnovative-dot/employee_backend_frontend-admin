@@ -1,24 +1,31 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/Nattamon123/employee/backend/internal/service"
 )
 
 // BrandCategoryHandler จัดการ Brand และ TaskCategory
 type BrandCategoryHandler struct {
-	brandRepo          *repository.BrandRepo
-	categoryRepo       *repository.TaskCategoryRepo
-	subItemRepo        *repository.TaskSubItemRepo
-	listRepo           *repository.TaskListRepo
-	cardRepo           *repository.TaskCardRepo
-	attachmentRepo     *repository.CardAttachmentRepo
+	brandRepo      *repository.BrandRepo
+	categoryRepo   *repository.TaskCategoryRepo
+	subItemRepo    *repository.TaskSubItemRepo
+	listRepo       *repository.TaskListRepo
+	cardRepo       *repository.TaskCardRepo
+	attachmentRepo *repository.CardAttachmentRepo
+	commentRepo    *repository.CardCommentRepo
+	assigneeRepo   *repository.CardAssigneeRepo
+	notifSvc       *service.NotificationService
 }
 
 func NewBrandCategoryHandler(
@@ -28,6 +35,9 @@ func NewBrandCategoryHandler(
 	listRepo *repository.TaskListRepo,
 	cardRepo *repository.TaskCardRepo,
 	attachmentRepo *repository.CardAttachmentRepo,
+	commentRepo *repository.CardCommentRepo,
+	assigneeRepo *repository.CardAssigneeRepo,
+	notifSvc *service.NotificationService,
 ) *BrandCategoryHandler {
 	return &BrandCategoryHandler{
 		brandRepo:      brandRepo,
@@ -36,6 +46,9 @@ func NewBrandCategoryHandler(
 		listRepo:       listRepo,
 		cardRepo:       cardRepo,
 		attachmentRepo: attachmentRepo,
+		commentRepo:    commentRepo,
+		assigneeRepo:   assigneeRepo,
+		notifSvc:       notifSvc,
 	}
 }
 
@@ -268,28 +281,48 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 		}
 	}
 
-	// 3. Load cards, sub-items, and attachments
+	// 3. Load cards, sub-items, attachments, and assignees
+	var allCardIDs []uuid.UUID
 	for i := range lists {
 		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
 		if err != nil {
 			continue
 		}
-		for j := range cards {
-			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cards[j].ID)
+		lists[i].Cards = cards
+		for _, card := range cards {
+			allCardIDs = append(allCardIDs, card.ID)
+		}
+	}
+
+	// Fetch assignees in batch
+	assigneesMap, err := h.assigneeRepo.ListByCards(c.Request.Context(), allCardIDs)
+	if err != nil {
+		assigneesMap = make(map[uuid.UUID][]domain.UserSummary)
+	}
+
+	for i := range lists {
+		for j := range lists[i].Cards {
+			cardID := lists[i].Cards[j].ID
+			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cardID)
 			if err == nil {
-				cards[j].SubItems = subItems
+				lists[i].Cards[j].SubItems = subItems
 			} else {
-				cards[j].SubItems = []domain.TaskSubItem{}
+				lists[i].Cards[j].SubItems = []domain.TaskSubItem{}
 			}
 			// Also load card attachments from card_attachments table
-			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cards[j].ID)
+			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cardID)
 			if err == nil {
-				cards[j].Attachments = attachments
+				lists[i].Cards[j].Attachments = attachments
 			} else {
-				cards[j].Attachments = []domain.CardAttachment{}
+				lists[i].Cards[j].Attachments = []domain.CardAttachment{}
+			}
+			// Assignees
+			if assignees, ok := assigneesMap[cardID]; ok {
+				lists[i].Cards[j].Assignees = assignees
+			} else {
+				lists[i].Cards[j].Assignees = []domain.UserSummary{}
 			}
 		}
-		lists[i].Cards = cards
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": lists})
@@ -390,12 +423,67 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		return
 	}
 
+	// Get task ID for the list
+	var taskID uuid.UUID
+	err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &taskID, `
+		SELECT task_id FROM task_lists WHERE id = $1
+	`, listID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่พบรายการหรือบอร์ดงานนี้"})
+		return
+	}
+
+	assignerIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	assignerID := assignerIDRaw.(uuid.UUID)
+	userRoleRaw, _ := c.Get(middleware.ContextKeyRole)
+	userRole, _ := userRoleRaw.(string)
+
+	isAuthorized := false
+	if userRole == "admin" {
+		isAuthorized = true
+	} else {
+		// Fetch task details for permission checks
+		type taskPermissionMeta struct {
+			ID         uuid.UUID  `db:"id"`
+			ProjectID  *uuid.UUID `db:"project_id"`
+			AssignedTo *uuid.UUID `db:"assigned_to"`
+			AssignedBy *uuid.UUID `db:"assigned_by"`
+		}
+		var task taskPermissionMeta
+		err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &task, `
+			SELECT id, project_id, assigned_to, assigned_by FROM tasks WHERE id = $1
+		`, taskID)
+		if err == nil {
+			if task.AssignedTo != nil && *task.AssignedTo == assignerID {
+				isAuthorized = true
+			} else if task.AssignedBy != nil && *task.AssignedBy == assignerID {
+				isAuthorized = true
+			} else {
+				var isTaskMember bool
+				err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &isTaskMember, `
+					SELECT EXISTS(
+						SELECT 1 FROM task_assignees WHERE task_id = $1 AND user_id = $2
+					)
+				`, task.ID, assignerID)
+				if err == nil && isTaskMember {
+					isAuthorized = true
+				}
+			}
+		}
+	}
+
+	if !isAuthorized {
+		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์สร้างการ์ดงานในบอร์ดนี้"})
+		return
+	}
+
 	var req struct {
 		Title       string     `json:"title"`
 		Description string     `json:"description"`
 		StartDate   *time.Time `json:"start_date"`
 		DueDate     *time.Time `json:"due_date"`
 		Priority    string     `json:"priority"`
+		AssigneeIDs []string   `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อการ์ด"})
@@ -413,6 +501,7 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		StartDate:   req.StartDate,
 		DueDate:     req.DueDate,
 		Priority:    req.Priority,
+		Assignees:   []domain.UserSummary{},
 	}
 
 	if card.Priority == "" {
@@ -422,6 +511,22 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 	if err := h.cardRepo.Create(c.Request.Context(), &card); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างการ์ดล้มเหลว"})
 		return
+	}
+
+	// Save assignees if any are specified
+	var uids []uuid.UUID
+	for _, s := range req.AssigneeIDs {
+		uid, err := uuid.Parse(s)
+		if err == nil {
+			uids = append(uids, uid)
+		}
+	}
+
+	if len(uids) > 0 {
+		_ = h.assigneeRepo.SetAssignees(c.Request.Context(), card.ID, uids, assignerID)
+		if updatedAssignees, err := h.assigneeRepo.ListByCard(c.Request.Context(), card.ID); err == nil {
+			card.Assignees = updatedAssignees
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": card})
@@ -758,4 +863,428 @@ func (h *BrandCategoryHandler) DeleteCardAttachment(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบไฟล์แนบสำเร็จ"})
+}
+
+// ─────────────────────── Card Comment Handlers ───────────────────────────────
+
+// GetCardComments GET /api/tasks/cards/:id/comments?cursor=<iso8601>&limit=30
+func (h *BrandCategoryHandler) GetCardComments(c *gin.Context) {
+	cardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID การ์ดไม่ถูกต้อง"})
+		return
+	}
+	limit := 30
+	var cursor *time.Time
+	if cs := c.Query("cursor"); cs != "" {
+		if t, err := time.Parse(time.RFC3339Nano, cs); err == nil {
+			cursor = &t
+		}
+	}
+	comments, err := h.commentRepo.ListByCard(c.Request.Context(), cardID, cursor, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงคอมเมนต์ล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": comments})
+}
+
+// CreateCardComment POST /api/tasks/cards/:id/comments
+func (h *BrandCategoryHandler) CreateCardComment(c *gin.Context) {
+	cardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID การ์ดไม่ถูกต้อง"})
+		return
+	}
+	authorIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	authorID := authorIDRaw.(uuid.UUID)
+
+	var req struct {
+		ContentDelta    json.RawMessage `json:"content_delta" binding:"required"`
+		PlainText       string          `json:"plain_text"`
+		MentionedIDs    []string        `json:"mentioned_user_ids"`
+		Attachments     []struct {
+			URL       string `json:"url"`
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+			SizeBytes *int64 `json:"size_bytes"`
+		} `json:"attachments"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	now := time.Now()
+	comment := &domain.CardComment{
+		ID:           uuid.New(),
+		CardID:       cardID,
+		AuthorID:     authorID,
+		ContentDelta: req.ContentDelta,
+		PlainText:    req.PlainText,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	var mentionIDs []uuid.UUID
+	for _, s := range req.MentionedIDs {
+		if uid, err := uuid.Parse(s); err == nil {
+			mentionIDs = append(mentionIDs, uid)
+		}
+	}
+
+	var attachments []domain.CommentAttachment
+	for _, a := range req.Attachments {
+		attachments = append(attachments, domain.CommentAttachment{
+			ID:        uuid.New(),
+			CommentID: comment.ID,
+			URL:       a.URL,
+			Name:      a.Name,
+			Type:      a.Type,
+			SizeBytes: a.SizeBytes,
+			CreatedAt: now,
+		})
+	}
+
+	if err := h.commentRepo.Create(c.Request.Context(), comment, mentionIDs, attachments); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างคอมเมนต์ล้มเหลว"})
+		return
+	}
+
+	// Notifications: mentioned users + card assignees (excluding author)
+	if h.notifSvc != nil {
+		taskID, _ := h.commentRepo.GetTaskIDByCard(c.Request.Context(), cardID)
+		meta := map[string]string{
+			"task_id": taskID.String(),
+			"card_id": cardID.String(),
+			"type":    "card_comment",
+		}
+		notifySet := map[uuid.UUID]bool{authorID: true}
+		for _, uid := range mentionIDs {
+			if !notifySet[uid] {
+				notifySet[uid] = true
+				go h.notifSvc.Notify(c.Request.Context(), uid,
+					"มีการ @mention คุณ", req.PlainText, "task_comment", meta)
+			}
+		}
+		// Notify card assignees (excluding already notified)
+		if assignees, err := h.assigneeRepo.ListByCard(c.Request.Context(), cardID); err == nil {
+			for _, a := range assignees {
+				if !notifySet[a.ID] {
+					notifySet[a.ID] = true
+					go h.notifSvc.Notify(c.Request.Context(), a.ID,
+						"มีคอมเมนต์ในการ์ดที่คุณรับผิดชอบ", req.PlainText, "task_comment", meta)
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": comment})
+}
+
+// UpdateCardComment PATCH /api/tasks/cards/:id/comments/:commentId
+func (h *BrandCategoryHandler) UpdateCardComment(c *gin.Context) {
+	commentID, err := uuid.Parse(c.Param("commentId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID คอมเมนต์ไม่ถูกต้อง"})
+		return
+	}
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	userRoleRaw, _ := c.Get(middleware.ContextKeyRole)
+	userRole, _ := userRoleRaw.(string)
+
+	existing, err := h.commentRepo.GetByID(c.Request.Context(), commentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบคอมเมนต์"})
+		return
+	}
+	if existing.AuthorID != userID && userRole != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "ไม่มีสิทธิ์แก้ไขคอมเมนต์นี้"})
+		return
+	}
+
+	var req struct {
+		ContentDelta json.RawMessage `json:"content_delta" binding:"required"`
+		PlainText    string          `json:"plain_text"`
+		MentionedIDs []string        `json:"mentioned_user_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	var mentionIDs []uuid.UUID
+	for _, s := range req.MentionedIDs {
+		if uid, err := uuid.Parse(s); err == nil {
+			mentionIDs = append(mentionIDs, uid)
+		}
+	}
+
+	if err := h.commentRepo.Update(c.Request.Context(), commentID, req.ContentDelta, req.PlainText, mentionIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "แก้ไขคอมเมนต์ล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// DeleteCardComment DELETE /api/tasks/cards/:id/comments/:commentId
+func (h *BrandCategoryHandler) DeleteCardComment(c *gin.Context) {
+	commentID, err := uuid.Parse(c.Param("commentId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID คอมเมนต์ไม่ถูกต้อง"})
+		return
+	}
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	userRoleRaw, _ := c.Get(middleware.ContextKeyRole)
+	userRole, _ := userRoleRaw.(string)
+
+	existing, err := h.commentRepo.GetByID(c.Request.Context(), commentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบคอมเมนต์"})
+		return
+	}
+	if existing.AuthorID != userID && userRole != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "ไม่มีสิทธิ์ลบคอมเมนต์นี้"})
+		return
+	}
+
+	if err := h.commentRepo.Delete(c.Request.Context(), commentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบคอมเมนต์ล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบคอมเมนต์สำเร็จ"})
+}
+
+// ─────────────────────── Card Assignee Handlers ──────────────────────────────
+
+// GetCardAssignees GET /api/tasks/cards/:id/assignees
+func (h *BrandCategoryHandler) GetCardAssignees(c *gin.Context) {
+	cardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID การ์ดไม่ถูกต้อง"})
+		return
+	}
+	assignees, err := h.assigneeRepo.ListByCard(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงผู้รับผิดชอบล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": assignees})
+}
+
+// UpdateCardAssignees PUT /api/tasks/cards/:id/assignees
+func (h *BrandCategoryHandler) UpdateCardAssignees(c *gin.Context) {
+	cardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID การ์ดไม่ถูกต้อง"})
+		return
+	}
+	assignerIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	assignerID := assignerIDRaw.(uuid.UUID)
+	userRoleRaw, _ := c.Get(middleware.ContextKeyRole)
+	userRole, _ := userRoleRaw.(string)
+
+	// 1. Get task ID for the card
+	taskID, err := h.commentRepo.GetTaskIDByCard(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่พบการ์ดหรือบอร์ดงานของการ์ดนี้"})
+		return
+	}
+
+	// 2. Fetch task details for permission checks
+	type taskPermissionMeta struct {
+		ID         uuid.UUID  `db:"id"`
+		ProjectID  *uuid.UUID `db:"project_id"`
+		AssignedTo *uuid.UUID `db:"assigned_to"`
+		AssignedBy *uuid.UUID `db:"assigned_by"`
+	}
+	var task taskPermissionMeta
+	err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &task, `
+		SELECT id, project_id, assigned_to, assigned_by FROM tasks WHERE id = $1
+	`, taskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานล้มเหลว"})
+		return
+	}
+
+	// 3. Permission checks
+	isAuthorized := false
+	if userRole == "admin" {
+		isAuthorized = true
+	} else if task.AssignedTo != nil && *task.AssignedTo == assignerID {
+		isAuthorized = true
+	} else if task.AssignedBy != nil && *task.AssignedBy == assignerID {
+		isAuthorized = true
+	} else {
+		// Check if assigner is a task assignee
+		var isTaskMember bool
+		err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &isTaskMember, `
+			SELECT EXISTS(
+				SELECT 1 FROM task_assignees WHERE task_id = $1 AND user_id = $2
+			)
+		`, task.ID, assignerID)
+		if err == nil && isTaskMember {
+			isAuthorized = true
+		}
+	}
+
+	if !isAuthorized {
+		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์แก้ไขการ์ดงานนี้"})
+		return
+	}
+
+	var req struct {
+		AssigneeIDs []string `json:"assignee_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	// 4. Validate and Parse all input assignee IDs
+	var uids []uuid.UUID
+	for _, s := range req.AssigneeIDs {
+		uid, err := uuid.Parse(s)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
+		}
+		uids = append(uids, uid)
+	}
+
+	// 5. Verify all assignees are active and belong to project (or task if no project)
+	if len(uids) > 0 {
+		var validCount int
+		if task.ProjectID != nil {
+			query, args, err := sqlx.In(`
+				SELECT COUNT(DISTINCT u.id)
+				FROM users u
+				JOIN project_members pm ON pm.user_id = u.id
+				WHERE pm.project_id = ? AND u.status = 'active' AND u.id IN (?)
+			`, *task.ProjectID, uids)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
+				return
+			}
+			query = h.cardRepo.GetDB().Rebind(query)
+			err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &validCount, query, args...)
+		} else {
+			query, args, err := sqlx.In(`
+				SELECT COUNT(DISTINCT u.id)
+				FROM users u
+				JOIN task_assignees ta ON ta.user_id = u.id
+				WHERE ta.task_id = ? AND u.status = 'active' AND u.id IN (?)
+			`, task.ID, uids)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
+				return
+			}
+			query = h.cardRepo.GetDB().Rebind(query)
+			err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &validCount, query, args...)
+		}
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
+			return
+		}
+
+		if validCount != len(uids) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "ผู้รับผิดชอบบางคนไม่มีสิทธิ์หรือสถานะไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	// 6. Get existing assignees to optimize notifications
+	existingAssignees, err := h.assigneeRepo.ListByCard(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลผู้รับผิดชอบเดิมล้มเหลว"})
+		return
+	}
+	existingMap := make(map[uuid.UUID]bool)
+	for _, a := range existingAssignees {
+		existingMap[a.ID] = true
+	}
+
+	var newlyAdded []uuid.UUID
+	for _, uid := range uids {
+		if !existingMap[uid] && uid != assignerID {
+			newlyAdded = append(newlyAdded, uid)
+		}
+	}
+
+	// 7. Update assignees database
+	if err := h.assigneeRepo.SetAssignees(c.Request.Context(), cardID, uids, assignerID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตผู้รับผิดชอบล้มเหลว"})
+		return
+	}
+
+	// 8. Notify only new assignees via background context (Background Goroutine)
+	if h.notifSvc != nil && len(newlyAdded) > 0 {
+		meta := map[string]string{
+			"task_id": taskID.String(),
+			"card_id": cardID.String(),
+			"type":    "card_assigned",
+		}
+		bgCtx := context.Background()
+		for _, uid := range newlyAdded {
+			go func(u uuid.UUID) {
+				h.notifSvc.Notify(bgCtx, u,
+					"คุณถูกมอบหมายการ์ดงาน", "คุณถูกเพิ่มเป็นผู้รับผิดชอบการ์ดงาน", "task_comment", meta)
+			}(uid)
+		}
+	}
+
+	// 9. Fetch and return updated assignees (Canonical Source of Truth)
+	updatedAssignees, err := h.assigneeRepo.ListByCard(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลผู้รับผิดชอบที่อัปเดตล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": updatedAssignees})
+}
+
+// GetTaskMembers GET /api/tasks/:id/members — returns all assignees for a task (board members)
+func (h *BrandCategoryHandler) GetTaskMembers(c *gin.Context) {
+	taskID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var projectID *uuid.UUID
+	err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &projectID, `
+		SELECT project_id FROM tasks WHERE id = $1
+	`, taskID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่พบงานนี้"})
+		return
+	}
+
+	var members []domain.UserSummary
+	if projectID != nil {
+		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, u.position
+			FROM project_members pm
+			JOIN users u ON u.id = pm.user_id
+			WHERE pm.project_id = $1 AND u.status = 'active'
+			ORDER BY u.first_name, u.last_name
+		`, *projectID)
+	} else {
+		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, u.position
+			FROM task_assignees ta
+			JOIN users u ON u.id = ta.user_id
+			WHERE ta.task_id = $1 AND u.status = 'active'
+			ORDER BY u.first_name, u.last_name
+		`, taskID)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงสมาชิกงานล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": members})
 }
