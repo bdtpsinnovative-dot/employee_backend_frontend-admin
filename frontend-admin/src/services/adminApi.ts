@@ -13,12 +13,19 @@ import type {
   Brand,
   TaskCategory,
   AdminTask,
+  TaskEvent,
+  TaskSubItem,
 } from '../types';
 
 // ────────────────── Users ──────────────────
 
 export async function fetchUsers(): Promise<User[]> {
   const { data } = await api.get<ApiResponse<User[]>>('/admin/users');
+  return data.data;
+}
+
+export async function fetchActiveUsers(): Promise<User[]> {
+  const { data } = await api.get<ApiResponse<User[]>>('/api/users/active');
   return data.data;
 }
 
@@ -232,10 +239,72 @@ export async function createAdminTask(body: {
   return data.data;
 }
 
-export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'completed'): Promise<void> {
+export async function fetchTaskSubItems(taskId: string): Promise<TaskSubItem[]> {
+  const { data } = await api.get<ApiResponse<TaskSubItem[]>>(`/admin/tasks/${taskId}/sub-items`);
+  return data.data ?? [];
+}
+
+export async function updateAdminTask(id: string, body: {
+  assigned_to?: string;
+  assignee_ids?: string[];
+  title: string;
+  description?: string;
+  due_date: string;
+  brand_id?: string;
+  category_id?: string;
+}): Promise<AdminTask> {
+  const { data } = await api.put<ApiResponse<AdminTask>>(`/api/tasks/${id}`, body);
+  return data.data;
+}
+
+export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'in_review' | 'completed'): Promise<void> {
   await api.patch(`/api/tasks/${id}/status`, { status });
+}
+
+export async function createTaskSubItem(taskId: string, title: string): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/sub-items`, { title });
+  return data.data;
+}
+
+export async function toggleTaskSubItem(subItemId: string, isDone?: boolean): Promise<any> {
+  const body = isDone !== undefined ? { is_done: isDone } : undefined;
+  const { data } = await api.patch<ApiResponse<any>>(`/api/tasks/sub-items/${subItemId}/toggle`, body);
+  return data.data;
+}
+
+export async function deleteTaskSubItem(subItemId: string): Promise<void> {
+  await api.delete(`/api/tasks/sub-items/${subItemId}`);
+}
+
+export async function updateTaskSubItemNote(subItemId: string, adminComment: string): Promise<void> {
+  await api.patch(`/api/tasks/sub-items/${subItemId}/detail`, {
+    admin_comment: adminComment,
+  });
 }
 
 export async function deleteAdminTask(id: string): Promise<void> {
   await api.delete(`/admin/tasks/${id}`);
+}
+
+export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
+  const { data } = await api.get<ApiResponse<TaskEvent[]>>(`/api/tasks/${taskId}/events`);
+  return data.data ?? [];
+}
+
+export async function fetchAllTaskEvents(): Promise<TaskEvent[]> {
+  const { data } = await api.get<ApiResponse<TaskEvent[]>>('/admin/tasks/events');
+  return data.data ?? [];
+}
+
+export async function addTaskComment(taskId: string, content: string): Promise<TaskEvent> {
+  const { data } = await api.post<ApiResponse<TaskEvent>>(`/api/tasks/${taskId}/events`, { content });
+  return data.data;
+}
+
+export async function approveSubmission(taskId: string, submissionId: string): Promise<void> {
+  await api.post(`/admin/tasks/${taskId}/submissions/${submissionId}/approve`);
+}
+
+export async function requestRevision(taskId: string, submissionId: string, note: string): Promise<void> {
+  await api.post(`/admin/tasks/${taskId}/submissions/${submissionId}/request-revision`, { note });
 }

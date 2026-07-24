@@ -11,6 +11,7 @@ const Holidays = lazy(() => import('./pages/Holidays'));
 const DailyRecord = lazy(() => import('./pages/DailyRecord'));
 const History = lazy(() => import('./pages/History'));
 const Tasks = lazy(() => import('./pages/Tasks'));
+const TaskLogs = lazy(() => import('./pages/TaskLogs'));
 
 import { fetchMe } from './services/adminApi';
 
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="daily-record" element={<DailyRecord />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
+            <Route path="task-logs" element={<TaskLogs />} />
           </Route>
         </Routes>
       </Suspense>

@@ -36,7 +36,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     `nav-item ${isActive ? 'active' : ''}`;
 
   return (
-    <div className={`sidebar ${isOpen ? 'active' : ''}`} id="sidebar">
+    <div className={`sidebar ${isOpen ? 'active' : 'collapsed'}`} id="sidebar">
       <div
         style={{
           fontSize: '22px',
@@ -104,6 +104,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       </NavLink>
       <NavLink to="/history" className={navLinkClass}>
         <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
+      </NavLink>
+      <NavLink to="/task-logs" className={navLinkClass}>
+        <i className="fa-solid fa-timeline"></i> ประวัติงาน (Activity)
       </NavLink>
 
       <div

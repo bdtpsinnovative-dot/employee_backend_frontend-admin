@@ -138,6 +138,22 @@ export interface TaskSubItem {
   is_done: boolean;
   sort_order: number;
   created_at: string;
+  admin_comment?: string;
+  verification_notes?: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  task_id: string;
+  submitted_by: string;
+  url: string;
+  version: number;
+  status: 'submitted' | 'approved' | 'revision_requested' | 'superseded';
+  submitted_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_note?: string;
+  created_at: string;
 }
 
 export interface AdminTask {
@@ -146,11 +162,39 @@ export interface AdminTask {
   title: string;
   description: string;
   due_date: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'in_review' | 'completed';
   assigned_by?: string;
   brand_id?: string;
   category_id?: string;
   created_at: string;
+  
+  // Joined Fields
+  assigned_to_name?: string;
+  assigned_by_name?: string;
+  card_total?: number;
+  card_done?: number;
+  
+  // Sub-items
   sub_items?: TaskSubItem[];
   assignee_ids?: string[];
+
+  // Submissions
+  needs_revision?: boolean;
+  completed_at?: string;
+  submission_count?: number;
+  latest_submission?: TaskSubmission;
+}
+
+export interface TaskEvent {
+  id: string;
+  task_id: string;
+  user_id: string;
+  event_type: 'comment' | 'system';
+  action: string;
+  content?: string;
+  created_at: string;
+  user_first_name?: string;
+  user_last_name?: string;
+  user_avatar_url?: string;
+  task_title?: string;
 }
