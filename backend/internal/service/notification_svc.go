@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/google/uuid"
@@ -29,14 +30,26 @@ func NewNotificationService(
 }
 
 // Notify บันทึก notification ลง DB และส่ง push notification ผ่าน Firebase พร้อมกัน
-// nType: "leave" | "attendance" | "system" | "announcement"
-func (s *NotificationService) Notify(ctx context.Context, userID uuid.UUID, title, body, nType string) {
+// nType: "leave" | "attendance" | "system" | "announcement" | "task_comment"
+func (s *NotificationService) Notify(ctx context.Context, userID uuid.UUID, title, body, nType string, metadata ...map[string]string) {
+	var meta map[string]string
+	var metaJSON json.RawMessage
+	if len(metadata) > 0 && metadata[0] != nil {
+		meta = metadata[0]
+		if b, err := json.Marshal(meta); err == nil {
+			metaJSON = b
+		}
+	} else {
+		metaJSON = json.RawMessage(`{}`)
+	}
+
 	n := &domain.Notification{
-		ID:     uuid.New(),
-		UserID: userID,
-		Title:  title,
-		Body:   body,
-		Type:   nType,
+		ID:       uuid.New(),
+		UserID:   userID,
+		Title:    title,
+		Body:     body,
+		Type:     nType,
+		Metadata: metaJSON,
 	}
 
 	// บันทึกลง DB
@@ -51,7 +64,7 @@ func (s *NotificationService) Notify(ctx context.Context, userID uuid.UUID, titl
 			if err != nil || user == nil || user.FcmToken == nil || *user.FcmToken == "" {
 				return
 			}
-			if err := s.firebaseSvc.SendNotification(context.Background(), *user.FcmToken, title, body); err != nil {
+			if err := s.firebaseSvc.SendNotification(context.Background(), *user.FcmToken, title, body, meta); err != nil {
 				log.Printf("[NotificationService] Push failed for user %s: %v", userID, err)
 			}
 		}()

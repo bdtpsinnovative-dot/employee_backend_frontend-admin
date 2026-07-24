@@ -88,7 +88,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, dueDate, adminUserID, brandID, categoryID)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

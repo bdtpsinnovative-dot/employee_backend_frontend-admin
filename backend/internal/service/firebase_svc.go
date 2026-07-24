@@ -48,17 +48,18 @@ func NewFirebaseService() *FirebaseService {
 	}
 }
 
-func (s *FirebaseService) SendNotification(ctx context.Context, fcmToken string, title, body string) error {
+func (s *FirebaseService) SendNotification(ctx context.Context, fcmToken string, title, body string, data map[string]string) error {
 	if fcmToken == "" {
 		return nil
 	}
 	if s.client == nil {
-		log.Printf("[Firebase Mock] Sending push notification (Token: %s, Title: %s, Body: %s)", fcmToken, title, body)
+		log.Printf("[Firebase Mock] Sending push notification (Token: %s, Title: %s, Body: %s, Data: %v)", fcmToken, title, body, data)
 		return nil
 	}
 
 	message := &messaging.Message{
 		Token: fcmToken,
+		Data:  data,
 		Notification: &messaging.Notification{
 			Title: title,
 			Body:  body,
