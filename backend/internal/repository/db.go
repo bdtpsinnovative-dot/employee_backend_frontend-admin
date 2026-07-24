@@ -15,9 +15,9 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 	}
 
 	// ตั้งค่า connection pool (จำกัดให้ไม่เกิน 8 เพื่อเลี่ยงลิมิต 15 ของ Supabase ใน session mode)
-	db.SetMaxOpenConns(8)  // จำนวนการเชื่อมต่อสูงสุด
-	db.SetMaxIdleConns(2)   // จำนวนการเชื่อมต่อที่เก็บไว้รอ
-	
+	db.SetMaxOpenConns(8) // จำนวนการเชื่อมต่อสูงสุด
+	db.SetMaxIdleConns(2) // จำนวนการเชื่อมต่อที่เก็บไว้รอ
+
 	// ทดสอบการเชื่อมต่อ
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ฐานข้อมูลไม่ตอบสนอง: %w", err)
@@ -31,12 +31,22 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 			title         TEXT NOT NULL,
 			description   TEXT NOT NULL DEFAULT '',
 			due_date      DATE,
-			status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+				status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'in_review', 'completed')),
 			assigned_by   UUID REFERENCES users(id) ON DELETE SET NULL,
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 		CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
-		CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+			CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+
+			ALTER TABLE tasks ALTER COLUMN assigned_to DROP NOT NULL;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id UUID;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS group_id UUID;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date TIMESTAMPTZ;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium';
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS record_kind TEXT NOT NULL DEFAULT 'legacy_assignment';
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS needs_revision BOOLEAN NOT NULL DEFAULT FALSE;
+			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 		
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS admin_comment TEXT;

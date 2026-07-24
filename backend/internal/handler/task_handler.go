@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/middleware"
@@ -31,6 +32,7 @@ type createTaskReq struct {
 	BrandID     string   `json:"brand_id"`
 	CategoryID  string   `json:"category_id"`
 	SubItems    []string `json:"sub_items"` // list of sub-item titles
+	ListNames   []string `json:"list_names"`
 }
 
 // CreateTask POST /admin/tasks (Admin only)
@@ -56,6 +58,19 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	if len(assigneeUUIDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
 		return
+	}
+
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	if req.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่องาน"})
+		return
+	}
+	listNames := make([]string, 0, len(req.ListNames))
+	for _, name := range req.ListNames {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			listNames = append(listNames, trimmed)
+		}
 	}
 
 	var dueDate time.Time
@@ -89,7 +104,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

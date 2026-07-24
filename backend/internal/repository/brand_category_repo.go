@@ -5,9 +5,9 @@ import (
 
 	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // ─────────────────────────── Brand ───────────────────────────
@@ -268,10 +268,13 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description string, startDate, dueDate *time.Time) error {
+func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description *string, startDate, dueDate *time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE task_lists 
-		SET name = $1, description = $2, start_date = $3, due_date = $4
+		SET name = COALESCE($1, name),
+		    description = COALESCE($2, description),
+		    start_date = COALESCE($3, start_date),
+		    due_date = COALESCE($4, due_date)
 		WHERE id = $5
 	`, name, description, startDate, dueDate, id)
 	return err
@@ -312,17 +315,33 @@ func (r *TaskCardRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status st
 	return err
 }
 
+func (r *TaskCardRepo) UpdateSortOrder(ctx context.Context, id uuid.UUID, sortOrder int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET sort_order = $1 WHERE id = $2`, sortOrder, id)
+	return err
+}
+
 func (r *TaskCardRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM task_cards WHERE id = $1`, id)
 	return err
 }
 
-func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, description string, startDate, dueDate *time.Time, adminComment *string, priority string) error {
-	if adminComment != nil {
-		_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, admin_comment = $5, priority = $6 WHERE id = $7`, title, description, startDate, dueDate, *adminComment, priority, id)
-		return err
-	}
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, priority = $5 WHERE id = $6`, title, description, startDate, dueDate, priority, id)
+func (r *TaskCardRepo) UpdateCard(
+	ctx context.Context,
+	id uuid.UUID,
+	title, description *string,
+	startDate, dueDate *time.Time,
+	adminComment, priority *string,
+) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE task_cards
+		SET title = COALESCE($1, title),
+		    description = COALESCE($2, description),
+		    start_date = COALESCE($3, start_date),
+		    due_date = COALESCE($4, due_date),
+		    admin_comment = COALESCE($5, admin_comment),
+		    priority = COALESCE($6, priority)
+		WHERE id = $7
+	`, title, description, startDate, dueDate, adminComment, priority, id)
 	return err
 }
 
@@ -340,5 +359,3 @@ func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID)
 	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
 	return err
 }
-
-

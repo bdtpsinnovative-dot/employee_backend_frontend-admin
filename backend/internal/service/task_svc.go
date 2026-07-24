@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 type TaskService struct {
@@ -39,7 +39,7 @@ func (s *TaskService) ListTasksByUser(ctx context.Context, userID uuid.UUID) ([]
 	return s.taskRepo.ListByUser(ctx, userID)
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID) (*domain.Task, error) {
+func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string) (*domain.Task, error) {
 	var primaryAssignee *uuid.UUID
 	if len(assigneeIDs) > 0 {
 		primaryAssignee = &assigneeIDs[0]
@@ -59,7 +59,7 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 		AssigneeIDs: assigneeIDs,
 	}
 
-	err := s.taskRepo.Create(ctx, t)
+	err := s.taskRepo.CreateWithLists(ctx, t, listNames)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
@@ -99,22 +99,12 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// Verify ownership unless the request is made by an Admin
+	// Only an admin or the creator may change assignment metadata.
+	// Assignees may update progress through UpdateTaskStatus, but must not
+	// be able to remove other assignees or rewrite the assignment itself.
 	if !isAdmin {
-		isAssigned := false
-		if task.AssignedTo != nil && *task.AssignedTo == userID {
-			isAssigned = true
-		}
-		if task.AssignedBy != nil && *task.AssignedBy == userID {
-			isAssigned = true
-		}
-		for _, aid := range task.AssigneeIDs {
-			if aid == userID {
-				isAssigned = true
-				break
-			}
-		}
-		if !isAssigned {
+		isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
+		if !isCreator {
 			return nil, fmt.Errorf("permission denied: you cannot edit this task")
 		}
 	}
@@ -160,7 +150,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		}
 	}
 
-	if len(newAssignees) > 0 && s.userRepo != nil && s.firebaseSvc != nil {
+	if len(newAssignees) > 0 {
 		assignContent := "เปลี่ยนผู้รับผิดชอบงาน"
 		_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
 			TaskID:    task.ID,
@@ -170,15 +160,19 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 			Content:   &assignContent,
 		})
 
-		// Notify new assignees
-		for _, aID := range newAssignees {
-			u, err := s.userRepo.FindByID(ctx, aID)
-			if err == nil && u != nil && u.FcmToken != nil && *u.FcmToken != "" {
-				fcmToken := *u.FcmToken
-				taskTitle := task.Title
-				go func() {
-					_ = s.firebaseSvc.SendNotification(context.Background(), fcmToken, "มอบหมายงานใหม่ 📋", "คุณได้รับมอบหมายงานใหม่: "+taskTitle, nil)
-				}()
+		if s.notifSvc != nil {
+			for _, assigneeID := range newAssignees {
+				if assigneeID == userID {
+					continue
+				}
+				s.notifSvc.Notify(
+					context.Background(),
+					assigneeID,
+					"มอบหมายงานใหม่",
+					"คุณได้รับมอบหมายงานใหม่: "+task.Title,
+					"system",
+					map[string]string{"task_id": task.ID.String()},
+				)
 			}
 		}
 	}
@@ -242,6 +236,8 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 			statusThai := "รอทำ"
 			if status == "in_progress" {
 				statusThai = "กำลังทำ"
+			} else if status == "in_review" {
+				statusThai = "รอตรวจ"
 			} else if status == "completed" {
 				statusThai = "เสร็จสิ้น"
 			}
@@ -418,4 +414,3 @@ func (s *TaskService) RequestRevision(ctx context.Context, submissionID, taskID,
 	})
 	return nil
 }
-

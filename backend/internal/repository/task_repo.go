@@ -254,6 +254,10 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 }
 
 func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
+	return r.CreateWithLists(ctx, t, nil)
+}
+
+func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listNames []string) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -294,6 +298,19 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	for index, name := range listNames {
+		if name == "" {
+			continue
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO task_lists (id, task_id, name, description, sort_order, created_at)
+			VALUES ($1, $2, $3, '', $4, NOW())
+		`, uuid.New(), t.ID, name, index)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -356,7 +373,7 @@ func (r *TaskRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string
 		`, status, id)
 	} else {
 		_, err = r.db.ExecContext(ctx, `
-			UPDATE tasks SET status = $1 WHERE id = $2
+			UPDATE tasks SET status = $1, completed_at = NULL WHERE id = $2
 		`, status, id)
 	}
 	return err
