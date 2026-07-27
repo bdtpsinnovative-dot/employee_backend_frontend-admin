@@ -529,9 +529,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 rowSpan={totalCards}
                 onClick={() => openDrawerForList(list)}
                 title="กดเพื่อเปิดสไลด์บาร์ ข้อมูลบอร์ดหลัก"
-                className="px-2 py-2 border-r border-b-2 border-slate-300 align-middle font-bold text-blue-900 bg-blue-50/40 w-20 max-w-[80px] cursor-pointer hover:bg-amber-100/60 transition-colors"
+                className="px-2 py-2 border-r border-b-2 border-slate-300 align-top font-bold text-blue-900 bg-blue-50/40 w-20 max-w-[80px] cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
-                <div className="flex flex-col items-center gap-1.5">
+                <div className="flex flex-col items-center gap-1.5 pt-1">
                   <input
                     type="text"
                     value={list.name}
@@ -564,23 +564,25 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
             )}
 
             {/* 3. Priority */}
-            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
-              <select
-                value={itemPriority}
-                onChange={(e) => {
-                  card.priority = e.target.value as any;
-                  setTrelloLists([...trelloLists]);
-                }}
-                className={`px-2 py-1 text-[10px] font-bold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  itemPriority === 'high' || itemPriority === 'urgent' ? 'text-red-700 border-red-300' :
-                  itemPriority === 'medium' ? 'text-amber-700 border-amber-300' :
-                  'text-emerald-700 border-emerald-300'
-                }`}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+            <td className="px-3 py-2 border-r border-slate-200 text-center align-top">
+              <div className="h-[36px] flex items-center justify-center">
+                <select
+                  value={itemPriority}
+                  onChange={(e) => {
+                    card.priority = e.target.value as any;
+                    setTrelloLists([...trelloLists]);
+                  }}
+                  className={`px-2 py-1 text-[10px] font-bold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    itemPriority === 'high' || itemPriority === 'urgent' ? 'text-red-700 border-red-300' :
+                    itemPriority === 'medium' ? 'text-amber-700 border-amber-300' :
+                    'text-emerald-700 border-emerald-300'
+                  }`}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
             </td>
 
             {/* 4. DETAILS */}
@@ -623,11 +625,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 )}
               </div>
               {card.sub_items && card.sub_items.length > 0 && (
-                <div className="pt-1 pb-1 flex flex-col gap-1 select-none w-full">
+                <div className="mt-1 mb-2 ml-4 pl-3 border-l-2 border-blue-400/60 flex flex-col gap-1 select-none w-[calc(100%-16px)] bg-slate-50/70 py-1.5 rounded-r-lg shadow-2xs">
                   {card.sub_items.map((sub: TaskSubItem) => (
                     <div
                       key={sub.id}
-                      className="px-3 min-h-[24px] flex items-center gap-1.5 text-[11px] hover:bg-slate-50 rounded"
+                      className="px-2 min-h-[26px] flex items-center gap-2 text-[11px] hover:bg-white rounded-md transition-all group"
                     >
                       <button
                         type="button"
@@ -640,9 +642,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         {sub.is_done ? (
                           <CheckSquare className="w-3.5 h-3.5 text-emerald-600 fill-emerald-50 shrink-0" />
                         ) : (
-                          <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <Square className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:border-slate-500" />
                         )}
                       </button>
+                      <span className="text-[10px] text-blue-500 font-bold select-none shrink-0">↳</span>
                       <input
                         type="text"
                         value={sub.title}
@@ -650,7 +653,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                           sub.title = e.target.value;
                           setSubItems([...subItems]);
                         }}
-                        className="w-full bg-transparent text-slate-700 text-[11px] border-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 focus:outline-none"
+                        className={`w-full bg-transparent text-[11px] border-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1.5 focus:outline-none ${
+                          sub.is_done ? 'text-slate-400 line-through' : 'text-slate-700 font-medium'
+                        }`}
                       />
                     </div>
                   ))}
@@ -660,93 +665,103 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
 
             {/* Assignment */}
-            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
-              <select
-                value={card.assignee_ids && card.assignee_ids.length > 0 ? card.assignee_ids[0] : ''}
-                onChange={async (e) => {
-                  const newUserId = e.target.value;
-                  const newAssigneeIds = newUserId ? [newUserId] : [];
-                  card.assignee_ids = newAssigneeIds;
-                  setTrelloLists([...trelloLists]);
-                  try {
-                    await updateTaskCard(card.id, {
-                      title: card.title,
-                      assignee_ids: newAssigneeIds,
-                    });
-                    onRefreshTask(true);
-                  } catch (err: any) {
-                    console.error('Failed to update card assignee', err);
-                  }
-                }}
-                className="px-2 py-1 bg-white border border-slate-300 rounded-md text-[10px] font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">เลือกผู้รับผิดชอบ</option>
-                {(() => {
-                  const taskAssigneeIds = (task.assignee_ids && task.assignee_ids.length > 0
-                    ? task.assignee_ids
-                    : task.assigned_to
-                    ? [task.assigned_to]
-                    : []);
-                  const candidates = taskAssigneeIds
-                    .map((id) => userMap[id])
-                    .filter(Boolean)
-                    .filter((u) => u.id !== currentUser?.id);
+            <td className="px-3 py-2 border-r border-slate-200 text-center align-top">
+              <div className="h-[36px] flex items-center justify-center">
+                <select
+                  value={card.assignee_ids && card.assignee_ids.length > 0 ? card.assignee_ids[0] : ''}
+                  onChange={async (e) => {
+                    const newUserId = e.target.value;
+                    const newAssigneeIds = newUserId ? [newUserId] : [];
+                    card.assignee_ids = newAssigneeIds;
+                    setTrelloLists([...trelloLists]);
+                    try {
+                      await updateTaskCard(card.id, {
+                        title: card.title,
+                        assignee_ids: newAssigneeIds,
+                      });
+                      onRefreshTask(true);
+                    } catch (err: any) {
+                      console.error('Failed to update card assignee', err);
+                    }
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-md text-[10px] font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">เลือกผู้รับผิดชอบ</option>
+                  {(() => {
+                    const taskAssigneeIds = (task.assignee_ids && task.assignee_ids.length > 0
+                      ? task.assignee_ids
+                      : task.assigned_to
+                      ? [task.assigned_to]
+                      : []);
+                    const candidates = taskAssigneeIds
+                      .map((id) => userMap[id])
+                      .filter(Boolean)
+                      .filter((u) => u.id !== currentUser?.id);
 
-                  return candidates.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nickname || u.first_name}
-                    </option>
-                  ));
-                })()}
-              </select>
+                    return candidates.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nickname || u.first_name}
+                      </option>
+                    ));
+                  })()}
+                </select>
+              </div>
             </td>
 
             {/* Status */}
-            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
-              <select
-                value={card.status}
-                onChange={(e) => {
-                  card.status = e.target.value as any;
-                  setTrelloLists([...trelloLists]);
-                }}
-                className={`px-2 py-1 text-[10px] font-extrabold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  isDone ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-amber-800 border-amber-300 bg-amber-50'
-                }`}
-              >
-                <option value="in_progress">Doing</option>
-                <option value="completed">Done</option>
-              </select>
+            <td className="px-3 py-2 border-r border-slate-200 text-center align-top">
+              <div className="h-[36px] flex items-center justify-center">
+                <select
+                  value={card.status}
+                  onChange={(e) => {
+                    card.status = e.target.value as any;
+                    setTrelloLists([...trelloLists]);
+                  }}
+                  className={`px-2 py-1 text-[10px] font-extrabold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    isDone ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-amber-800 border-amber-300 bg-amber-50'
+                  }`}
+                >
+                  <option value="in_progress">Doing</option>
+                  <option value="completed">Done</option>
+                </select>
+              </div>
             </td>
 
             {/* List Checkbox */}
-            <td className="px-2 py-2.5 border-r border-slate-200 text-center align-middle">
-              <div className="p-1 text-slate-700">
-                {isDone ? <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-50 inline" /> : <Square className="w-4 h-4 text-slate-400 inline" />}
+            <td className="px-2 py-2 border-r border-slate-200 text-center align-top">
+              <div className="h-[36px] flex items-center justify-center">
+                <div className="p-1 text-slate-700">
+                  {isDone ? <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-50 inline" /> : <Square className="w-4 h-4 text-slate-400 inline" />}
+                </div>
               </div>
             </td>
 
             {/* NOTE / Remark */}
-            <td className="px-4 py-2.5 border-r border-slate-200 align-middle text-slate-600 text-xs">
-              {card.admin_comment || '-'}
+            <td className="px-4 py-2 border-r border-slate-200 align-top text-slate-600 text-xs">
+              <div className="h-[36px] flex items-center">
+                {card.admin_comment || '-'}
+              </div>
             </td>
 
             {/* Link / Files */}
-            <td className="px-3 py-2.5 text-center align-middle">
-              {(() => {
-                const firstSubItemWithLink = card.sub_items?.find((s: TaskSubItem) => s.link_url && !s.link_url.includes('example.com'));
-                const cardLinkUrl = firstSubItemWithLink?.link_url;
-                return cardLinkUrl ? (
-                  <button
-                    onClick={() => handleOpenExternalUrl(cardLinkUrl)}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-md transition-all active:scale-95"
-                  >
-                    <FileText className="w-3 h-3 text-indigo-600" />
-                    <span>เปิดเอกสาร</span>
-                  </button>
-                ) : (
-                  <span className="text-slate-400 italic text-[11px]">-</span>
-                );
-              })()}
+            <td className="px-3 py-2 text-center align-top">
+              <div className="h-[36px] flex items-center justify-center">
+                {(() => {
+                  const firstSubItemWithLink = card.sub_items?.find((s: TaskSubItem) => s.link_url && !s.link_url.includes('example.com'));
+                  const cardLinkUrl = firstSubItemWithLink?.link_url;
+                  return cardLinkUrl ? (
+                    <button
+                      onClick={() => handleOpenExternalUrl(cardLinkUrl)}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-md transition-all active:scale-95"
+                    >
+                      <FileText className="w-3 h-3 text-indigo-600" />
+                      <span>เปิดเอกสาร</span>
+                    </button>
+                  ) : (
+                    <span className="text-slate-400 italic text-[11px]">-</span>
+                  );
+                })()}
+              </div>
             </td>
           </tr>
         );
