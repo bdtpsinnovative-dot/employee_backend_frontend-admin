@@ -326,68 +326,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const displayLists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
   const displaySubItems = subItems.length > 0 ? subItems : (task.sub_items || []);
 
-  // Demo fallback rows without broken placeholder URLs
-  const defaultDemoItems: TaskSubItem[] = [
-    {
-      id: 'demo-1',
-      task_id: task.id,
-      title: 'ติดต่อ Shipping',
-      is_done: true,
-      sort_order: 1,
-      created_at: new Date().toISOString(),
-      phase: '1',
-      priority: 'medium',
-      due_date: '2026-07-14',
-      notes: 'Logistic Shipping / Freight forwarder',
-    },
-    {
-      id: 'demo-2',
-      task_id: task.id,
-      title: 'หา Freight Forwarder มาเทียบราคา',
-      is_done: true,
-      sort_order: 2,
-      created_at: new Date().toISOString(),
-      phase: '1',
-      priority: 'medium',
-      due_date: '2026-07-15',
-    },
-    {
-      id: 'demo-3',
-      task_id: task.id,
-      title: 'การใช้การของแบรนด์คู่แข่งโดยเฉพาะ MCM',
-      is_done: true,
-      sort_order: 3,
-      created_at: new Date().toISOString(),
-      phase: '2',
-      priority: 'low',
-      due_date: '2026-02-16',
-      notes: '1. compare กลุ่มกระเบื้อง\n- แบรนด์อะไรบ้าง\n- แบรนด์เหล่านี้ราคาเท่าไหร่ขนาดเท่าไหร่',
-    },
-    {
-      id: 'demo-4',
-      task_id: task.id,
-      title: 'สินค้า WallCraft Series ที่ 4',
-      is_done: true,
-      sort_order: 4,
-      created_at: new Date().toISOString(),
-      phase: '2',
-      priority: 'medium',
-      due_date: '2026-03-20',
-    },
-    {
-      id: 'demo-5',
-      task_id: task.id,
-      title: 'Database ลงข้อมูลโครงการ',
-      is_done: true,
-      sort_order: 5,
-      created_at: new Date().toISOString(),
-      phase: '2',
-      priority: 'medium',
-      due_date: '2026-02-13',
-    },
-  ];
-
-  const activeSubItems = displaySubItems.length > 0 ? displaySubItems : defaultDemoItems;
+  const activeSubItems = displaySubItems;
 
   // Group activeSubItems by phase for row-spanning merged phase cells
   const subItemsByPhase: { phase: string; title: string; items: TaskSubItem[] }[] = [];
