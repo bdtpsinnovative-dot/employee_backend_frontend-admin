@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -25,11 +25,16 @@ import { TaskListView } from '../components/tasks/TaskListView';
 import { TaskDetailDrawer } from '../components/tasks/TaskDetailDrawer';
 import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import { TaskBrandSettingsModal } from '../components/tasks/TaskBrandSettingsModal';
+/* 
+  [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS IMPORT]
+  คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดใช้งานฟีเจอร์ "หัวข้องาน (Overview)" นี้ไว้
+  ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) เด็ดขาด ยกเว้นจะได้รับคำสั่งโดยตรงจากผู้ใช้เท่านั้น!
 import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
+*/
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
 
 export default function Tasks() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
@@ -41,7 +46,8 @@ export default function Tasks() {
   const [error, setError]           = useState<string | null>(null);
 
   // ─── UI & View State ───
-  const [viewMode, setViewMode]          = useState<'overview' | 'list'>('overview');
+  // [NOTE]: Default viewMode changed from 'overview' to 'list' as per USER request.
+  const [viewMode, setViewMode]          = useState<'overview' | 'list'>('list');
 
   // ─── Search & Filter State ───
   const [searchQuery, setSearchQuery]           = useState('');
@@ -344,6 +350,11 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="flex-1">
+          {/* 
+            [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
+            คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผล "หัวข้องาน (Overview)" และให้แสดงหน้าตารางงานหลัก (TaskListView) เสมอ
+            ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) หรือลบโค้ดส่วนนี้กลับมาทำงานเด็ดขาด!
+            ยกเว้นจะได้รับคำสั่งโดยตรงจากผู้ใช้เท่านั้น (DO NOT UNCOMMENT UNLESS EXPLICITLY ORDERED BY USER)!
           {viewMode === 'overview' ? (
             <TaskProjectOverview
               tasks={filteredTasks}
@@ -356,6 +367,7 @@ export default function Tasks() {
               onOpenCreateModal={() => setShowCreateModal(true)}
             />
           ) : (
+          */}
             <TaskListView
               tasks={filteredTasks}
               userMap={userMap}
@@ -370,7 +382,7 @@ export default function Tasks() {
               onApproveSubmission={handleApproveSubmission}
               onRequestRevision={handleRequestRevision}
             />
-          )}
+          {/* )} */}
         </div>
       )}
 

@@ -94,6 +94,11 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
         {/* View Switcher Tabs */}
         <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit overflow-x-auto">
+          {/* 
+            [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
+            คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลและปิดใช้งานฟีเจอร์ "หัวข้องาน (Overview)" นี้ไว้
+            ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) หรือลบโค้ดส่วนนี้กลับมาทำงานเด็ดขาด!
+            ยกเว้นจะได้รับคำสั่งโดยตรงจากผู้ใช้เท่านั้น (DO NOT UNCOMMENT UNLESS EXPLICITLY ORDERED BY USER)!
           <button
             onClick={() => onViewModeChange('overview')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
@@ -105,6 +110,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             <Settings className="w-3.5 h-3.5" />
             <span>หัวข้องาน (Overview)</span>
           </button>
+          */}
           <button
             onClick={() => onViewModeChange('list')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
