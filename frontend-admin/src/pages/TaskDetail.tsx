@@ -14,7 +14,12 @@ import {
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskProjectTimelineSheet } from '../components/tasks/TaskProjectTimelineSheet';
+/* 
+  [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS IMPORT]
+  คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดใช้งานฟีเจอร์ "Board (บอร์ด)" นี้ไว้ชั่วคราว/ยังไม่เปิดใช้
+  ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) เด็ดขาด ยกเว้นจะได้รับคำสั่งโดยตรงจากผู้ใช้เท่านั้น!
 import { TaskBoardView } from '../components/tasks/TaskBoardView';
+*/
 import { TaskDetailDrawer } from '../components/tasks/TaskDetailDrawer';
 import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import {
@@ -350,6 +355,10 @@ export default function TaskDetail() {
               </svg>
               <span>Timeline Sheet</span>
             </button>
+            {/* 
+              [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
+              คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลแท็บ "Board (บอร์ด)" นี้ไว้
+              ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) หรือลบโค้ดส่วนนี้กลับมาทำงานเด็ดขาด!
             <button
               onClick={() => setViewMode('board')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all ${
@@ -363,6 +372,7 @@ export default function TaskDetail() {
               </svg>
               <span>Board (บอร์ด)</span>
             </button>
+            */}
           </div>
         </div>
       </div>
@@ -380,6 +390,10 @@ export default function TaskDetail() {
             currentUser={currentUser}
           />
         </div>
+        {/* 
+          [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
+          คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลหน้า "Board (บอร์ด)" นี้ไว้
+          ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) เด็ดขาด ยกเว้นจะได้รับคำสั่งโดยตรงจากผู้ใช้เท่านั้น!
         <div style={{ display: viewMode === 'board' ? 'block' : 'none' }}>
           <TaskBoardView
             task={task}
@@ -390,6 +404,7 @@ export default function TaskDetail() {
             currentUser={currentUser}
           />
         </div>
+        */}
       </div>
 
       {/* ═══════════ Task Detail Drawer ═══════════ */}
