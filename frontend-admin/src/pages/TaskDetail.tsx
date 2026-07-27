@@ -43,7 +43,7 @@ export default function TaskDetail() {
   const [error, setError]           = useState<string | null>(null);
 
   // ─── View Mode (sheet or board) ───
-  const [viewMode, setViewMode] = useState<'sheet' | 'board'>('sheet');
+  const [viewMode, _setViewMode] = useState<'sheet' | 'board'>('sheet');
 
   // ─── Task Detail Drawer State ───
   const [selectedTask, setSelectedTask]   = useState<AdminTask | null>(null);
@@ -339,42 +339,17 @@ export default function TaskDetail() {
           </div>
         </div>
 
-        {/* Tab Switcher Row */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit">
-            <button
-              onClick={() => setViewMode('sheet')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all ${
-                viewMode === 'sheet'
-                  ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900 font-medium'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-              </svg>
-              <span>Timeline Sheet</span>
-            </button>
-            {/* 
-              [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
-              คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลแท็บ "Board (บอร์ด)" นี้ไว้
-              ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) หรือลบโค้ดส่วนนี้กลับมาทำงานเด็ดขาด!
-            <button
-              onClick={() => setViewMode('board')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all ${
-                viewMode === 'board'
-                  ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900 font-medium'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <span>Board (บอร์ด)</span>
-            </button>
-            */}
+        {/* 
+          [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
+          คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลแท็บและแถบสวิตช์มุมมองนี้ไว้ (เนื่องจากปิด Board ไปแล้วจึงเหลือเพียง Timeline Sheet มุมมองเดียว)
+          ห้าม AI ตัวอื่น หรือผู้ใดทำการเปิดคอมเมนต์ (Uncomment) หรือลบโค้ดส่วนนี้กลับมาทำงานเด็ดขาด!
+          Tab Switcher Row commented out:
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit">
+              ...
+            </div>
           </div>
-        </div>
+        */}
       </div>
 
       {/* ═══════════ Content Area ═══════════ */}

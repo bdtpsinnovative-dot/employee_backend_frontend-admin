@@ -38,7 +38,7 @@ interface TaskProjectTimelineSheetProps {
   userMap: Record<string, User>;
   brandMap: Record<string, Brand>;
   categoryMap: Record<string, TaskCategory>;
-  onBack: () => void;
+  onBack?: () => void;
   onRefreshTask: (silent?: boolean) => void;
   currentUser: User | null;
 }
@@ -46,9 +46,9 @@ interface TaskProjectTimelineSheetProps {
 export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> = ({
   task,
   userMap,
-  brandMap,
-  categoryMap,
-  onBack,
+  brandMap: _brandMap,
+  categoryMap: _categoryMap,
+  onBack: _onBack,
   onRefreshTask,
   currentUser,
 }) => {
@@ -270,9 +270,6 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     const month = String(d.getMonth() + 1).padStart(2, '0');
     return `${day}/${month}`;
   };
-
-  const brand = task.brand_id ? brandMap[task.brand_id] : null;
-  const category = task.category_id ? categoryMap[task.category_id] : null;
 
   const loadSubItems = async () => {
     setLoading(true);
@@ -766,32 +763,6 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap select-none">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-2xs transition-all active:scale-95"
-        >
-          <ArrowLeft className="w-4 h-4 text-slate-500" />
-          <span>ย้อนกลับไปหน้ารวมโครงการ</span>
-        </button>
-
-        <div className="flex items-center gap-2">
-          {brand && (
-            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
-              <Tag className="w-3.5 h-3.5" />
-              <span>PROJECT: {brand.name}</span>
-            </span>
-          )}
-          {category && (
-            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200 rounded-lg">
-              <Layers className="w-3.5 h-3.5" />
-              <span>{category.name}</span>
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* Spreadsheet Header Banner */}
       <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-xs overflow-hidden">
         <div className="bg-slate-900 p-6 text-white border-b-4 border-blue-600">
