@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -268,6 +269,14 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 		}
 	}
 
+	// Auto-link legacy unlinked sub-items (where card_id IS NULL) to the first card once
+	if len(lists) > 0 {
+		firstCards, err := h.cardRepo.ListByList(c.Request.Context(), lists[0].ID)
+		if err == nil && len(firstCards) > 0 {
+			_ = h.subItemRepo.LinkSubItemsToCard(c.Request.Context(), firstCards[0].ID, taskID)
+		}
+	}
+
 	// 3. Load cards, sub-items, and attachments
 	for i := range lists {
 		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
@@ -279,6 +288,7 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 			if err == nil {
 				cards[j].SubItems = subItems
 			} else {
+				log.Printf("[ListByCard ERROR] cardID %s: %v", cards[j].ID, err)
 				cards[j].SubItems = []domain.TaskSubItem{}
 			}
 			// Also load card attachments from card_attachments table
@@ -352,18 +362,51 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string    `json:"name"`
-		Description *string    `json:"description"`
-		SortOrder   *int       `json:"sort_order"`
-		StartDate   *time.Time `json:"start_date"`
-		DueDate     *time.Time `json:"due_date"`
+		Name        *string      `json:"name"`
+		Description *string      `json:"description"`
+		SortOrder   *int         `json:"sort_order"`
+		StartDate   *string      `json:"start_date"`
+		DueDate     *string      `json:"due_date"`
+		AssigneeIDs *[]uuid.UUID `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
 	}
 
-	if req.Name != nil || req.Description != nil || req.StartDate != nil || req.DueDate != nil {
+	var startDate *time.Time
+	if req.StartDate != nil {
+		if *req.StartDate != "" {
+			parsed, err := time.Parse("2006-01-02", *req.StartDate)
+			if err != nil {
+				parsed, err = time.Parse(time.RFC3339, *req.StartDate)
+			}
+			if err == nil {
+				startDate = &parsed
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันเริ่มต้นไม่ถูกต้อง"})
+				return
+			}
+		}
+	}
+
+	var dueDate *time.Time
+	if req.DueDate != nil {
+		if *req.DueDate != "" {
+			parsed, err := time.Parse("2006-01-02", *req.DueDate)
+			if err != nil {
+				parsed, err = time.Parse(time.RFC3339, *req.DueDate)
+			}
+			if err == nil {
+				dueDate = &parsed
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันกำหนดส่งไม่ถูกต้อง"})
+				return
+			}
+		}
+	}
+
+	if req.Name != nil || req.Description != nil || req.StartDate != nil || req.DueDate != nil || req.AssigneeIDs != nil {
 		name := ""
 		if req.Name != nil {
 			name = *req.Name
@@ -372,7 +415,7 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		if req.Description != nil {
 			desc = *req.Description
 		}
-		_ = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, req.StartDate, req.DueDate)
+		_ = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, startDate, dueDate, req.AssigneeIDs)
 	}
 
 	if req.SortOrder != nil {
@@ -391,11 +434,12 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string     `json:"title"`
-		Description string     `json:"description"`
-		StartDate   *time.Time `json:"start_date"`
-		DueDate     *time.Time `json:"due_date"`
-		Priority    string     `json:"priority"`
+		Title       string      `json:"title"`
+		Description string      `json:"description"`
+		StartDate   *time.Time  `json:"start_date"`
+		DueDate     *time.Time  `json:"due_date"`
+		Priority    string      `json:"priority"`
+		AssigneeIDs []uuid.UUID `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อการ์ด"})
@@ -413,6 +457,7 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		StartDate:   req.StartDate,
 		DueDate:     req.DueDate,
 		Priority:    req.Priority,
+		AssigneeIDs: req.AssigneeIDs,
 	}
 
 	if card.Priority == "" {
@@ -436,14 +481,15 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 	}
 
 	var req struct {
-		Title        string     `json:"title"`
-		Description  string     `json:"description"`
-		Status       string     `json:"status"`
-		ListID       *uuid.UUID `json:"list_id"`
-		StartDate    *time.Time `json:"start_date"`
-		DueDate      *time.Time `json:"due_date"`
-		AdminComment *string    `json:"admin_comment"`
-		Priority     string     `json:"priority"`
+		Title        string       `json:"title"`
+		Description  string       `json:"description"`
+		Status       string       `json:"status"`
+		ListID       *uuid.UUID   `json:"list_id"`
+		StartDate    *string      `json:"start_date"`
+		DueDate      *string      `json:"due_date"`
+		AdminComment *string      `json:"admin_comment"`
+		Priority     string       `json:"priority"`
+		AssigneeIDs  *[]uuid.UUID `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -464,11 +510,43 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		}
 	}
 
-	if req.Title != "" || req.StartDate != nil || req.DueDate != nil || req.AdminComment != nil || req.Description != "" || req.Priority != "" {
+	var startDate *time.Time
+	if req.StartDate != nil {
+		if *req.StartDate != "" {
+			parsed, err := time.Parse("2006-01-02", *req.StartDate)
+			if err != nil {
+				parsed, err = time.Parse(time.RFC3339, *req.StartDate)
+			}
+			if err == nil {
+				startDate = &parsed
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันเริ่มต้นไม่ถูกต้อง"})
+				return
+			}
+		}
+	}
+
+	var dueDate *time.Time
+	if req.DueDate != nil {
+		if *req.DueDate != "" {
+			parsed, err := time.Parse("2006-01-02", *req.DueDate)
+			if err != nil {
+				parsed, err = time.Parse(time.RFC3339, *req.DueDate)
+			}
+			if err == nil {
+				dueDate = &parsed
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันกำหนดส่งไม่ถูกต้อง"})
+				return
+			}
+		}
+	}
+
+	if req.Title != "" || req.StartDate != nil || req.DueDate != nil || req.AdminComment != nil || req.Description != "" || req.Priority != "" || req.AssigneeIDs != nil {
 		if req.Priority == "" {
 			req.Priority = "medium"
 		}
-		err = h.cardRepo.UpdateCard(c.Request.Context(), cardID, req.Title, req.Description, req.StartDate, req.DueDate, req.AdminComment, req.Priority)
+		err = h.cardRepo.UpdateCard(c.Request.Context(), cardID, req.Title, req.Description, startDate, dueDate, req.AdminComment, req.Priority, req.AssigneeIDs)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลการ์ดล้มเหลว"})
 			return
@@ -503,7 +581,8 @@ func (h *BrandCategoryHandler) CreateCardSubItem(c *gin.Context) {
 	}
 
 	var req struct {
-		Title string `json:"title"`
+		Title   string     `json:"title"`
+		DueDate *time.Time `json:"due_date"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -521,6 +600,7 @@ func (h *BrandCategoryHandler) CreateCardSubItem(c *gin.Context) {
 		TaskID:    taskID,
 		CardID:    &cardID,
 		Title:     req.Title,
+		DueDate:   req.DueDate,
 		IsDone:    false,
 		Status:    "pending",
 		SortOrder: 99,

@@ -84,8 +84,8 @@ func (s *UserService) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, 
 
 // UpdateUserProfileAndRole อัปเดตข้อมูลพนักงานและสิทธิ์ (admin)
 // ponytail: wrapper minimal for repo call
-func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, department, position, role string) error {
-	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, department, position, role)
+func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, department, position, role string) error {
+	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, nickname, department, position, role)
 }
 
 // BindDevice ผูกเครื่องมือถือกับบัญชี (Device Binding - ADR 0003)

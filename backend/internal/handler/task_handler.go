@@ -193,3 +193,63 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะงานสำเร็จ"})
 }
+
+type updateTaskReq struct {
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	DueDate     string      `json:"due_date"`
+	AssignedTo  *string     `json:"assigned_to"`
+	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
+	BrandID     *string     `json:"brand_id"`
+	CategoryID  *string     `json:"category_id"`
+}
+
+// UpdateTask PUT /api/tasks/:id
+func (h *TaskHandler) UpdateTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var req updateTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	dueDate, err := time.Parse("2006-01-02", req.DueDate)
+	if err != nil {
+		t, err2 := time.Parse(time.RFC3339, req.DueDate)
+		if err2 == nil {
+			dueDate = t
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันกำหนดส่งไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	var brandID *uuid.UUID
+	if req.BrandID != nil && *req.BrandID != "" {
+		u, err := uuid.Parse(*req.BrandID)
+		if err == nil {
+			brandID = &u
+		}
+	}
+
+	var categoryID *uuid.UUID
+	if req.CategoryID != nil && *req.CategoryID != "" {
+		u, err := uuid.Parse(*req.CategoryID)
+		if err == nil {
+			categoryID = &u
+		}
+	}
+
+	task, err := h.taskSvc.UpdateTask(c.Request.Context(), id, req.AssigneeIDs, req.Title, req.Description, dueDate, brandID, categoryID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
+}

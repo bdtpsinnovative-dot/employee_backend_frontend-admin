@@ -93,7 +93,7 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
-		WHERE id = $1
+		WHERE t.id = $1
 	`, id)
 	if err != nil {
 		return nil, err
@@ -121,6 +121,44 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 	}
 
 	// Insert all assignees into task_assignees
+	for _, userID := range t.AssigneeIDs {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO task_assignees (task_id, user_id)
+			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, t.ID, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.NamedExecContext(ctx, `
+		UPDATE tasks 
+		SET assigned_to = :assigned_to, title = :title, description = :description, 
+		    due_date = :due_date, brand_id = :brand_id, category_id = :category_id
+		WHERE id = :id
+	`, t)
+	if err != nil {
+		return err
+	}
+
+	// Delete old assignees
+	_, err = tx.ExecContext(ctx, `DELETE FROM task_assignees WHERE task_id = $1`, t.ID)
+	if err != nil {
+		return err
+	}
+
+	// Insert new assignees
 	for _, userID := range t.AssigneeIDs {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO task_assignees (task_id, user_id)

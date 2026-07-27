@@ -150,8 +150,8 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                             {firstAssignee.first_name.charAt(0)}
                           </div>
                         )}
-                        <span className="text-[11px] font-medium text-slate-700 truncate max-w-[60px]" title={firstAssignee.first_name}>
-                          {firstAssignee.first_name}
+                        <span className="text-[11px] font-medium text-slate-700 truncate max-w-[65px]" title={firstAssignee.nickname ? `${firstAssignee.first_name} (${firstAssignee.nickname})` : firstAssignee.first_name}>
+                          {firstAssignee.nickname || firstAssignee.first_name}
                         </span>
                         {assignees.length > 1 && (
                           <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1 rounded-sm">

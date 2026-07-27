@@ -1,60 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import {
+  ArrowLeft,
   CheckSquare,
   Square,
+  Flame,
   Tag,
   Layers,
-  CheckCircle2,
-  Plus,
-  ArrowLeft,
-  Edit3,
-  X,
-  FileText,
-  Link2,
   ExternalLink,
+  FileText,
+  X,
+  Link2,
+  Filter,
+  AlertCircle,
+  Edit3,
   Trash2,
   Save,
   Paperclip,
+  CheckCircle2,
   Users,
   History,
+  Plus,
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory, TaskSubItem, TaskList, TaskCard } from '../../types';
 import { avatarUrl } from './taskUtils';
 import {
   fetchTaskSubItems,
-  fetchTaskTrello,
-  toggleTaskSubItem,
   createTaskCard,
+  toggleTaskSubItem,
   deleteTaskSubItem,
+  fetchTaskTrello,
   updateTaskCard,
   updateTaskList,
 } from '../../services/adminApi';
 
-interface TaskBoardViewProps {
+interface TaskProjectTimelineSheetProps {
   task: AdminTask;
   userMap: Record<string, User>;
   brandMap: Record<string, Brand>;
   categoryMap: Record<string, TaskCategory>;
+  onBack: () => void;
   onRefreshTask: (silent?: boolean) => void;
   currentUser: User | null;
 }
 
-export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
+export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> = ({
   task,
   userMap,
   brandMap,
   categoryMap,
+  onBack,
   onRefreshTask,
   currentUser,
 }) => {
   const [subItems, setSubItems] = useState<TaskSubItem[]>([]);
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
+  const [showInvitePopover, setShowInvitePopover] = useState(false);
 
-  // New card addition in column state
-  const [addingCardToListId, setAddingCardToListId] = useState<string | null>(null);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  // Filter Toolbar State
+  type FilterMode = 'all' | 'pending' | 'overdue' | 'high_priority' | 'completed';
+  const [activeFilter, setActiveFilter] = useState<FilterMode>('all');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const filterCard = (card: TaskCard) => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'completed') return card.status === 'completed';
+    if (activeFilter === 'pending') return card.status !== 'completed';
+    if (activeFilter === 'high_priority') return card.priority === 'high' || card.priority === 'urgent';
+    if (activeFilter === 'overdue') {
+      if (card.status === 'completed') return false;
+      const isCardOverdue = card.due_date ? card.due_date.split('T')[0] < todayStr : false;
+      const isSubOverdue = card.sub_items?.some(
+        (s) => !s.is_done && s.due_date && s.due_date.split('T')[0] < todayStr
+      );
+      return isCardOverdue || isSubOverdue;
+    }
+    return true;
+  };
+
+  const filterSubItem = (item: TaskSubItem) => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'completed') return item.is_done;
+    if (activeFilter === 'pending') return !item.is_done;
+    if (activeFilter === 'high_priority') return item.priority === 'high';
+    if (activeFilter === 'overdue') {
+      return !item.is_done && !!(item.due_date && item.due_date.split('T')[0] < todayStr);
+    }
+    return true;
+  };
 
   // Right Sidebar Edit Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -67,7 +102,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
 
-  // Sub-item drawer state
+  // Selected Sub-item for "การดำเนินการรายการย่อย" Drawer
   const [editingSubItem, setEditingSubItem] = useState<TaskSubItem | null>(null);
   const [subTitle, setSubTitle] = useState('');
   const [subStartDate, setSubStartDate] = useState('');
@@ -79,60 +114,6 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   const [subVerificationNotes, setSubVerificationNotes] = useState('');
   const [subAdminComment, setSubAdminComment] = useState('');
   const [isSavingSubDrawer, setIsSavingSubDrawer] = useState(false);
-
-  const [newSubTitle, setNewSubTitle] = useState('');
-  const [newSubDueDate, setNewSubDueDate] = useState('');
-  const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
-  const [showInvitePopover, setShowInvitePopover] = useState(false);
-
-  const loadSubItems = async () => {
-    try {
-      const [items, lists] = await Promise.all([
-        fetchTaskSubItems(task.id),
-        fetchTaskTrello(task.id).catch(() => []),
-      ]);
-      setSubItems(items);
-      setTrelloLists(lists);
-    } catch (err) {
-      console.error('Failed to load sub items or trello lists', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    loadSubItems();
-  }, [task.id]);
-
-  const handleToggleDone = async (item: TaskSubItem) => {
-    try {
-      const updated = await toggleTaskSubItem(item.id);
-      setSubItems((prev) =>
-        prev.map((s) => (s.id === item.id ? { ...s, is_done: updated.is_done } : s))
-      );
-      await loadSubItems();
-      onRefreshTask(true);
-    } catch (e: any) {
-      alert(e.message || 'สลับสถานะไม่สำเร็จ');
-    }
-  };
-
-  const handleAddCard = async (listId: string) => {
-    if (!newCardTitle.trim()) return;
-    try {
-      await createTaskCard(listId, {
-        title: newCardTitle.trim(),
-        priority: newCardPriority,
-      });
-      setNewCardTitle('');
-      setAddingCardToListId(null);
-      await loadSubItems();
-      onRefreshTask(true);
-    } catch (e: any) {
-      alert(e.message || 'เพิ่มการ์ดล้มเหลว');
-    }
-  };
 
   const openDrawerForSubItem = (sub: TaskSubItem) => {
     setEditingSubItem(sub);
@@ -177,6 +158,10 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
       setIsSavingSubDrawer(false);
     }
   };
+
+  // New Sub-Item in Drawer state
+  const [newSubTitle, setNewSubTitle] = useState('');
+  const [newSubDueDate, setNewSubDueDate] = useState('');
 
   const openDrawerForCard = (card: TaskCard, list?: TaskList) => {
     setEditingSubItem(null);
@@ -245,6 +230,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
           setNewSubDueDate('');
         }
       }
+
       await loadSubItems();
       onRefreshTask(true);
       setIsDrawerOpen(false);
@@ -272,14 +258,9 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
     }
   };
 
-  const handleOpenExternalUrl = (url?: string) => {
-    if (!url || url.includes('example.com')) return;
-    let targetUrl = url;
-    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-      targetUrl = `https://${targetUrl}`;
-    }
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
-  };
+  // Document Link Modal State
+  const [activeDocumentItem, setActiveDocumentItem] = useState<{ id: string; title: string; link_url?: string } | null>(null);
+  const [editLinkUrl, setEditLinkUrl] = useState('');
 
   const formatDateDDMM = (dateStr?: string) => {
     if (!dateStr) return null;
@@ -293,9 +274,62 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   const brand = task.brand_id ? brandMap[task.brand_id] : null;
   const category = task.category_id ? categoryMap[task.category_id] : null;
 
-  const displayLists = trelloLists.length > 0 ? trelloLists : [];
-  const displaySubItems = subItems.length > 0 ? subItems : [];
+  const loadSubItems = async () => {
+    setLoading(true);
+    try {
+      const [items, lists] = await Promise.all([
+        fetchTaskSubItems(task.id),
+        fetchTaskTrello(task.id).catch(() => []),
+      ]);
+      setSubItems(items);
+      setTrelloLists(lists);
+    } catch (err) {
+      console.error('Failed to load sub items or trello lists', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    loadSubItems();
+  }, [task.id]);
+
+  const handleToggleDone = async (item: TaskSubItem) => {
+    try {
+      const updated = await toggleTaskSubItem(item.id);
+      setSubItems((prev) =>
+        prev.map((s) => (s.id === item.id ? { ...s, is_done: updated.is_done } : s))
+      );
+      onRefreshTask(true);
+    } catch (e: any) {
+      alert(e.message || 'สลับสถานะไม่สำเร็จ');
+    }
+  };
+
+  const handleSaveDocumentLink = () => {
+    if (!activeDocumentItem) return;
+    const updatedUrl = editLinkUrl.trim();
+
+    setSubItems((prev) =>
+      prev.map((s) => (s.id === activeDocumentItem.id ? { ...s, link_url: updatedUrl } : s))
+    );
+
+    setActiveDocumentItem(null);
+  };
+
+  const handleOpenExternalUrl = (url?: string) => {
+    if (!url || url.includes('example.com')) return;
+    let targetUrl = url;
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = `https://${targetUrl}`;
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const displayLists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
+  const displaySubItems = subItems.length > 0 ? subItems : (task.sub_items || []);
+
+  // Demo fallback rows without broken placeholder URLs
   const defaultDemoItems: TaskSubItem[] = [
     {
       id: 'demo-1',
@@ -358,11 +392,37 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
 
   const activeSubItems = displaySubItems.length > 0 ? displaySubItems : defaultDemoItems;
 
+  // Group activeSubItems by phase for row-spanning merged phase cells
+  const subItemsByPhase: { phase: string; title: string; items: TaskSubItem[] }[] = [];
+  const phaseGroupMap: Record<string, TaskSubItem[]> = {};
+
+  activeSubItems.forEach((item) => {
+    const pKey = item.phase || '1';
+    if (!phaseGroupMap[pKey]) phaseGroupMap[pKey] = [];
+    phaseGroupMap[pKey].push(item);
+  });
+
+  Object.keys(phaseGroupMap).forEach((pKey) => {
+    const items = phaseGroupMap[pKey];
+    const defaultPhaseNames: Record<string, string> = {
+      '1': 'Partner & Deal With Suppliers',
+      '2': 'Market Research & Competitors Analysis',
+      '3': 'Product Design & Development',
+      '4': 'Production & Quality Control',
+    };
+    subItemsByPhase.push({
+      phase: pKey,
+      title: defaultPhaseNames[pKey] || task.title || `Phase ${pKey}`,
+      items,
+    });
+  });
+
+  // Enrich effectiveLists with activeSubItems so ALL sub-items from task_sub_items are always displayed
   const fallbackLists: TaskList[] = [
-    { id: 'phase-1', name: 'Partner & Deal With Suppliers', task_id: task.id, sort_order: 1, created_at: new Date().toISOString() },
-    { id: 'phase-2', name: 'Market Research & Competitors Analysis', task_id: task.id, sort_order: 2, created_at: new Date().toISOString() },
-    { id: 'phase-3', name: 'Product Design & Development', task_id: task.id, sort_order: 3, created_at: new Date().toISOString() },
-    { id: 'phase-4', name: 'Production & Quality Control', task_id: task.id, sort_order: 4, created_at: new Date().toISOString() },
+    { id: 'phase-1', name: 'Phase 1', task_id: task.id, sort_order: 1, created_at: new Date().toISOString() },
+    { id: 'phase-2', name: 'Phase 2', task_id: task.id, sort_order: 2, created_at: new Date().toISOString() },
+    { id: 'phase-3', name: 'Phase 3', task_id: task.id, sort_order: 3, created_at: new Date().toISOString() },
+    { id: 'phase-4', name: 'Phase 4', task_id: task.id, sort_order: 4, created_at: new Date().toISOString() },
   ];
 
   const effectiveLists: TaskList[] = (displayLists.length > 0 ? displayLists : fallbackLists).map(
@@ -385,7 +445,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
             status: 'in_progress',
             priority: 'medium',
             due_date: phaseSubItems[0]?.due_date || list.due_date || task.due_date,
-            sub_items: phaseSubItems,
+            sub_items: phaseSubItems.filter(filterSubItem),
           };
           return {
             ...list,
@@ -402,7 +462,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
           }
           return {
             ...card,
-            sub_items: ownSubItems,
+            sub_items: ownSubItems.filter(filterSubItem),
           };
         });
         return {
@@ -415,264 +475,548 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
     }
   );
 
+  // Pre-render rows cleanly with rowSpan merging for items in the same Phase
+  const renderedRows = effectiveLists.flatMap((list: TaskList) => {
+      const cards = (list.cards || []).filter(filterCard);
+      const totalCards = cards.length;
+
+      if (totalCards === 0) {
+        return [
+          <tr key={list.id} className="hover:bg-blue-50/30 transition-colors border-b-2 border-slate-300">
+            <td className="px-3 py-3 border-r border-slate-200 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70">
+              {list.due_date ? new Date(list.due_date).toLocaleDateString('th-TH') : '-'}
+            </td>
+            <td className="px-4 py-3 border-r border-slate-200 align-middle font-bold text-blue-900 bg-blue-50/40">
+              <div className="text-xs font-bold text-blue-950 leading-tight">
+                {list.name}
+              </div>
+            </td>
+            <td colSpan={7} className="px-4 py-3 text-slate-400 italic text-xs">
+              ยังไม่มีการ์ดงานย่อยในรายการนี้
+            </td>
+          </tr>
+        ];
+      }
+
+      return cards.map((card: TaskCard, cardIdx: number) => {
+        const itemPriority = card.priority || 'medium';
+        const isDone = card.status === 'completed';
+        const isFirstInList = cardIdx === 0;
+        const isLastInList = cardIdx === totalCards - 1;
+
+        return (
+          <tr
+            key={card.id}
+            className={`hover:bg-blue-50/30 transition-colors ${
+              isLastInList ? 'border-b-2 border-slate-300' : 'border-b border-slate-100/60'
+            } ${isDone ? 'bg-slate-50/50' : ''}`}
+          >
+             {/* 1. Due Date (Phase level - Click to open Right Sidebar Drawer) */}
+             {isFirstInList && (
+               <td
+                 rowSpan={totalCards}
+                 onClick={() => openDrawerForList(list)}
+                 className="px-3 py-3 border-r border-b-2 border-slate-300 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70 hover:bg-amber-100/60 cursor-pointer transition-colors"
+                 title="กดเพื่อเปิดสไลด์บาร์ ข้อมูลบอร์ดหลัก"
+               >
+                 <div className="flex flex-col items-center justify-center gap-1">
+                   <input
+                     type="date"
+                     value={list.due_date ? list.due_date.substring(0, 10) : ''}
+                     onClick={(e) => e.stopPropagation()}
+                     onChange={(e) => {
+                       list.due_date = e.target.value || undefined;
+                       setTrelloLists([...trelloLists]);
+                     }}
+                     className="bg-transparent font-mono text-[11px] text-blue-900 font-bold border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 w-full focus:outline-none"
+                   />
+                 </div>
+               </td>
+             )}
+
+            {/* 2. PROJECT (Merged across list items) */}
+            {isFirstInList && (
+              <td
+                rowSpan={totalCards}
+                className="px-2 py-2 border-r border-b-2 border-slate-300 align-middle font-bold text-blue-900 bg-blue-50/40 w-20 max-w-[80px]"
+              >
+                <div className="flex flex-col items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={list.name}
+                    onChange={(e) => {
+                      list.name = e.target.value;
+                      setTrelloLists([...trelloLists]);
+                    }}
+                    className="w-full bg-transparent font-bold text-blue-955 text-xs text-center border-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 focus:outline-none"
+                  />
+                  {list.assignee_ids && list.assignee_ids.length > 0 && (
+                    <div className="flex items-center -space-x-1 justify-center flex-wrap select-none pt-1">
+                      {list.assignee_ids.map((uid) => {
+                        const u = userMap[uid];
+                        if (!u) return null;
+                        return (
+                          <div
+                            key={uid}
+                            className="w-4 h-4 rounded-full bg-indigo-50 border border-slate-200 flex items-center justify-center text-indigo-700 text-[7px] font-bold cursor-help shrink-0"
+                            title={`ผู้รับผิดชอบบอร์ด: ${u.nickname || u.first_name}`}
+                          >
+                            {(u.nickname || u.first_name).charAt(0)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </td>
+            )}
+
+            {/* 3. Priority */}
+            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
+              <select
+                value={itemPriority}
+                onChange={(e) => {
+                  card.priority = e.target.value as any;
+                  setTrelloLists([...trelloLists]);
+                }}
+                className={`px-2 py-1 text-[10px] font-bold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                  itemPriority === 'high' || itemPriority === 'urgent' ? 'text-red-700 border-red-300' :
+                  itemPriority === 'medium' ? 'text-amber-700 border-amber-300' :
+                  'text-emerald-700 border-emerald-300'
+                }`}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </td>
+
+            {/* 4. DETAILS */}
+            <td className="p-0 border-r border-slate-200 align-top">
+              <div className="h-[36px] px-3 flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={card.title}
+                    onChange={(e) => {
+                      card.title = e.target.value;
+                      setTrelloLists([...trelloLists]);
+                    }}
+                    className="w-full bg-transparent font-bold text-slate-800 text-xs border-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 focus:outline-none"
+                  />
+                  {card.description && (
+                    <div className="text-[10px] text-slate-500 line-clamp-1 font-normal px-1">
+                      {card.description}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Assignee Avatars */}
+                {card.assignee_ids && card.assignee_ids.length > 0 && (
+                  <div className="flex items-center -space-x-1 shrink-0 select-none">
+                    {card.assignee_ids.map((uid) => {
+                      const u = userMap[uid];
+                      if (!u) return null;
+                      return (
+                        <div
+                          key={uid}
+                          className="w-4.5 h-4.5 rounded-full bg-blue-50 border border-slate-200 flex items-center justify-center text-blue-700 text-[8px] font-bold cursor-help shrink-0"
+                          title={`ผู้รับผิดชอบการ์ด: ${u.nickname || u.first_name}`}
+                        >
+                          {(u.nickname || u.first_name).charAt(0)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {card.sub_items && card.sub_items.length > 0 && (
+                <div className="border-t border-slate-300 divide-y divide-slate-200 select-none w-full">
+                  {card.sub_items.map((sub: TaskSubItem) => (
+                    <div
+                      key={sub.id}
+                      className="px-3 h-7 flex items-center gap-1.5 text-[11px]"
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleDone(sub);
+                        }}
+                        className="text-slate-400 hover:text-emerald-600 cursor-pointer shrink-0"
+                      >
+                        {sub.is_done ? (
+                          <CheckSquare className="w-3.5 h-3.5 text-emerald-600 fill-emerald-50 shrink-0" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        )}
+                      </button>
+                      <input
+                        type="text"
+                        value={sub.title}
+                        onChange={(e) => {
+                          sub.title = e.target.value;
+                          setSubItems([...subItems]);
+                        }}
+                        className="w-full bg-transparent text-slate-700 text-[11px] border-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </td>
+
+            {/* 5. DUE DATE */}
+            <td className="p-0 border-r border-slate-200 text-center align-top bg-slate-50/30 w-24 min-w-[90px]">
+              <div className="flex flex-col items-center w-full">
+                {/* Main Card Due Date (Compact Yellow Pill - Exact h-[36px]) */}
+                <div className="h-[36px] px-1 flex items-center justify-center w-full">
+                  <input
+                    type="date"
+                    value={card.due_date ? card.due_date.substring(0, 10) : ''}
+                    onChange={(e) => {
+                      card.due_date = e.target.value || undefined;
+                      setTrelloLists([...trelloLists]);
+                    }}
+                    className="bg-transparent font-mono text-[11px] text-amber-955 font-bold border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 w-full focus:outline-none"
+                  />
+                </div>
+
+                {/* Sub-item Due Dates */}
+                {card.sub_items && card.sub_items.length > 0 && (
+                  <div className="border-t border-slate-300 divide-y divide-slate-200 w-full flex flex-col select-none">
+                    {card.sub_items.map((sub: TaskSubItem) => {
+                      return (
+                        <div
+                          key={sub.id}
+                          className="px-1 h-7 flex items-center justify-center"
+                        >
+                          <input
+                            type="date"
+                            value={sub.due_date ? sub.due_date.substring(0, 10) : ''}
+                            onChange={(e) => {
+                              sub.due_date = e.target.value || undefined;
+                              setSubItems([...subItems]);
+                            }}
+                            className="bg-transparent font-mono text-[10px] text-slate-750 border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-0.5 w-full focus:outline-none"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </td>
+
+
+            {/* Assignment */}
+            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
+              <select
+                value={card.assignee_ids && card.assignee_ids.length > 0 ? card.assignee_ids[0] : ''}
+                onChange={async (e) => {
+                  const newUserId = e.target.value;
+                  const newAssigneeIds = newUserId ? [newUserId] : [];
+                  card.assignee_ids = newAssigneeIds;
+                  setTrelloLists([...trelloLists]);
+                  try {
+                    await updateTaskCard(card.id, {
+                      title: card.title,
+                      assignee_ids: newAssigneeIds,
+                    });
+                    onRefreshTask(true);
+                  } catch (err: any) {
+                    console.error('Failed to update card assignee', err);
+                  }
+                }}
+                className="px-2 py-1 bg-white border border-slate-300 rounded-md text-[10px] font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">เลือกผู้รับผิดชอบ</option>
+                {(() => {
+                  const taskAssigneeIds = (task.assignee_ids && task.assignee_ids.length > 0
+                    ? task.assignee_ids
+                    : task.assigned_to
+                    ? [task.assigned_to]
+                    : []);
+                  const candidates = taskAssigneeIds
+                    .map((id) => userMap[id])
+                    .filter(Boolean)
+                    .filter((u) => u.id !== currentUser?.id);
+
+                  return candidates.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nickname || u.first_name}
+                    </option>
+                  ));
+                })()}
+              </select>
+            </td>
+
+            {/* Status */}
+            <td className="px-3 py-2.5 border-r border-slate-200 text-center align-middle">
+              <select
+                value={card.status}
+                onChange={(e) => {
+                  card.status = e.target.value as any;
+                  setTrelloLists([...trelloLists]);
+                }}
+                className={`px-2 py-1 text-[10px] font-extrabold rounded-full border bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                  isDone ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-amber-800 border-amber-300 bg-amber-50'
+                }`}
+              >
+                <option value="in_progress">Doing</option>
+                <option value="completed">Done</option>
+              </select>
+            </td>
+
+            {/* List Checkbox */}
+            <td className="px-2 py-2.5 border-r border-slate-200 text-center align-middle">
+              <div className="p-1 text-slate-700">
+                {isDone ? <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-50 inline" /> : <Square className="w-4 h-4 text-slate-400 inline" />}
+              </div>
+            </td>
+
+            {/* NOTE / Remark */}
+            <td className="px-4 py-2.5 border-r border-slate-200 align-middle text-slate-600 text-xs">
+              {card.admin_comment || '-'}
+            </td>
+
+            {/* Link / Files */}
+            <td className="px-3 py-2.5 text-center align-middle">
+              {(() => {
+                const firstSubItemWithLink = card.sub_items?.find((s: TaskSubItem) => s.link_url && !s.link_url.includes('example.com'));
+                const cardLinkUrl = firstSubItemWithLink?.link_url;
+                return cardLinkUrl ? (
+                  <button
+                    onClick={() => handleOpenExternalUrl(cardLinkUrl)}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-md transition-all active:scale-95"
+                  >
+                    <FileText className="w-3 h-3 text-indigo-600" />
+                    <span>เปิดเอกสาร</span>
+                  </button>
+                ) : (
+                  <span className="text-slate-400 italic text-[11px]">-</span>
+                );
+              })()}
+            </td>
+          </tr>
+        );
+      });
+    });
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12 text-slate-500 text-sm font-semibold">
-        กำลังโหลดโครงสร้างบอร์ด...
+      <div className="flex items-center justify-center p-12 text-slate-500 text-sm font-semibold font-sans">
+        กำลังโหลดแผ่นงานโครงการ...
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Top Banner similar to mobile layout */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-            {task.title}
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            จำลองบอร์ดโครงการสำหรับมือถือ (Mobile Simulated Project Board)
-          </p>
-        </div>
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap select-none">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-2xs transition-all active:scale-95"
+        >
+          <ArrowLeft className="w-4 h-4 text-slate-500" />
+          <span>ย้อนกลับไปหน้ารวมโครงการ</span>
+        </button>
 
         <div className="flex items-center gap-2">
           {brand && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
-              <Tag className="w-3 h-3" />
-              <span>{brand.name}</span>
+            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
+              <Tag className="w-3.5 h-3.5" />
+              <span>PROJECT: {brand.name}</span>
             </span>
           )}
           {category && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200 rounded-lg">
-              <Layers className="w-3 h-3" />
+            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200 rounded-lg">
+              <Layers className="w-3.5 h-3.5" />
               <span>{category.name}</span>
             </span>
           )}
         </div>
       </div>
 
-      {/* Horizontal Scrolling Board Wrapper */}
-      <div className="flex gap-6 overflow-x-auto pb-6 pt-2 select-none min-h-[600px] items-start scrollbar-thin">
-        {effectiveLists.map((list) => {
-          const cards = list.cards || [];
-          return (
-            <div
-              key={list.id}
-              className="w-80 shrink-0 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-4 max-h-[750px] shadow-2xs"
+      {/* Spreadsheet Header Banner */}
+      <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-xs overflow-hidden">
+        <div className="bg-slate-900 p-6 text-white border-b-4 border-blue-600">
+          <h1 className="text-2xl md:text-3xl font-black tracking-wider uppercase text-blue-300 font-mono">
+            {task.title}
+          </h1>
+          <p className="text-xs md:text-sm text-slate-300 font-medium mt-1">
+            แผ่นงานแสดงลำดับเวลาโครงการ (Project Timeline Sheet & Action Items)
+          </p>
+        </div>
+
+        {/* Action Filter Bar */}
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-slate-500 font-bold mr-1 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <span>ตัวกรอง:</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('all')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                activeFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
             >
-              {/* Column/List Title */}
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <h3 
-                    onClick={() => openDrawerForList(list)}
-                    className="text-xs font-black text-slate-800 uppercase tracking-wider leading-none cursor-pointer hover:text-blue-600 transition-colors"
-                    title="คลิกเพื่อแก้ไขข้อมูลบอร์ดหลัก"
+              ทั้งหมด
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('pending')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                activeFilter === 'pending'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-amber-50 border border-slate-200'
+              }`}
+            >
+              <span>งานยังไม่เสร็จ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('overdue')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                activeFilter === 'overdue'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-white text-red-600 hover:bg-red-50 border border-red-200'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>งานเลยกำหนด</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('high_priority')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                activeFilter === 'high_priority'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-rose-50 border border-slate-200'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-rose-500" />
+              <span>High Priority</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('completed')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                activeFilter === 'completed'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-emerald-50 border border-slate-200'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
+              <span>เสร็จสิ้นแล้ว</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Interactive Spreadsheet Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs font-sans min-w-[950px]">
+            <thead>
+              <tr className="bg-slate-800 text-slate-100 font-bold uppercase tracking-wider text-[11px] border-b-2 border-slate-900 select-none">
+                <th className="px-3 py-3 w-28 text-center border-r border-slate-700">Due Date</th>
+                <th className="px-2 py-3 border-r border-slate-700 w-20 max-w-[80px] text-center">PROJECT</th>
+                <th className="px-3 py-3 w-24 text-center border-r border-slate-700">Priority</th>
+                <th className="px-4 py-3 border-r border-slate-700 flex-1">DETAILS</th>
+                <th className="px-3 py-3 w-28 text-center border-r border-slate-700 font-bold bg-slate-900/80 text-amber-300">DUE DATE</th>
+                <th className="px-3 py-3 w-28 text-center border-r border-slate-700">Assignment</th>
+                <th className="px-3 py-3 w-24 text-center border-r border-slate-700">Status</th>
+                <th className="px-2 py-3 w-16 text-center border-r border-slate-700">List</th>
+                <th className="px-4 py-3 border-r border-slate-700">NOTE / Remark</th>
+                <th className="px-3 py-3 w-28 text-center">Link / Files</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y-0 bg-white font-medium">
+              {renderedRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Document Link Modal */}
+      {activeDocumentItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-base">จัดการเอกสาร & ไฟล์แนบ</h3>
+              </div>
+              <button
+                onClick={() => setActiveDocumentItem(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">รายการงานย่อย</p>
+                <p className="text-sm font-bold text-slate-900 mt-0.5">{activeDocumentItem.title}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-indigo-600" />
+                  <span>URL ลิงก์เอกสาร (Google Drive, Sheet, PDF หรือเว็บไซต์)</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  value={editLinkUrl}
+                  onChange={(e) => setEditLinkUrl(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+                {editLinkUrl.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenExternalUrl(editLinkUrl)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all"
                   >
-                    {list.name}
-                  </h3>
-                  {list.due_date && (
-                    <span className="text-[9px] text-slate-500 font-mono">
-                      กำหนด: {formatDateDDMM(list.due_date)}
-                    </span>
-                  )}
-                </div>
+                    <ExternalLink className="w-4 h-4" />
+                    <span>ทดสอบเปิดลิงก์</span>
+                  </button>
+                )}
 
                 <button
-                  onClick={() => setAddingCardToListId(addingCardToListId === list.id ? null : list.id)}
-                  className="p-1 hover:bg-slate-200/80 rounded-md transition-all text-slate-500"
+                  type="button"
+                  onClick={() => setActiveDocumentItem(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  ยกเลิก
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveDocumentLink}
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-all"
+                >
+                  บันทึกข้อมูล
                 </button>
               </div>
-
-              {/* Inline Add Card Box */}
-              {addingCardToListId === list.id && (
-                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5 shadow-sm">
-                  <input
-                    type="text"
-                    placeholder="พิมพ์ชื่อการ์ด..."
-                    value={newCardTitle}
-                    onChange={(e) => setNewCardTitle(e.target.value)}
-                    className="w-full text-xs p-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50"
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <select
-                      value={newCardPriority}
-                      onChange={(e) => setNewCardPriority(e.target.value as any)}
-                      className="text-[10px] p-1.5 border border-slate-200 rounded bg-white text-slate-700 font-bold focus:outline-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => setAddingCardToListId(null)}
-                        className="px-2.5 py-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-semibold transition-all"
-                      >
-                        ยกเลิก
-                      </button>
-                      <button
-                        onClick={() => handleAddCard(list.id)}
-                        className="px-2.5 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded-md font-bold transition-all"
-                      >
-                        เพิ่ม
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* List Cards Scroll Area */}
-              <div className="flex flex-col gap-3.5 overflow-y-auto pr-0.5">
-                {cards.map((card) => {
-                  const cardSubItems = card.sub_items || [];
-                  const doneSubs = cardSubItems.filter((s) => s.is_done).length;
-                  const totalSubs = cardSubItems.length;
-                  const pct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
-
-                  return (
-                    <div
-                      key={card.id}
-                      className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-3 transition-all hover:shadow-2xs"
-                    >
-                      {/* Card Header (Priority & Date) */}
-                      <div 
-                        className="flex items-center justify-between gap-2 select-none cursor-pointer"
-                        onClick={() => openDrawerForCard(card, list)}
-                      >
-                        {/* Priority Badge */}
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${
-                            card.priority === 'high' || card.priority === 'urgent'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : card.priority === 'medium'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
-                        >
-                          {card.priority || 'medium'}
-                        </span>
-
-                        {/* Due Date Yellow Pill */}
-                        {card.due_date && (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold text-amber-800 bg-amber-100/70 border border-amber-200/80 rounded-md font-mono">
-                            {formatDateDDMM(card.due_date)}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Card Title */}
-                      <div 
-                        className="text-xs font-bold text-slate-800 leading-tight cursor-pointer hover:text-blue-600 transition-colors"
-                        onClick={() => openDrawerForCard(card, list)}
-                      >
-                        {card.title}
-                      </div>
-
-                      {/* Sub-items List with Checkboxes */}
-                      {cardSubItems.length > 0 && (
-                        <div className="flex flex-col gap-1.5 border-t border-slate-100 pt-2 select-none">
-                          {cardSubItems.map((sub) => {
-                            const isSubDone = sub.is_done;
-                            return (
-                              <div
-                                key={sub.id}
-                                className="flex items-start gap-2 text-[10.5px]"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleDone(sub)}
-                                  className="text-slate-400 hover:text-emerald-600 transition-all shrink-0 mt-0.5"
-                                >
-                                  {isSubDone ? (
-                                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 fill-emerald-50 shrink-0" />
-                                  ) : (
-                                    <Square className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  )}
-                                </button>
-                                <span
-                                  className={`flex-1 text-slate-700 font-medium break-all leading-tight ${
-                                    isSubDone ? 'line-through text-slate-400' : ''
-                                  }`}
-                                >
-                                  {sub.title}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openDrawerForSubItem(sub);
-                                  }}
-                                  className="px-1.5 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[9px] font-bold transition-all shrink-0"
-                                >
-                                  ตรวจงาน
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Progress Bar & Assignment footer */}
-                      {totalSubs > 0 && (
-                        <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-2 text-[9px] font-bold text-slate-500 font-mono">
-                          <div className="flex-1 flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${
-                                  pct === 100 ? 'bg-emerald-500' : 'bg-blue-500'
-                                }`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span>{pct}%</span>
-                          </div>
-
-                          {/* Avatar Indicators if assigned */}
-                          {card.assignee_ids && card.assignee_ids.length > 0 ? (
-                            <div className="flex items-center -space-x-1.5 ml-auto">
-                              {card.assignee_ids.map((uid) => {
-                                const u = userMap[uid];
-                                if (!u) return null;
-                                return (
-                                  <div
-                                    key={uid}
-                                    className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-[8px] border border-white cursor-help shrink-0"
-                                    title={u.nickname || u.first_name}
-                                  >
-                                    {(u.nickname || u.first_name).charAt(0)}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            card.assigned_to && userMap[card.assigned_to] && (
-                              <div
-                                className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-[8px] border border-slate-200 cursor-help"
-                                title={userMap[card.assigned_to].nickname || userMap[card.assigned_to].first_name}
-                              >
-                                {userMap[card.assigned_to].first_name.charAt(0)}
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {cards.length === 0 && (
-                  <div className="py-8 text-center text-slate-400 text-xs italic border-2 border-dashed border-slate-200 bg-white/40 rounded-xl">
-                    ไม่มีการ์ดในคอลัมน์นี้
-                  </div>
-                )}
-              </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* Right Sidebar Edit Drawer */}
       {isDrawerOpen && (
@@ -744,6 +1088,9 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
             {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {editingCard ? (
+                /* ========================================================================= */
+                /* SCREEN B (MOBILE APP SCREENSHOT): "การ์ดงาน"                                */
+                /* ========================================================================= */
                 <div className="space-y-6">
                   {/* 1. รายการย่อย */}
                   <div className="space-y-2">
@@ -990,6 +1337,9 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                   </div>
                 </div>
               ) : editingSubItem ? (
+                /* ========================================================================= */
+                /* FULL MOBILE APP SCREENSHOT DESIGN: "การดำเนินการรายการย่อย"               */
+                /* ========================================================================= */
                 <div className="space-y-6">
                   {/* 1. หัวข้อรายการย่อย */}
                   <div className="space-y-1.5">
@@ -1399,78 +1749,83 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Description / Comment */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-slate-500" />
-                      <span>รายละเอียดเพิ่มเติม / หมายเหตุ</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={drawerComment}
-                      onChange={(e) => setDrawerComment(e.target.value)}
-                      placeholder="เพิ่มคำอธิบายหรือหมายเหตุงาน..."
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
-                    />
-                  </div>
+              {/* Description / Comment */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  <span>รายละเอียดเพิ่มเติม / หมายเหตุ</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={drawerComment}
+                  onChange={(e) => setDrawerComment(e.target.value)}
+                  placeholder="เพิ่มคำอธิบายหรือหมายเหตุงาน..."
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
+                />
+              </div>
 
-                  {/* Document Link & Attachments (task_attachments) */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Paperclip className="w-4 h-4 text-indigo-600" />
-                        <span>เอกสารแนบ & ลิงก์ไฟล์งาน (Task Attachments)</span>
-                      </span>
-                    </label>
-                    {(() => {
-                      const subWithLink = (editingCard as any)?.sub_items?.find((s: TaskSubItem) => s.link_url && !s.link_url.includes('example.com'));
-                      const validUrl = subWithLink?.link_url || (task as any).link_url;
+              {/* Document Link & Attachments (task_attachments) */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Paperclip className="w-4 h-4 text-indigo-600" />
+                    <span>เอกสารแนบ & ลิงก์ไฟล์งาน (Task Attachments)</span>
+                  </span>
+                </label>
+                {(() => {
+                  const subWithLink = (editingCard as any)?.sub_items?.find((s: TaskSubItem) => s.link_url && !s.link_url.includes('example.com'));
+                  const validUrl = subWithLink?.link_url || (task as any).link_url;
 
-                      return validUrl && !validUrl.includes('example.com') ? (
-                        <div className="flex items-center justify-between p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs">
-                          <div className="flex items-center gap-2 truncate min-w-0">
-                            <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
-                            <span className="truncate font-mono font-medium text-indigo-950">{validUrl}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenExternalUrl(validUrl)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 px-2.5 py-1 rounded-lg shrink-0 transition-all cursor-pointer"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>เปิดเอกสาร</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">ไม่มีไฟล์แนบหรือลิงก์เอกสาร</p>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Work Submission & Verification (task_submissions) */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>สถานะการส่งตรวจงาน (Task Submission Status)</span>
-                      </span>
-                    </label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-                      <div className="space-y-0.5">
-                        <p className="font-bold text-slate-800">
-                          {task.status === 'completed' ? 'ผ่านการอนุมัติแล้ว (Approved)' : 'อยู่ระหว่างดำเนินงาน (In Progress)'}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {(task as any).verification_notes || (task as any).admin_comment || 'งานนี้ได้รับการอนุมัติแล้ว'}
-                        </p>
+                  return validUrl && !validUrl.includes('example.com') ? (
+                    <div className="flex items-center justify-between p-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-xs">
+                      <div className="flex items-center gap-2 truncate min-w-0">
+                        <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="truncate font-mono font-medium text-indigo-950">{validUrl}</span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenExternalUrl(validUrl)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 px-2.5 py-1 rounded-lg shrink-0 transition-all cursor-pointer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เปิดเอกสาร</span>
+                      </button>
                     </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">ไม่มีไฟล์แนบหรือลิงก์เอกสาร</p>
+                  );
+                })()}
+              </div>
 
-            {/* Footer */}
+              {/* Work Submission & Verification (task_submissions) */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>สถานะการส่งตรวจงาน (Task Submission Status)</span>
+                  </span>
+                </label>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-slate-800">
+                      {task.status === 'completed' ? 'ผ่านการอนุมัติแล้ว (Approved)' : 'อยู่ระหว่างดำเนินงาน (In Progress)'}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {(task as any).verification_notes || (task as any).admin_comment || 'งานนี้ได้รับการติดตามตามมาตรฐานองค์กร'}
+                    </p>
+                  </div>
+                  <span className={`px-2.5 py-1 text-[10px] font-extrabold rounded-full ${
+                    task.status === 'completed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'
+                  }`}>
+                    {task.status === 'completed' ? 'Approved' : 'Pending'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+            {/* Drawer Footer Actions (Only for Card/List Editing) */}
             {!editingSubItem && (
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
                 <button

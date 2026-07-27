@@ -43,6 +43,20 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium';
 		ALTER TABLE task_sub_items ADD COLUMN IF NOT EXISTS admin_comment TEXT;
 		ALTER TABLE card_attachments ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
+		CREATE TABLE IF NOT EXISTS card_assignees (
+			card_id UUID REFERENCES task_cards(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (card_id, user_id)
+		);
+		CREATE TABLE IF NOT EXISTS list_assignees (
+			list_id UUID REFERENCES task_lists(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (list_id, user_id)
+		);
 	`)
 
 	return db, nil

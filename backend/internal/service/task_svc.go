@@ -128,3 +128,29 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	return s.taskRepo.Delete(ctx, id)
 }
+
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, brandID, categoryID *uuid.UUID) (*domain.Task, error) {
+	task, err := s.taskRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	task.Title = title
+	task.Description = description
+	task.DueDate = dueDate
+	task.BrandID = brandID
+	task.CategoryID = categoryID
+	task.AssigneeIDs = assigneeIDs
+
+	// Fallback assigned_to to first assignee if assignee_ids is not empty
+	if len(assigneeIDs) > 0 {
+		task.AssignedTo = assigneeIDs[0]
+	}
+
+	err = s.taskRepo.Update(ctx, task)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
+}

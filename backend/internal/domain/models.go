@@ -15,6 +15,7 @@ type User struct {
 	Email         string    `db:"email" json:"email"`
 	FirstName     string    `db:"first_name" json:"first_name"`
 	LastName      string    `db:"last_name" json:"last_name"`
+	Nickname      string    `db:"nickname" json:"nickname"`
 	Department    string    `db:"department" json:"department"`
 	Position      string    `db:"position" json:"position"`
 	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
@@ -197,6 +198,7 @@ type TaskSubItem struct {
 	TaskID            uuid.UUID  `db:"task_id" json:"task_id"`
 	CardID            *uuid.UUID `db:"card_id" json:"card_id,omitempty"`
 	Title             string     `db:"title" json:"title"`
+	Description       *string    `db:"description" json:"description,omitempty"`
 	IsDone            bool       `db:"is_done" json:"is_done"`
 	Status            string     `db:"status" json:"status"` // "pending" | "in_progress" | "completed"
 	SortOrder         int        `db:"sort_order" json:"sort_order"`
@@ -207,7 +209,9 @@ type TaskSubItem struct {
 	AttachmentURL     *string    `db:"attachment_url" json:"attachment_url,omitempty"`
 	VerificationNotes *string               `db:"verification_notes" json:"verification_notes,omitempty"`
 	AdminComment      *string               `db:"admin_comment" json:"admin_comment,omitempty"`
-	Verifications     []SubItemVerification `json:"verifications,omitempty"`
+	Priority          *string               `db:"priority" json:"priority,omitempty"`
+	UpdatedAt         *time.Time            `db:"updated_at" json:"updated_at,omitempty"`
+	Verifications     []SubItemVerification `db:"-" json:"verifications,omitempty"`
 }
 
 // SubItemVerification represents a single round of verification/inspection for a checklist sub-item.
@@ -233,6 +237,7 @@ type TaskList struct {
 	StartDate   *time.Time `db:"start_date" json:"start_date,omitempty"`
 	DueDate     *time.Time `db:"due_date" json:"due_date,omitempty"`
 	Cards       []TaskCard `db:"-" json:"cards"`
+	AssigneeIDs []uuid.UUID `db:"-" json:"assignee_ids"`
 }
 
 // CardAttachment represents a file/image/link attachment on a task card.
@@ -262,6 +267,7 @@ type TaskCard struct {
 	SubItems    []TaskSubItem    `db:"-" json:"sub_items"`
 	Attachments []CardAttachment `db:"-" json:"attachments"`
 	AdminComment *string         `db:"admin_comment" json:"admin_comment,omitempty"`
+	AssigneeIDs []uuid.UUID     `db:"-" json:"assignee_ids"`
 }
 
 

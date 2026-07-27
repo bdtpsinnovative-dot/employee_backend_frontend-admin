@@ -10,8 +10,8 @@ import {
 import type { User, Brand, TaskCategory } from '../../types';
 
 interface TaskToolbarProps {
-  viewMode: 'list' | 'board';
-  onViewModeChange: (mode: 'list' | 'board') => void;
+  viewMode: 'overview' | 'list';
+  onViewModeChange: (mode: 'overview' | 'list') => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   selectedBrand: string;
@@ -66,7 +66,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">การจัดการงาน (Task Management)</h1>
-            <p className="text-xs text-slate-500 font-medium">ติดตามและมอบหมายงานประจำวันสไตล์ Sheet & Board</p>
+            <p className="text-xs text-slate-500 font-medium">ติดตามและมอบหมายงานประจำวันสไตล์ Project Overview & Sheet</p>
           </div>
         </div>
 
@@ -93,28 +93,28 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
       {/* Second Row: View Switcher Tabs + Search & Filters */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
         {/* View Switcher Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit">
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit overflow-x-auto">
+          <button
+            onClick={() => onViewModeChange('overview')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+              viewMode === 'overview'
+                ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 font-medium'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>หัวข้องาน (Overview)</span>
+          </button>
           <button
             onClick={() => onViewModeChange('list')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
               viewMode === 'list'
                 ? 'bg-blue-600 text-white shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
             }`}
           >
-            <LayoutList className="w-4 h-4" />
-            <span>List (ตาราง Sheet)</span>
-          </button>
-          <button
-            onClick={() => onViewModeChange('board')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all ${
-              viewMode === 'board'
-                ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 font-medium'
-            }`}
-          >
-            <Kanban className="w-4 h-4" />
-            <span>Board (บอร์ด)</span>
+            <LayoutList className="w-3.5 h-3.5" />
+            <span>รายการรวม</span>
           </button>
         </div>
 
@@ -200,7 +200,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             <option value="">ทุกคนที่ได้รับมอบหมาย</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.first_name} {u.last_name}
+                {u.nickname || u.first_name}
               </option>
             ))}
           </select>

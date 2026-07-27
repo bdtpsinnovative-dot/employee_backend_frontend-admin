@@ -144,14 +144,35 @@ func (r *TaskSubItemRepo) ListByCard(ctx context.Context, cardID uuid.UUID) ([]d
 	if err != nil {
 		return nil, err
 	}
+	if len(items) == 0 {
+		return items, nil
+	}
+
+	subItemIDs := make([]uuid.UUID, len(items))
+	itemMap := make(map[uuid.UUID]*domain.TaskSubItem, len(items))
 	for i := range items {
-		verifications, err := r.ListVerifications(ctx, items[i].ID)
-		if err == nil {
-			items[i].Verifications = verifications
-		} else {
-			items[i].Verifications = []domain.SubItemVerification{}
+		items[i].Verifications = []domain.SubItemVerification{}
+		subItemIDs[i] = items[i].ID
+		itemMap[items[i].ID] = &items[i]
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT * FROM sub_item_verifications 
+		WHERE sub_item_id IN (?) 
+		ORDER BY round DESC, created_at DESC
+	`, subItemIDs)
+	if err == nil {
+		query = r.db.Rebind(query)
+		var allVerifications []domain.SubItemVerification
+		if err := r.db.SelectContext(ctx, &allVerifications, query, args...); err == nil {
+			for _, v := range allVerifications {
+				if item, ok := itemMap[v.SubItemID]; ok {
+					item.Verifications = append(item.Verifications, v)
+				}
+			}
 		}
 	}
+
 	return items, nil
 }
 
@@ -242,15 +263,56 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 	if err != nil {
 		return nil, err
 	}
+	if len(lists) > 0 {
+		var listAssignees []struct {
+			ListID uuid.UUID `db:"list_id"`
+			UserID uuid.UUID `db:"user_id"`
+		}
+		err = r.db.SelectContext(ctx, &listAssignees, `SELECT list_id, user_id FROM list_assignees`)
+		if err == nil {
+			listMap := make(map[uuid.UUID][]uuid.UUID)
+			for _, la := range listAssignees {
+				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
+			}
+			for i, l := range lists {
+				ids := listMap[l.ID]
+				if ids == nil {
+					ids = []uuid.UUID{}
+				}
+				lists[i].AssigneeIDs = ids
+			}
+		}
+	}
 	return lists, nil
 }
 
 func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error {
-	_, err := r.db.NamedExecContext(ctx, `
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.NamedExecContext(ctx, `
 		INSERT INTO task_lists (id, task_id, name, description, sort_order, start_date, due_date, created_at)
 		VALUES (:id, :task_id, :name, :description, :sort_order, :start_date, :due_date, :created_at)
 	`, list)
-	return err
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range list.AssigneeIDs {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO list_assignees (list_id, user_id)
+			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, list.ID, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
@@ -268,13 +330,41 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description string, startDate, dueDate *time.Time) error {
-	_, err := r.db.ExecContext(ctx, `
+func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description string, startDate, dueDate *time.Time, assigneeIDs *[]uuid.UUID) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
 		UPDATE task_lists 
 		SET name = $1, description = $2, start_date = $3, due_date = $4
 		WHERE id = $5
 	`, name, description, startDate, dueDate, id)
-	return err
+	if err != nil {
+		return err
+	}
+
+	if assigneeIDs != nil {
+		_, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id)
+		if err != nil {
+			return err
+		}
+
+		for _, userID := range *assigneeIDs {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO list_assignees (list_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, id, userID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 type TaskCardRepo struct {
@@ -293,15 +383,56 @@ func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]doma
 	if err != nil {
 		return nil, err
 	}
+	if len(cards) > 0 {
+		var cardAssignees []struct {
+			CardID uuid.UUID `db:"card_id"`
+			UserID uuid.UUID `db:"user_id"`
+		}
+		err = r.db.SelectContext(ctx, &cardAssignees, `SELECT card_id, user_id FROM card_assignees`)
+		if err == nil {
+			cardMap := make(map[uuid.UUID][]uuid.UUID)
+			for _, ca := range cardAssignees {
+				cardMap[ca.CardID] = append(cardMap[ca.CardID], ca.UserID)
+			}
+			for i, c := range cards {
+				ids := cardMap[c.ID]
+				if ids == nil {
+					ids = []uuid.UUID{}
+				}
+				cards[i].AssigneeIDs = ids
+			}
+		}
+	}
 	return cards, nil
 }
 
 func (r *TaskCardRepo) Create(ctx context.Context, card *domain.TaskCard) error {
-	_, err := r.db.NamedExecContext(ctx, `
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.NamedExecContext(ctx, `
 		INSERT INTO task_cards (id, list_id, title, description, status, sort_order, created_at, start_date, due_date, priority)
 		VALUES (:id, :list_id, :title, :description, :status, :sort_order, :created_at, :start_date, :due_date, :priority)
 	`, card)
-	return err
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range card.AssigneeIDs {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO card_assignees (card_id, user_id)
+			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, card.ID, userID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *TaskCardRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
@@ -314,13 +445,41 @@ func (r *TaskCardRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, description string, startDate, dueDate *time.Time, adminComment *string, priority string) error {
-	if adminComment != nil {
-		_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, admin_comment = $5, priority = $6 WHERE id = $7`, title, description, startDate, dueDate, *adminComment, priority, id)
+func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, description string, startDate, dueDate *time.Time, adminComment *string, priority string, assigneeIDs *[]uuid.UUID) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, priority = $5 WHERE id = $6`, title, description, startDate, dueDate, priority, id)
-	return err
+	defer tx.Rollback()
+
+	if adminComment != nil {
+		_, err = tx.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, admin_comment = $5, priority = $6 WHERE id = $7`, title, description, startDate, dueDate, *adminComment, priority, id)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE task_cards SET title = $1, description = $2, start_date = $3, due_date = $4, priority = $5 WHERE id = $6`, title, description, startDate, dueDate, priority, id)
+	}
+	if err != nil {
+		return err
+	}
+
+	if assigneeIDs != nil {
+		_, err = tx.ExecContext(ctx, `DELETE FROM card_assignees WHERE card_id = $1`, id)
+		if err != nil {
+			return err
+		}
+
+		for _, userID := range *assigneeIDs {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO card_assignees (card_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, id, userID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *TaskCardRepo) GetTaskID(ctx context.Context, cardID uuid.UUID) (uuid.UUID, error) {

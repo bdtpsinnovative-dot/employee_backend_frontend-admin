@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -21,13 +22,15 @@ import {
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
 import { TaskListView } from '../components/tasks/TaskListView';
-import { TaskBoardView } from '../components/tasks/TaskBoardView';
 import { TaskDetailDrawer } from '../components/tasks/TaskDetailDrawer';
 import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import { TaskBrandSettingsModal } from '../components/tasks/TaskBrandSettingsModal';
+import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
 
 export default function Tasks() {
+  const navigate = useNavigate();
+
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
   const [users, setUsers]           = useState<User[]>([]);
@@ -38,7 +41,7 @@ export default function Tasks() {
   const [error, setError]           = useState<string | null>(null);
 
   // ─── UI & View State ───
-  const [viewMode, setViewMode]     = useState<'list' | 'board'>('board');
+  const [viewMode, setViewMode]          = useState<'overview' | 'list'>('overview');
 
   // ─── Search & Filter State ───
   const [searchQuery, setSearchQuery]           = useState('');
@@ -61,8 +64,8 @@ export default function Tasks() {
   const [commentText, setCommentText]     = useState('');
 
   // ─── Load Initial Data ───
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (silent?: boolean) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [t, u, b, c, me] = await Promise.all([
@@ -80,7 +83,7 @@ export default function Tasks() {
     } catch (e: any) {
       setError(e.message || 'โหลดข้อมูลงานล้มเหลว');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -341,17 +344,16 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="flex-1">
-          {viewMode === 'board' ? (
-            <TaskBoardView
+          {viewMode === 'overview' ? (
+            <TaskProjectOverview
               tasks={filteredTasks}
               userMap={userMap}
               brandMap={brandMap}
-              onSelectTask={setSelectedTask}
-              onStatusChange={handleStatusChange}
-              onOpenCreateModal={(status) => {
-                setDefaultCreateStatus(status);
-                setShowCreateModal(true);
+              categoryMap={categoryMap}
+              onSelectProjectSheet={(task) => {
+                navigate(`/tasks/${task.id}`);
               }}
+              onOpenCreateModal={() => setShowCreateModal(true)}
             />
           ) : (
             <TaskListView

@@ -67,6 +67,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	var req struct {
 		FirstName  string `json:"first_name"`
 		LastName   string `json:"last_name"`
+		Nickname   string `json:"nickname"`
 		Department string `json:"department"`
 		Position   string `json:"position"`
 		Role       string `json:"role"`
@@ -77,7 +78,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// ponytail: minimum needed to update fields.
-	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Department, req.Position, req.Role)
+	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Nickname, req.Department, req.Position, req.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลล้มเหลว"})
 		return

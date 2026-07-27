@@ -193,7 +193,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                                 {user.first_name?.[0] || 'U'}
                               </div>
                             )}
-                            <span className="font-semibold text-slate-700">{user.first_name} {user.last_name}</span>
+                            <span className="font-semibold text-slate-700">
+                              {user.nickname || user.first_name}
+                            </span>
                           </div>
                         );
                       })}

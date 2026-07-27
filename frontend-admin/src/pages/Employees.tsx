@@ -99,7 +99,7 @@ export default function Employees() {
   // --- FILTERING & PAGINATION ---
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
-      const matchSearch = (u.first_name + ' ' + u.last_name + ' ' + u.email).toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = (u.first_name + ' ' + u.last_name + ' ' + (u.nickname || '') + ' ' + u.email).toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'all' || u.status === filterStatus;
       return matchSearch && matchStatus;
     });
@@ -173,7 +173,9 @@ export default function Employees() {
               userList.map((user) => (
                 <tr key={user.id}>
                   <td data-label="ชื่อ-นามสกุล">
-                    <div style={{ fontWeight: 600 }}>{user.first_name} {user.last_name}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {user.first_name} {user.last_name} {user.nickname ? `(${user.nickname})` : ''}
+                    </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{user.email}</div>
                   </td>
                   <td data-label="ตำแหน่ง">{user.position || '-'}</td>
@@ -203,6 +205,7 @@ export default function Employees() {
                           setEditForm({
                             first_name: user.first_name,
                             last_name: user.last_name,
+                            nickname: user.nickname || '',
                             department: user.department,
                             position: user.position,
                             role: user.role
@@ -331,7 +334,7 @@ export default function Employees() {
             <h3 style={{ marginTop: 0, marginBottom: '20px' }}>แก้ไขข้อมูลพนักงาน</h3>
             
             <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ชื่อ</label>
                 <input 
                   type="text" 
@@ -341,12 +344,22 @@ export default function Employees() {
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>นามสกุล</label>
                 <input 
                   type="text" 
                   value={editForm.last_name || ''} 
                   onChange={e => setEditForm({...editForm, last_name: e.target.value})}
+                  className="form-control"
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ชื่อเล่น</label>
+                <input 
+                  type="text" 
+                  value={editForm.nickname || ''} 
+                  onChange={e => setEditForm({...editForm, nickname: e.target.value})}
                   className="form-control"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />

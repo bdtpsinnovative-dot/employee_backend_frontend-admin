@@ -1,8 +1,8 @@
 :root {
-        /* 🎨 ปรับชุดสีให้เข้ากับฝั่ง User App (โทนฟ้า-ฟ้าอมเขียว) แต่ยังคงเอฟเฟกต์ Glass ไว้ทั้งหมด */
+        /* 🎨 ปรับเป็นสีเรียบทื่อๆ (Flat Solid Colors) ไม่ใช้ Gradient */
         --grad-color-1: #2563EB; --grad-color-2: #0EA5E9; --grad-color-3: #1D4ED8;
-        --primary-gradient: linear-gradient(135deg, var(--grad-color-1) 0%, var(--grad-color-2) 50%, var(--grad-color-3) 100%);
-        --primary-gradient-hover: linear-gradient(135deg, var(--grad-color-2) 0%, var(--grad-color-3) 100%);
+        --primary-gradient: #2563EB;
+        --primary-gradient-hover: #1D4ED8;
         --text-main: #343A40; --text-gray: #6C757D; --white: #ffffff; --sidebar-width: 260px;
         /* โทนสีอ้างอิงเดียวกับแอปพนักงาน */
         --blue: #2563EB; --blue-light: #EFF6FF; --blue-mid: #BFDBFE; --blue-dark: #1D4ED8;
@@ -10,35 +10,35 @@
         --gold: #B45309; --gold-bg: rgba(254, 243, 199, 0.75); --gold-border: rgba(252, 211, 77, 0.6);
         --red-text: #DC2626; --red-bg: rgba(254, 226, 226, 0.75); --red-border: rgba(252, 165, 165, 0.8);
         --green-text: #15803D; --green-bg: rgba(220, 252, 231, 0.75); --green-border: rgba(134, 239, 172, 0.8);
-        --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.25) 100%);
-        --glass-blur: blur(24px); --glass-border-base: 1px solid rgba(255, 255, 255, 0.4); --glass-border-highlight: rgba(255, 255, 255, 0.95);
-        --glass-shadow: 0 25px 45px rgba(0, 0, 0, 0.08), inset 3px 3px 6px rgba(255, 255, 255, 0.9), inset -3px -3px 6px rgba(0, 0, 0, 0.04); 
+        --glass-bg: #ffffff;
+        --glass-blur: none; --glass-border-base: 1px solid #e2e8f0; --glass-border-highlight: #cbd5e1;
+        --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Prompt', sans-serif; }
-    body { background-color: #F8F9FA; background-image: radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.18) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(29, 78, 216, 0.18) 0px, transparent 50%), radial-gradient(at 50% 50%, rgba(14, 165, 233, 0.20) 0px, transparent 50%); background-attachment: fixed; background-size: cover; height: 100vh; overflow: hidden; color: var(--text-main); }
+    body { background-color: #F8F9FA; height: 100vh; overflow: hidden; color: var(--text-main); }
     ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); } ::-webkit-scrollbar-thumb { background: rgba(37, 99, 235, 0.35); border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: rgba(37, 99, 235, 0.55); }
 
-    .right-panel, .stat-card, .table-card, .record-controls, .modal-box, .history-filters, .login-left, .glass-panel { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: var(--glass-border-base); border-top-color: var(--glass-border-highlight); border-left-color: var(--glass-border-highlight); box-shadow: var(--glass-shadow); }
-    .sidebar { background: var(--glass-bg); backdrop-filter: var(--glass-blur); border: var(--glass-border-base); border-left: none; border-bottom: none; border-top-color: var(--glass-border-highlight); box-shadow: 15px 0 35px rgba(0,0,0,0.03); width: var(--sidebar-width); padding: 35px 25px; display: flex; flex-direction: column; z-index: 1000; transition: 0.3s ease; border-radius: 0; overflow: hidden; }
+    .right-panel, .stat-card, .table-card, .record-controls, .modal-box, .history-filters, .login-left, .glass-panel { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; width: var(--sidebar-width); padding: 35px 25px; display: flex; flex-direction: column; z-index: 1000; transition: 0.3s ease; border-radius: 0; overflow: hidden; }
     .sidebar.collapsed { width: 0 !important; padding: 0 !important; opacity: 0; pointer-events: none; border: none !important; box-shadow: none !important; }
     .sidebar-overlay { display: none; }
-    #login-section { display: flex; width: 100%; height: 100vh; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); position: absolute; top: 0; left: 0; z-index: 9999; transition: opacity 0.5s ease; }
-    .login-left { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 10%; box-shadow: 25px 0 45px rgba(0, 0, 0, 0.05), inset 3px 3px 6px rgba(255, 255, 255, 0.9), inset -3px -3px 6px rgba(0, 0, 0, 0.04); }
-    .brand-logo { font-size: 28px; font-weight: 700; background-image: var(--primary-gradient); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 40px; display: flex; align-items: center; gap: 10px; }
-    .brand-logo i { background-image: var(--primary-gradient); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    #login-section { display: flex; width: 100%; height: 100vh; background: #f8f9fa; position: absolute; top: 0; left: 0; z-index: 9999; transition: opacity 0.5s ease; }
+    .login-left { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 10%; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
+    .brand-logo { font-size: 28px; font-weight: 700; color: #2563eb; margin-bottom: 40px; display: flex; align-items: center; gap: 10px; }
+    .brand-logo i { color: #2563eb; }
     .login-header h1 { font-size: 32px; font-weight: 700; margin-bottom: 10px; }
     .input-group { margin-bottom: 20px; } .input-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text-gray); }
-    .login-input { width: 100%; padding: 12px 15px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 12px; background: rgba(255, 255, 255, 0.4); outline: none; transition: 0.3s; backdrop-filter: blur(5px); color: var(--text-main); }
-    .btn-signin { width: 100%; padding: 14px; background-image: var(--primary-gradient); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-    .btn-signin:hover { background-image: var(--primary-gradient-hover); transform: translateY(-2px); }
+    .login-input { width: 100%; padding: 12px 15px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; outline: none; transition: 0.3s; color: var(--text-main); }
+    .btn-signin { width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+    .btn-signin:hover { background: #1d4ed8; transform: translateY(-2px); }
     .login-right { flex: 1.3; display: flex; align-items: center; justify-content: center; } .hero-img { width: 450px; border-radius: 20px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15); }
 
     #app-section { display: none; height: 100vh; width: 100%; overflow: hidden; opacity: 0; transition: opacity 0.5s ease; position: relative; }
     #app-section.active, #app-section[style*="display: block"], #app-section[style*="display: flex"] { display: flex !important; }
     .nav-item { padding: 14px 18px; color: var(--text-gray); text-decoration: none; display: flex; align-items: center; border-radius: 12px; margin-bottom: 8px; font-size: 15px; transition: 0.3s; cursor: pointer; font-weight: 500; }
     .nav-item i { margin-right: 12px; width: 20px; text-align: center; color: var(--text-gray); transition: 0.3s; }
-    .nav-item:hover, .nav-item.active { background-image: var(--primary-gradient); color: var(--white) !important; box-shadow: 0 6px 15px rgba(37, 99, 235, 0.35), inset 1px 1px 2px rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
+    .nav-item:hover, .nav-item.active { background: #2563eb; color: var(--white) !important; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.25); transform: translateY(-2px); }
     .nav-item:hover i, .nav-item.active i { color: var(--white) !important; }
     .menu-category { font-size: 12px; color: #ADB5BD; margin-top: 20px; margin-bottom: 10px; padding-left: 10px; font-weight: 600; letter-spacing: 0.5px; }
     .main-container { flex: 1; display: flex; overflow: hidden; height: 100%; width: 100%; }

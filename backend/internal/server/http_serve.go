@@ -196,8 +196,10 @@ func registerRoutes(
 
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                    // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.PUT("/tasks/:id", taskH.UpdateTask)                      // อัปเดตรายละเอียดงาน (แอดมินแก้ไขรายละเอียดงานหลัก)
 		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)  // อัปเดตสถานะงาน (พนักงาน)
 		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
+		api.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems)   // ดึงรายการย่อยของงาน (พนักงาน + แอดมิน)
 		api.POST("/tasks/:id/sub-items", brandCategoryH.CreateTaskSubItem) // เพิ่มรายการย่อย (พนักงาน + แอดมิน)
 		api.GET("/tasks/:id/trello", brandCategoryH.GetTaskTrelloBoard)    // ดึงบอร์ด Trello (Lists -> Cards -> SubItems)
 		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)        // เพิ่ม List/รายการ

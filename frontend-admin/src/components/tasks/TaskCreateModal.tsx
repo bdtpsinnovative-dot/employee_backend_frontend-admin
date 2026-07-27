@@ -187,7 +187,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                         onChange={() => handleToggleAssignee(u.id)}
                         className="w-4 h-4 text-indigo-600 rounded border-slate-300"
                       />
-                      <span>{u.first_name} {u.last_name} ({u.department})</span>
+                      <span>{u.nickname || u.first_name} ({u.department})</span>
                     </label>
                   );
                 })}

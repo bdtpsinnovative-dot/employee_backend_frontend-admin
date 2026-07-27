@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   CheckSquare,
   Square,
+  Flame,
   Tag,
   Layers,
   CheckCircle2,
+  Clock,
   Plus,
   ArrowLeft,
   Edit3,
@@ -476,6 +478,24 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                       กำหนด: {formatDateDDMM(list.due_date)}
                     </span>
                   )}
+                  {/* List Assignees Avatars */}
+                  {list.assignee_ids && list.assignee_ids.length > 0 && (
+                    <div className="flex items-center -space-x-1 mt-1">
+                      {list.assignee_ids.map((uid) => {
+                        const u = userMap[uid];
+                        if (!u) return null;
+                        return (
+                          <div
+                            key={uid}
+                            className="w-4 h-4 rounded-full bg-indigo-50 border border-slate-200 flex items-center justify-center text-indigo-700 text-[7px] font-bold cursor-help"
+                            title={`ผู้รับผิดชอบบอร์ด: ${u.nickname || u.first_name}`}
+                          >
+                            {(u.nickname || u.first_name).charAt(0)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -869,100 +889,6 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                         className="w-full px-3.5 py-2.5 text-xs bg-slate-100/80 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-slate-700 font-semibold"
                       />
                     </div>
-
-                    {/* Card Assignees Selector */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-indigo-600" />
-                        <span>ผู้รับผิดชอบการ์ดนี้ (Card Assignees)</span>
-                      </label>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {/* Current Card Members */}
-                        {drawerAssignees.map((uid) => {
-                          const u = userMap[uid];
-                          if (!u) return null;
-                          return (
-                            <div
-                              key={uid}
-                              className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-bold"
-                            >
-                              <img
-                                src={avatarUrl(u.avatar_url) || undefined}
-                                alt={u.nickname || u.first_name}
-                                className="w-5 h-5 rounded-full object-cover border border-white"
-                              />
-                              <span className="text-[11px]">{u.nickname || u.first_name}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDrawerAssignees((prev) => prev.filter((id) => id !== uid));
-                                }}
-                                className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-100 text-blue-500 hover:text-blue-700 cursor-pointer transition-all"
-                              >
-                                &times;
-                              </button>
-                            </div>
-                          );
-                        })}
-
-                        {/* The "+" Button to invite */}
-                        <button
-                          type="button"
-                          onClick={() => setShowInvitePopover(!showInvitePopover)}
-                          className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all cursor-pointer"
-                          title="มอบหมายงานให้พนักงาน"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Popover / Candidate selection list */}
-                      {showInvitePopover && (
-                        <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                            เลือกมอบหมายการ์ดให้ผู้รับผิดชอบงานหลัก:
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {(() => {
-                              const taskAssigneeIds = (task.assignee_ids && task.assignee_ids.length > 0
-                                ? task.assignee_ids
-                                : task.assigned_to
-                                ? [task.assigned_to]
-                                : []);
-                              const candidates = taskAssigneeIds
-                                .map((id: string) => userMap[id])
-                                .filter(Boolean)
-                                .filter((u) => u.id !== currentUser?.id)
-                                .filter((u) => !drawerAssignees.includes(u.id));
-
-                              return candidates.length > 0 ? (
-                                candidates.map((u) => (
-                                  <button
-                                    key={u.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setDrawerAssignees((prev) => [...prev, u.id]);
-                                    }}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-full text-xs font-semibold text-slate-700 hover:text-blue-700 transition-all cursor-pointer active:scale-95 shadow-2xs"
-                                  >
-                                    <img
-                                      src={avatarUrl(u.avatar_url) || undefined}
-                                      alt={u.nickname || u.first_name}
-                                      className="w-4 h-4 rounded-full object-cover border border-white"
-                                    />
-                                    <span>{u.nickname || u.first_name}</span>
-                                  </button>
-                                ))
-                              ) : (
-                                <span className="text-xs text-slate-400 italic">
-                                  มอบหมายพนักงานหลักของงานนี้ครบทุกคนแล้ว
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   {/* 4. ความคิดเห็นจากผู้ดูแล */}
@@ -1251,7 +1177,195 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                       </div>
                     </div>
 
+                    {/* Board/Phase Assignees Selector */}
+                    {editingList && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          <span>ผู้รับผิดชอบบอร์ดนี้ (Board Assignees)</span>
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {/* Current Board Members */}
+                          {drawerAssignees.map((uid) => {
+                            const u = userMap[uid];
+                            if (!u) return null;
+                            return (
+                              <div
+                                key={uid}
+                                className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-bold"
+                              >
+                                <img
+                                  src={avatarUrl(u.avatar_url) || undefined}
+                                  alt={u.nickname || u.first_name}
+                                  className="w-5 h-5 rounded-full object-cover border border-white"
+                                />
+                                <span className="text-[11px]">{u.nickname || u.first_name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDrawerAssignees((prev) => prev.filter((id) => id !== uid));
+                                  }}
+                                  className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-100 text-blue-500 hover:text-blue-700 cursor-pointer transition-all"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            );
+                          })}
 
+                          {/* The "+" Button to invite */}
+                          <button
+                            type="button"
+                            onClick={() => setShowInvitePopover(!showInvitePopover)}
+                            className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all cursor-pointer"
+                            title="เชิญคนเข้าร่วมบอร์ด"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Popover / Candidate selection list */}
+                        {showInvitePopover && (
+                          <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              เลือกเชิญคนในงานหลักเข้าร่วมบอร์ด:
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {(() => {
+                                const taskAssigneeIds = (task.assignee_ids && task.assignee_ids.length > 0
+                                  ? task.assignee_ids
+                                  : task.assigned_to
+                                  ? [task.assigned_to]
+                                  : []);
+                                const candidates = taskAssigneeIds
+                                  .map((id: string) => userMap[id])
+                                  .filter(Boolean)
+                                  .filter((u) => u.id !== currentUser?.id)
+                                  .filter((u) => !drawerAssignees.includes(u.id));
+
+                                return candidates.length > 0 ? (
+                                  candidates.map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setDrawerAssignees((prev) => [...prev, u.id]);
+                                      }}
+                                      className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-full text-xs font-semibold text-slate-700 hover:text-blue-700 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                    >
+                                      <img
+                                        src={avatarUrl(u.avatar_url) || undefined}
+                                        alt={u.nickname || u.first_name}
+                                        className="w-4 h-4 rounded-full object-cover border border-white"
+                                      />
+                                      <span>{u.nickname || u.first_name}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">
+                                    เชิญผู้รับผิดชอบงานหลักเข้าร่วมบอร์ดครบทุกคนแล้ว
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Card Assignees Selector */}
+                    {editingCard && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          <span>ผู้รับผิดชอบการ์ดนี้ (Card Assignees)</span>
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {/* Current Card Members */}
+                          {drawerAssignees.map((uid) => {
+                            const u = userMap[uid];
+                            if (!u) return null;
+                            return (
+                              <div
+                                key={uid}
+                                className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700 font-bold"
+                              >
+                                <img
+                                  src={avatarUrl(u.avatar_url) || undefined}
+                                  alt={u.nickname || u.first_name}
+                                  className="w-5 h-5 rounded-full object-cover border border-white"
+                                />
+                                <span className="text-[11px]">{u.nickname || u.first_name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDrawerAssignees((prev) => prev.filter((id) => id !== uid));
+                                  }}
+                                  className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-blue-100 text-blue-500 hover:text-blue-700 cursor-pointer transition-all"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {/* The "+" Button to invite */}
+                          <button
+                            type="button"
+                            onClick={() => setShowInvitePopover(!showInvitePopover)}
+                            className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all cursor-pointer"
+                            title="มอบหมายงานให้พนักงาน"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Popover / Candidate selection list */}
+                        {showInvitePopover && (
+                          <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              เลือกมอบหมายการ์ดให้คนในบอร์ดหลัก:
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {(() => {
+                                const listAssigneeIds = editingList?.assignee_ids || [];
+                                const candidates = listAssigneeIds
+                                  .map((id: string) => userMap[id])
+                                  .filter(Boolean)
+                                  .filter((u) => u.id !== currentUser?.id)
+                                  .filter((u) => !drawerAssignees.includes(u.id));
+
+                                return candidates.length > 0 ? (
+                                  candidates.map((u) => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setDrawerAssignees((prev) => [...prev, u.id]);
+                                      }}
+                                      className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-full text-xs font-semibold text-slate-700 hover:text-blue-700 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                    >
+                                      <img
+                                        src={avatarUrl(u.avatar_url) || undefined}
+                                        alt={u.nickname || u.first_name}
+                                        className="w-4 h-4 rounded-full object-cover border border-white"
+                                      />
+                                      <span>{u.nickname || u.first_name}</span>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">
+                                    {listAssigneeIds.length === 0
+                                      ? 'ไม่มีพนักงานในบอร์ดนี้ กรุณาเชิญคนเข้าบอร์ดหลักก่อน'
+                                      : 'มอบหมายพนักงานในบอร์ดครบทุกคนแล้ว'}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Task Assignees */}
                     <div className="space-y-1.5">

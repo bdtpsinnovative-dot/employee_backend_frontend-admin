@@ -4,16 +4,68 @@ import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import type { User } from '../types';
 
+const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
+
+function getInitialSidebarOpen(): boolean {
+  try {
+    const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  } catch {}
+  return window.innerWidth > 900;
+}
+
+function saveSidebarPref(open: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
+  } catch {}
+
+  try {
+    const request = indexedDB.open('hr_preferences_db', 1);
+    request.onupgradeneeded = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings');
+      }
+    };
+    request.onsuccess = (e: any) => {
+      const db = e.target.result;
+      const tx = db.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put(open, SIDEBAR_STORAGE_KEY);
+    };
+  } catch {}
+}
+
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 900);
-  const [time, setTime] = useState(new Date());
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    try {
+      const request = indexedDB.open('hr_preferences_db', 1);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings');
+        }
+      };
+      request.onsuccess = (e: any) => {
+        const db = e.target.result;
+        const tx = db.transaction('settings', 'readonly');
+        const getReq = tx.objectStore('settings').get(SIDEBAR_STORAGE_KEY);
+        getReq.onsuccess = () => {
+          if (typeof getReq.result === 'boolean') {
+            setSidebarOpen(getReq.result);
+            try {
+              localStorage.setItem(SIDEBAR_STORAGE_KEY, String(getReq.result));
+            } catch {}
+          }
+        };
+      };
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -23,7 +75,16 @@ export default function AdminLayout() {
   }, [location.pathname, isDashboard]);
 
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      saveSidebarPref(next);
+      return next;
+    });
+  };
+
+  const handleCloseSidebar = () => {
+    setSidebarOpen(false);
+    saveSidebarPref(false);
   };
 
   return (
@@ -35,7 +96,7 @@ export default function AdminLayout() {
         onClick={toggleSidebar}
       ></div>
 
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       <div className="main-container">
         <div className="content-area">
@@ -81,21 +142,6 @@ export default function AdminLayout() {
             >
               A
             </div>
-          </div>
-
-          <div className="banner">
-            <div className="banner-text">
-              <h1>สวัสดี, ผู้ดูแลระบบ</h1>
-              <span id="live-clock-banner">
-                {time.toLocaleDateString('th-TH', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
-            <i className="fa-solid fa-user-tie fa-6x" style={{ opacity: 0.3 }}></i>
           </div>
 
           {/* Child Routes Render Here */}

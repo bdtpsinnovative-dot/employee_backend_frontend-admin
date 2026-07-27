@@ -15,6 +15,7 @@ import type {
   AdminTask,
   TaskEvent,
   TaskSubItem,
+  TaskList,
 } from '../types';
 
 // ────────────────── Users ──────────────────
@@ -261,8 +262,36 @@ export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_
   await api.patch(`/api/tasks/${id}/status`, { status });
 }
 
-export async function createTaskSubItem(taskId: string, title: string): Promise<any> {
-  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/sub-items`, { title });
+export async function createTaskSubItem(taskId: string, title: string, dueDate?: string): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/sub-items`, { title, due_date: dueDate });
+  return data.data;
+}
+
+export async function createTaskCard(listId: string, body: { title: string; priority?: string; due_date?: string; assignee_ids?: string[] }): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/lists/${listId}/cards`, body);
+  return data.data;
+}
+
+export async function updateTaskCard(cardId: string, body: {
+  title?: string;
+  description?: string;
+  due_date?: string;
+  priority?: string;
+  status?: string;
+  admin_comment?: string;
+  assignee_ids?: string[];
+}): Promise<any> {
+  const { data } = await api.patch<ApiResponse<any>>(`/api/tasks/cards/${cardId}`, body);
+  return data.data;
+}
+
+export async function updateTaskList(listId: string, body: {
+  name?: string;
+  description?: string;
+  due_date?: string;
+  assignee_ids?: string[];
+}): Promise<any> {
+  const { data } = await api.patch<ApiResponse<any>>(`/api/tasks/lists/${listId}`, body);
   return data.data;
 }
 
@@ -307,4 +336,9 @@ export async function approveSubmission(taskId: string, submissionId: string): P
 
 export async function requestRevision(taskId: string, submissionId: string, note: string): Promise<void> {
   await api.post(`/admin/tasks/${taskId}/submissions/${submissionId}/request-revision`, { note });
+}
+
+export async function fetchTaskTrello(taskId: string): Promise<TaskList[]> {
+  const { data } = await api.get<ApiResponse<TaskList[]>>(`/api/tasks/${taskId}/trello`);
+  return data.data ?? [];
 }

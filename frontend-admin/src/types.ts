@@ -6,6 +6,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  nickname?: string;
   department: string;
   position: string;
   role: 'employee' | 'admin';
@@ -140,6 +141,43 @@ export interface TaskSubItem {
   created_at: string;
   admin_comment?: string;
   verification_notes?: string;
+  phase?: string;
+  priority?: 'high' | 'medium' | 'low';
+  notes?: string;
+  link_url?: string;
+  attachment_url?: string;
+  due_date?: string;
+  assigned_to?: string;
+}
+
+export interface TaskCard {
+  id: string;
+  list_id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  sort_order: number;
+  created_at: string;
+  start_date?: string;
+  due_date?: string;
+  admin_comment?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assigned_to?: string;
+  sub_items?: TaskSubItem[];
+  assignee_ids?: string[];
+}
+
+export interface TaskList {
+  id: string;
+  task_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  description?: string;
+  start_date?: string;
+  due_date?: string;
+  cards?: TaskCard[];
+  assignee_ids?: string[];
 }
 
 export interface TaskSubmission {
@@ -177,6 +215,7 @@ export interface AdminTask {
   // Sub-items
   sub_items?: TaskSubItem[];
   assignee_ids?: string[];
+  lists?: TaskList[];
 
   // Submissions
   needs_revision?: boolean;
