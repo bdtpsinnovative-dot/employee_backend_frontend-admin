@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-// import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -34,7 +34,7 @@ import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
 
 export default function Tasks() {
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
 
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
@@ -374,6 +374,9 @@ export default function Tasks() {
               brandMap={brandMap}
               categoryMap={categoryMap}
               onSelectTask={setSelectedTask}
+              onSelectProjectSheet={(task) => {
+                navigate(`/tasks/${task.id}`);
+              }}
               onStatusChange={handleStatusChange}
               onOpenCreateModal={(status) => {
                 setDefaultCreateStatus(status);
