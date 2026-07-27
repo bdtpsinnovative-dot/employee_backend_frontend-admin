@@ -491,7 +491,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 {list.name}
               </div>
             </td>
-            <td colSpan={7} className="px-4 py-3 text-slate-400 italic text-xs">
+            <td colSpan={6} className="px-4 py-3 text-slate-400 italic text-xs">
               ยังไม่มีการ์ดงานย่อยในรายการนี้
             </td>
           </tr>
@@ -511,39 +511,34 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               isLastInList ? 'border-b-2 border-slate-300' : 'border-b border-slate-100/60'
             } ${isDone ? 'bg-slate-50/50' : ''}`}
           >
-             {/* 1. Due Date (Phase level - Click to open Right Sidebar Drawer) */}
-             {isFirstInList && (
-               <td
-                 rowSpan={totalCards}
-                 onClick={() => openDrawerForList(list)}
-                 className="px-3 py-3 border-r border-b-2 border-slate-300 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70 hover:bg-amber-100/60 cursor-pointer transition-colors"
-                 title="กดเพื่อเปิดสไลด์บาร์ ข้อมูลบอร์ดหลัก"
-               >
-                 <div className="flex flex-col items-center justify-center gap-1">
-                   <input
-                     type="date"
-                     value={list.due_date ? list.due_date.substring(0, 10) : ''}
-                     onClick={(e) => e.stopPropagation()}
-                     onChange={(e) => {
-                       list.due_date = e.target.value || undefined;
-                       setTrelloLists([...trelloLists]);
-                     }}
-                     className="bg-transparent font-mono text-[11px] text-blue-900 font-bold border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 w-full focus:outline-none"
-                   />
-                 </div>
-               </td>
-             )}
+             {/* 1. Due Date (Card level) */}
+             <td className="p-0 border-r border-slate-200 text-center align-top bg-slate-50/50 w-28 min-w-[100px]">
+               <div className="h-[36px] px-1 flex items-center justify-center w-full">
+                 <input
+                   type="date"
+                   value={card.due_date ? card.due_date.substring(0, 10) : ''}
+                   onChange={(e) => {
+                     card.due_date = e.target.value || undefined;
+                     setTrelloLists([...trelloLists]);
+                   }}
+                   className="bg-transparent font-mono text-[11px] text-amber-955 font-bold border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 w-full focus:outline-none cursor-pointer"
+                 />
+               </div>
+             </td>
 
-            {/* 2. PROJECT (Merged across list items) */}
+            {/* 2. PROJECT (Merged across list items - Click to open Right Sidebar Drawer) */}
             {isFirstInList && (
               <td
                 rowSpan={totalCards}
-                className="px-2 py-2 border-r border-b-2 border-slate-300 align-middle font-bold text-blue-900 bg-blue-50/40 w-20 max-w-[80px]"
+                onClick={() => openDrawerForList(list)}
+                title="กดเพื่อเปิดสไลด์บาร์ ข้อมูลบอร์ดหลัก"
+                className="px-2 py-2 border-r border-b-2 border-slate-300 align-middle font-bold text-blue-900 bg-blue-50/40 w-20 max-w-[80px] cursor-pointer hover:bg-amber-100/60 transition-colors"
               >
                 <div className="flex flex-col items-center gap-1.5">
                   <input
                     type="text"
                     value={list.name}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       list.name = e.target.value;
                       setTrelloLists([...trelloLists]);
@@ -631,11 +626,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 )}
               </div>
               {card.sub_items && card.sub_items.length > 0 && (
-                <div className="border-t border-slate-300 divide-y divide-slate-200 select-none w-full">
+                <div className="pt-1 pb-1 flex flex-col gap-1 select-none w-full">
                   {card.sub_items.map((sub: TaskSubItem) => (
                     <div
                       key={sub.id}
-                      className="px-3 h-7 flex items-center gap-1.5 text-[11px]"
+                      className="px-3 min-h-[24px] flex items-center gap-1.5 text-[11px] hover:bg-slate-50 rounded"
                     >
                       <button
                         type="button"
@@ -664,48 +659,6 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   ))}
                 </div>
               )}
-            </td>
-
-            {/* 5. DUE DATE */}
-            <td className="p-0 border-r border-slate-200 text-center align-top bg-slate-50/30 w-24 min-w-[90px]">
-              <div className="flex flex-col items-center w-full">
-                {/* Main Card Due Date (Compact Yellow Pill - Exact h-[36px]) */}
-                <div className="h-[36px] px-1 flex items-center justify-center w-full">
-                  <input
-                    type="date"
-                    value={card.due_date ? card.due_date.substring(0, 10) : ''}
-                    onChange={(e) => {
-                      card.due_date = e.target.value || undefined;
-                      setTrelloLists([...trelloLists]);
-                    }}
-                    className="bg-transparent font-mono text-[11px] text-amber-955 font-bold border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-1 w-full focus:outline-none"
-                  />
-                </div>
-
-                {/* Sub-item Due Dates */}
-                {card.sub_items && card.sub_items.length > 0 && (
-                  <div className="border-t border-slate-300 divide-y divide-slate-200 w-full flex flex-col select-none">
-                    {card.sub_items.map((sub: TaskSubItem) => {
-                      return (
-                        <div
-                          key={sub.id}
-                          className="px-1 h-7 flex items-center justify-center"
-                        >
-                          <input
-                            type="date"
-                            value={sub.due_date ? sub.due_date.substring(0, 10) : ''}
-                            onChange={(e) => {
-                              sub.due_date = e.target.value || undefined;
-                              setSubItems([...subItems]);
-                            }}
-                            className="bg-transparent font-mono text-[10px] text-slate-750 border-none text-center focus:bg-white focus:ring-1 focus:ring-blue-500 rounded p-0.5 w-full focus:outline-none"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </td>
 
 
@@ -928,11 +881,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           <table className="w-full text-left border-collapse text-xs font-sans min-w-[950px]">
             <thead>
               <tr className="bg-slate-800 text-slate-100 font-bold uppercase tracking-wider text-[11px] border-b-2 border-slate-900 select-none">
-                <th className="px-3 py-3 w-28 text-center border-r border-slate-700">Due Date</th>
+                <th className="px-3 py-3 w-28 text-center border-r border-slate-700 font-bold bg-slate-900/80 text-amber-300">DUE DATE</th>
                 <th className="px-2 py-3 border-r border-slate-700 w-20 max-w-[80px] text-center">PROJECT</th>
                 <th className="px-3 py-3 w-24 text-center border-r border-slate-700">Priority</th>
                 <th className="px-4 py-3 border-r border-slate-700 flex-1">DETAILS</th>
-                <th className="px-3 py-3 w-28 text-center border-r border-slate-700 font-bold bg-slate-900/80 text-amber-300">DUE DATE</th>
                 <th className="px-3 py-3 w-28 text-center border-r border-slate-700">Assignment</th>
                 <th className="px-3 py-3 w-24 text-center border-r border-slate-700">Status</th>
                 <th className="px-2 py-3 w-16 text-center border-r border-slate-700">List</th>
