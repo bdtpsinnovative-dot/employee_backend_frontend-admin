@@ -1182,9 +1182,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">ยังไม่มีการ์ดงานในคอร์สนี้</p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
