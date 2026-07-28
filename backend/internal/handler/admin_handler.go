@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"context"
 	"fmt"
 	"net/http"
@@ -53,6 +54,25 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลพนักงานล้มเหลว"})
 		return
 	}
+
+	// Filter by IDs if provided (e.g. /admin/users?ids=uuid1,uuid2)
+	idsStr := c.Query("ids")
+	if idsStr != "" {
+		idList := strings.Split(idsStr, ",")
+		idMap := make(map[string]bool)
+		for _, id := range idList {
+			idMap[strings.TrimSpace(id)] = true
+		}
+
+		filtered := make([]domain.User, 0)
+		for _, u := range users {
+			if idMap[u.ID.String()] {
+				filtered = append(filtered, u)
+			}
+		}
+		users = filtered
+	}
+
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": users})
 }
 
