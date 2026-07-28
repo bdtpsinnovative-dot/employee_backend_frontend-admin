@@ -19,6 +19,7 @@ interface TaskListViewProps {
   brandMap: Record<string, Brand>;
   categoryMap: Record<string, TaskCategory>;
   onSelectTask: (task: AdminTask) => void;
+  onEditTask?: (task: AdminTask) => void;
   onSelectProjectSheet?: (task: AdminTask) => void;
   onStatusChange: (task: AdminTask, status: TaskStatus) => void;
   onOpenCreateModal: (defaultStatus?: TaskStatus) => void;
@@ -32,6 +33,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   brandMap,
   categoryMap,
   onSelectTask,
+  onEditTask,
   onSelectProjectSheet,
   onStatusChange,
   // onOpenCreateModal,
@@ -296,14 +298,14 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                      {/* ปุ่มเปิดหน้าต่างโมดูลแก้ไข (Drawer Modal) */}
+                      {/* ปุ่มเปิดหน้าต่างโมดูลแก้ไข (Edit Modal) */}
                       <button
-                        onClick={() => onSelectTask(task)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 border border-slate-200 rounded-lg shadow-2xs transition-all"
-                        title="คลิกเพื่อเปิดหน้าต่างโมดูลแก้ไขรายละเอียด (Drawer Modal)"
+                        onClick={() => onEditTask ? onEditTask(task) : onSelectTask(task)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 border border-slate-200 rounded-lg shadow-2xs transition-all cursor-pointer"
+                        title="คลิกเพื่อแก้ไขรายละเอียดงาน"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                        <span>แก้ไข (โมดูล)</span>
+                        <span>แก้ไข</span>
                       </button>
 
                       {/* ถ้าเป็นสถานะ in_review ให้แสดงปุ่ม อนุมัติ / ขอแก้ไข เพิ่มเติมด้านล่าง */}

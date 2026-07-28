@@ -395,6 +395,7 @@ export default function Tasks() {
               brandMap={brandMap}
               categoryMap={categoryMap}
               onSelectTask={setSelectedTask}
+              onEditTask={setEditingTask}
               onSelectProjectSheet={(task) => {
                 navigate(`/tasks/${task.id}`);
               }}
