@@ -20,8 +20,9 @@ import type {
 
 // ────────────────── Users ──────────────────
 
-export async function fetchUsers(): Promise<User[]> {
-  const { data } = await api.get<ApiResponse<User[]>>('/admin/users');
+export async function fetchUsers(ids?: string[]): Promise<User[]> {
+  const params = ids && ids.length > 0 ? { ids: ids.join(',') } : undefined;
+  const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
   return data.data;
 }
 

@@ -59,15 +59,13 @@ export default function TaskDetail() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [t, u, b, c, me] = await Promise.all([
+      const [t, b, c, me] = await Promise.all([
         fetchAdminTasks(),
-        fetchUsers(),
         fetchBrands(),
         fetchTaskCategories(),
         fetchMe(),
       ]);
       setTasks(t);
-      setUsers(u.filter((usr) => usr.status === 'active'));
       setBrands(b);
       setCategories(c);
       setCurrentUser(me);
@@ -75,6 +73,9 @@ export default function TaskDetail() {
       const found = t.find((x) => x.id === taskId);
       if (found) {
         setTask(found);
+        const assigneeIds = found.assignee_ids && found.assignee_ids.length > 0 ? found.assignee_ids : [found.assigned_to];
+        const u = await fetchUsers(assigneeIds);
+        setUsers(u.filter((usr) => usr.status === 'active'));
       } else {
         setError('ไม่พบงานที่ระบุ');
       }
