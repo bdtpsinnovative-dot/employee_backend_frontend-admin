@@ -17,6 +17,45 @@ import {
 import { fetchAllTaskEvents } from '../services/adminApi';
 import type { TaskEvent } from '../types';
 
+const ACTIVITY_ACTION_LABELS: Record<string, string> = {
+  task_created: 'สร้างงาน',
+  task_updated: 'แก้ไขข้อมูลงาน',
+  task_status_changed: 'เปลี่ยนสถานะงาน',
+  task_deleted: 'ลบงาน',
+  board_created: 'สร้างบอร์ด',
+  board_deleted: 'ลบบอร์ด',
+  board_updated: 'แก้ไขบอร์ด',
+  board_name_changed: 'เปลี่ยนชื่อบอร์ด',
+  board_description_changed: 'แก้ไขรายละเอียดบอร์ด',
+  board_start_date_changed: 'เปลี่ยนวันเริ่มต้น',
+  board_due_date_changed: 'เปลี่ยนกำหนดส่ง',
+  board_priority_changed: 'เปลี่ยนความสำคัญ',
+  board_status_changed: 'เปลี่ยนสถานะบอร์ด',
+  board_note_changed: 'แก้ไขหมายเหตุ',
+  board_attachment_added: 'เพิ่มเอกสาร',
+  board_attachment_removed: 'ลบเอกสาร',
+  board_assignees_added: 'เพิ่มผู้รับผิดชอบ',
+  board_assignees_removed: 'นำผู้รับผิดชอบออก',
+  board_order_changed: 'เปลี่ยนลำดับบอร์ด',
+  card_created: 'สร้างการ์ดงาน',
+  card_updated: 'แก้ไขการ์ดงาน',
+  card_status_changed: 'เปลี่ยนสถานะการ์ด',
+  card_moved: 'ย้ายการ์ดงาน',
+  card_deleted: 'ลบการ์ดงาน',
+  sub_item_created: 'เพิ่มงานย่อย',
+  sub_item_updated: 'แก้ไขงานย่อย',
+  sub_item_status_changed: 'เปลี่ยนสถานะงานย่อย',
+  sub_item_verified: 'ตรวจงานย่อย',
+  sub_item_deleted: 'ลบงานย่อย',
+  attachment_created: 'เพิ่มไฟล์แนบ',
+  attachment_deleted: 'ลบไฟล์แนบ',
+};
+
+const getActivityActionLabel = (action?: string): string => {
+  if (!action) return 'กิจกรรมระบบ';
+  return ACTIVITY_ACTION_LABELS[action] || 'กิจกรรมระบบ';
+};
+
 export default function TaskLogs() {
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,34 +191,6 @@ export default function TaskLogs() {
     if (diffDays === 1) return '1 วันที่แล้ว';
     if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
     return date.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' });
-  }
-
-  // Format Status Badge Color
-  function renderStatusBadge(content?: string) {
-    if (!content) return null;
-    const status = content.toLowerCase().trim();
-
-    let cls = 'status-badge-pill todo';
-    let label = content;
-
-    if (status.includes('done') || status.includes('completed') || status.includes('เสร็จ')) {
-      cls = 'status-badge-pill done';
-      label = 'Done / เสร็จสิ้น';
-    } else if (status.includes('in_progress') || status.includes('doing') || status.includes('กำลังทำ')) {
-      cls = 'status-badge-pill in_progress';
-      label = 'In Progress / กำลังดำเนินการ';
-    } else if (status.includes('todo') || status.includes('pending') || status.includes('รอดำเนินการ')) {
-      cls = 'status-badge-pill todo';
-      label = 'To Do / รอดำเนินการ';
-    } else if (status.includes('review') || status.includes('ตรวจ')) {
-      cls = 'status-badge-pill review';
-      label = 'Pending Review / รอตรวจสอบ';
-    } else if (status.includes('cancel') || status.includes('ยกเลิก')) {
-      cls = 'status-badge-pill cancel';
-      label = 'Cancelled / ยกเลิก';
-    }
-
-    return <span className={cls}>{label}</span>;
   }
 
   const hasActiveFilters = searchTerm !== '' || selectedType !== 'all' || selectedUser !== 'all';
@@ -462,9 +473,13 @@ export default function TaskLogs() {
                           {/* Activity Content */}
                           <div>
                             {isSystem ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                                <span style={{ color: 'var(--text-gray)' }}>เปลี่ยนสถานะเป็น</span>
-                                {renderStatusBadge(event.content)}
+                              <div style={{ fontSize: '13px', color: 'var(--text-main)' }}>
+                                <div>{event.content || getActivityActionLabel(event.action)}</div>
+                                {event.action && (
+                                  <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--text-gray)' }}>
+                                    {getActivityActionLabel(event.action)}
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="task-comment-quote">
@@ -529,9 +544,13 @@ export default function TaskLogs() {
 
                       <td style={{ padding: '14px 20px', fontSize: '13px' }}>
                         {isSystem ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ color: 'var(--text-gray)', fontSize: '12px' }}>อัปเดตเป็น:</span>
-                            {renderStatusBadge(event.content)}
+                          <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.06)' }}>
+                            <div>{event.content || getActivityActionLabel(event.action)}</div>
+                            {event.action && (
+                              <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--text-gray)' }}>
+                                {getActivityActionLabel(event.action)}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.06)' }}>

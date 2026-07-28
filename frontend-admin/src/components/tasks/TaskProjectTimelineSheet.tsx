@@ -13,9 +13,11 @@ import {
   Plus,
   PlusCircle,
   CheckCircle2,
-  Users
+  Users,
+  Clock3,
+  RefreshCw,
 } from 'lucide-react';
-import type { AdminTask, User, Brand, TaskCategory, TaskList } from '../../types';
+import type { AdminTask, User, Brand, TaskCategory, TaskList, TaskEvent } from '../../types';
 import { avatarUrl } from './taskUtils';
 import {
   fetchTaskTrello,
@@ -31,12 +33,49 @@ import {
   deleteTaskSubItem,
   createSubItemVerification,
   uploadFile,
+  fetchTaskEvents,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
   if (!id) return false;
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(id);
+};
+
+const BOARD_ACTIVITY_LABELS: Record<string, string> = {
+  board_created: 'สร้างบอร์ด',
+  board_deleted: 'ลบบอร์ด',
+  board_updated: 'แก้ไขบอร์ด',
+  board_name_changed: 'เปลี่ยนชื่อบอร์ด',
+  board_description_changed: 'แก้ไขรายละเอียด',
+  board_start_date_changed: 'เปลี่ยนวันเริ่มต้น',
+  board_due_date_changed: 'เปลี่ยนกำหนดส่ง',
+  board_priority_changed: 'เปลี่ยนความสำคัญ',
+  board_status_changed: 'เปลี่ยนสถานะ',
+  board_note_changed: 'แก้ไขหมายเหตุ',
+  board_attachment_added: 'เพิ่มเอกสาร',
+  board_attachment_removed: 'ลบเอกสาร',
+  board_assignees_added: 'เพิ่มผู้รับผิดชอบ',
+  board_assignees_removed: 'นำผู้รับผิดชอบออก',
+  board_order_changed: 'เปลี่ยนลำดับบอร์ด',
+  card_created: 'สร้างการ์ดงาน',
+  card_updated: 'แก้ไขการ์ดงาน',
+  card_status_changed: 'เปลี่ยนสถานะการ์ด',
+  card_moved: 'ย้ายการ์ดงาน',
+  card_deleted: 'ลบการ์ดงาน',
+  sub_item_created: 'เพิ่มงานย่อย',
+  sub_item_updated: 'แก้ไขงานย่อย',
+  sub_item_status_changed: 'เปลี่ยนสถานะงานย่อย',
+  sub_item_verified: 'ตรวจงานย่อย',
+  sub_item_deleted: 'ลบงานย่อย',
+  attachment_created: 'เพิ่มไฟล์แนบ',
+  attachment_deleted: 'ลบไฟล์แนบ',
+  comment_added: 'แสดงความคิดเห็น',
+};
+
+const getBoardActivityLabel = (action?: string): string => {
+  if (!action) return 'กิจกรรมบอร์ด';
+  return BOARD_ACTIVITY_LABELS[action] || 'กิจกรรมบอร์ด';
 };
 
 interface TaskProjectTimelineSheetProps {
@@ -74,9 +113,26 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [modalScope, setModalScope] = useState<'list' | 'card'>('card');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customAlert, setCustomAlert] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [activityList, setActivityList] = useState<TaskList | null>(null);
+  const [activityEvents, setActivityEvents] = useState<TaskEvent[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const showCustomAlert = (message: string, type: 'success' | 'error' = 'success') => {
     setCustomAlert({ message, type });
+  };
+
+  const openActivityLog = async (list: TaskList) => {
+    setActivityList(list);
+    setActivityEvents([]);
+    setActivityLoading(true);
+    try {
+      const events = await fetchTaskEvents(task.id, { listId: list.id });
+      setActivityEvents(events);
+    } catch (error) {
+      console.error('Failed to load board activity:', error);
+    } finally {
+      setActivityLoading(false);
+    }
   };
   const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
   
@@ -574,10 +630,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         </td>
 
         {/* 2. PROJECT */}
-        <td 
+        <td
           className="px-4 py-3 border-r border-slate-200 align-middle font-bold text-blue-900 bg-blue-50/40 transition-colors"
         >
-          <span className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded-md text-xs font-bold leading-tight">
+          <span className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded-md text-xs font-bold leading-tight truncate">
             {list.name}
           </span>
         </td>
@@ -847,6 +903,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   <span className="text-sm font-extrabold tracking-wide uppercase text-slate-800">แก้ไขข้อมูลคอร์สงาน</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void openActivityLog(editingList)}
+                    className="p-1 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                    title="ดูประวัติกิจกรรมของบอร์ดนี้"
+                    aria-label="ดูประวัติกิจกรรมของบอร์ดนี้"
+                  >
+                    <Clock3 className="w-5 h-5" />
+                  </button>
                   <button
                     type="button"
                     onClick={async () => {
@@ -1795,6 +1860,93 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               >
                 ปิดหน้าต่าง
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Board activity log */}
+      {activityList && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[82vh] animate-in zoom-in-95 duration-150">
+            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <Clock3 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-slate-800 text-sm truncate">ประวัติกิจกรรมของบอร์ด</h3>
+                  <p className="text-[11px] text-slate-500 truncate">{activityList.name} · ใครทำอะไรและเมื่อไร</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void openActivityLog(activityList)}
+                  className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                  title="รีเฟรชประวัติ"
+                  aria-label="รีเฟรชประวัติ"
+                >
+                  <RefreshCw className={`w-4 h-4 ${activityLoading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityList(null)}
+                  className="p-2 text-slate-400 hover:text-slate-700 rounded-lg transition-colors cursor-pointer"
+                  aria-label="ปิดประวัติกิจกรรม"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {activityLoading ? (
+                <div className="py-12 flex flex-col items-center gap-2 text-slate-400 text-xs">
+                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+                  กำลังโหลดประวัติกิจกรรม...
+                </div>
+              ) : activityEvents.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  <Clock3 className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  ยังไม่มีประวัติกิจกรรมของบอร์ดนี้
+                </div>
+              ) : (
+                <div className="relative space-y-3">
+                  <div className="absolute left-4 top-3 bottom-3 w-px bg-indigo-100" />
+                  {activityEvents.map((event) => {
+                    const operator = `${event.user_first_name || ''} ${event.user_last_name || ''}`.trim() || 'ผู้ใช้งานระบบ';
+                    const date = new Date(event.created_at);
+                    const actionLabel = event.content || event.action || 'ทำรายการในบอร์ด';
+                    return (
+                      <div key={event.id} className="relative flex gap-3 pl-0">
+                        <div className="relative z-10 w-8 h-8 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Clock3 className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate">{operator}</p>
+                              <p className="text-xs text-slate-600 mt-0.5 break-words">{actionLabel}</p>
+                            </div>
+                            <time className="text-[10px] text-slate-400 whitespace-nowrap" dateTime={event.created_at}>
+                              {Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('th-TH', {
+                                day: '2-digit', month: '2-digit', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
+                              })}
+                            </time>
+                          </div>
+                          {event.action && (
+                            <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] text-indigo-600 font-semibold">
+                              {getBoardActivityLabel(event.action)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

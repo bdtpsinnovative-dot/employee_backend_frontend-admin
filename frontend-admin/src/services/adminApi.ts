@@ -364,8 +364,16 @@ export async function deleteAdminTask(id: string): Promise<void> {
   await api.delete(`/admin/tasks/${id}`);
 }
 
-export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
-  const { data } = await api.get<ApiResponse<TaskEvent[]>>(`/api/tasks/${taskId}/events`);
+export async function fetchTaskEvents(
+  taskId: string,
+  scope?: { listId?: string; cardId?: string },
+): Promise<TaskEvent[]> {
+  const { data } = await api.get<ApiResponse<TaskEvent[]>>(`/api/tasks/${taskId}/events`, {
+    params: {
+      list_id: scope?.listId,
+      card_id: scope?.cardId,
+    },
+  });
   return data.data ?? [];
 }
 

@@ -231,8 +231,8 @@ export interface AdminTask {
 
 export interface TaskEvent {
   id: string;
-  task_id: string;
-  user_id: string;
+  task_id?: string;
+  user_id?: string;
   event_type: 'comment' | 'system';
   action: string;
   content?: string;
@@ -241,4 +241,13 @@ export interface TaskEvent {
   user_last_name?: string;
   user_avatar_url?: string;
   task_title?: string;
+  // Optional scope fields returned by the board-aware audit log API.
+  board_id?: string;
+  list_id?: string;
+  card_id?: string;
+  sub_item_id?: string;
+  list_name?: string;
+  card_title?: string;
+  entity_type?: 'task' | 'board' | 'list' | 'card' | 'sub_item';
+  entity_id?: string;
 }
