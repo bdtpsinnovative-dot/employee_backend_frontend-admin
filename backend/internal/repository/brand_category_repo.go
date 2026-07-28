@@ -5,9 +5,9 @@ import (
 
 	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // ─────────────────────────── Brand ───────────────────────────
@@ -292,6 +292,13 @@ func (r *TaskListRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskList,
 	if err != nil {
 		return nil, err
 	}
+	var assigneeIDs []uuid.UUID
+	if err := r.db.SelectContext(ctx, &assigneeIDs, `
+		SELECT user_id FROM list_assignees WHERE list_id = $1 ORDER BY user_id
+	`, id); err != nil {
+		return nil, err
+	}
+	list.AssigneeIDs = assigneeIDs
 	return &list, nil
 }
 
@@ -509,5 +516,3 @@ func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID)
 	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
 	return err
 }
-
-

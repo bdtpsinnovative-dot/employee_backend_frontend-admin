@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 type TaskService struct {
@@ -32,6 +32,10 @@ func (s *TaskService) ListAllTasks(ctx context.Context) ([]domain.Task, error) {
 
 func (s *TaskService) ListTasksByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
 	return s.taskRepo.ListByUser(ctx, userID)
+}
+
+func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, error) {
+	return s.taskRepo.FindByID(ctx, id)
 }
 
 func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
@@ -114,7 +118,7 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 						fcmToken := *admin.FcmToken
 						taskTitle := task.Title
 						go func() {
-							_ = s.firebaseSvc.SendNotification(context.Background(), fcmToken, "อัปเดตงานพนักงาน 📋", employeeName + " เปลี่ยนสถานะงาน: " + taskTitle + " เป็น [" + statusThai + "]")
+							_ = s.firebaseSvc.SendNotification(context.Background(), fcmToken, "อัปเดตงานพนักงาน 📋", employeeName+" เปลี่ยนสถานะงาน: "+taskTitle+" เป็น ["+statusThai+"]")
 						}()
 					}
 				}

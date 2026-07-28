@@ -1,24 +1,32 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type TaskHandler struct {
 	taskSvc     *service.TaskService
 	subItemRepo *repository.TaskSubItemRepo
+	eventRepo   *repository.TaskEventRepo
 }
 
-func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo) *TaskHandler {
-	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo}
+func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo, eventRepo *repository.TaskEventRepo) *TaskHandler {
+	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo, eventRepo: eventRepo}
+}
+
+func (h *TaskHandler) audit(c *gin.Context, scope *repository.TaskEventScope, action, content string, taskID *uuid.UUID) {
+	if err := recordTaskEvent(c, h.eventRepo, scope, action, content, taskID); err != nil {
+		log.Printf("task audit write failed (%s): %v", action, err)
+	}
 }
 
 type createTaskReq struct {
@@ -116,6 +124,17 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		}
 	}
 
+	h.audit(c, nil, "task_created", "สร้างงาน: "+task.Title, &task.ID)
+	for i := range task.SubItems {
+		item := &task.SubItems[i]
+		scope := &repository.TaskEventScope{
+			TaskID:    task.ID,
+			SubItemID: &item.ID,
+			Name:      item.Title,
+		}
+		h.audit(c, scope, "sub_item_created", "เพิ่มรายการย่อย: "+item.Title, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
 
@@ -137,11 +156,17 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 		return
 	}
 
+	task, _ := h.taskSvc.GetTask(c.Request.Context(), id)
 	err = h.taskSvc.DeleteTask(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบงานล้มเหลว"})
 		return
 	}
+	title := id.String()
+	if task != nil {
+		title = task.Title
+	}
+	h.audit(c, nil, "task_deleted", "ลบงาน: "+title, &id)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบงานสำเร็จ"})
 }
@@ -190,6 +215,7 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
+	h.audit(c, nil, "task_status_changed", "เปลี่ยนสถานะงานเป็น: "+req.Status, &id)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะงานสำเร็จ"})
 }
@@ -250,6 +276,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.audit(c, nil, "task_updated", "แก้ไขข้อมูลงาน: "+task.Title, &task.ID)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }

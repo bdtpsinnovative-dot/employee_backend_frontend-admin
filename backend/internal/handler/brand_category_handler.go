@@ -2,25 +2,29 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // BrandCategoryHandler จัดการ Brand และ TaskCategory
 type BrandCategoryHandler struct {
-	brandRepo          *repository.BrandRepo
-	categoryRepo       *repository.TaskCategoryRepo
-	subItemRepo        *repository.TaskSubItemRepo
-	listRepo           *repository.TaskListRepo
-	cardRepo           *repository.TaskCardRepo
-	attachmentRepo     *repository.CardAttachmentRepo
+	brandRepo      *repository.BrandRepo
+	categoryRepo   *repository.TaskCategoryRepo
+	subItemRepo    *repository.TaskSubItemRepo
+	listRepo       *repository.TaskListRepo
+	cardRepo       *repository.TaskCardRepo
+	attachmentRepo *repository.CardAttachmentRepo
+	eventRepo      *repository.TaskEventRepo
+	userRepo       *repository.UserRepo
 }
 
 func NewBrandCategoryHandler(
@@ -30,6 +34,8 @@ func NewBrandCategoryHandler(
 	listRepo *repository.TaskListRepo,
 	cardRepo *repository.TaskCardRepo,
 	attachmentRepo *repository.CardAttachmentRepo,
+	eventRepo *repository.TaskEventRepo,
+	userRepo *repository.UserRepo,
 ) *BrandCategoryHandler {
 	return &BrandCategoryHandler{
 		brandRepo:      brandRepo,
@@ -38,7 +44,165 @@ func NewBrandCategoryHandler(
 		listRepo:       listRepo,
 		cardRepo:       cardRepo,
 		attachmentRepo: attachmentRepo,
+		eventRepo:      eventRepo,
+		userRepo:       userRepo,
 	}
+}
+
+func (h *BrandCategoryHandler) audit(c *gin.Context, scope *repository.TaskEventScope, action, content string, taskID *uuid.UUID) {
+	if err := recordTaskEvent(c, h.eventRepo, scope, action, content, taskID); err != nil {
+		log.Printf("task audit write failed (%s): %v", action, err)
+	}
+}
+
+type boardAuditChange struct {
+	action  string
+	content string
+}
+
+type boardAuditAttachment struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
+}
+
+func readableAuditValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "ไม่ได้ระบุ"
+	}
+	runes := []rune(value)
+	if len(runes) > 100 {
+		value = string(runes[:100]) + "…"
+	}
+	return "“" + value + "”"
+}
+
+func readableAuditDate(value *time.Time) string {
+	if value == nil {
+		return "ไม่ได้ระบุ"
+	}
+	return value.In(time.Local).Format("02/01/2006")
+}
+
+func sameAuditDate(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Format("2006-01-02") == right.Format("2006-01-02")
+}
+
+func readableBoardPriority(value string) string {
+	switch value {
+	case "low":
+		return "ต่ำ"
+	case "medium":
+		return "ปานกลาง"
+	case "high":
+		return "สูง"
+	default:
+		return readableAuditValue(value)
+	}
+}
+
+func readableBoardStatus(value string) string {
+	switch value {
+	case "pending":
+		return "รอดำเนินการ"
+	case "in_progress", "doing":
+		return "กำลังทำ"
+	case "completed", "done":
+		return "เสร็จแล้ว"
+	default:
+		return readableAuditValue(value)
+	}
+}
+
+func parseBoardAuditAttachments(raw []byte) []boardAuditAttachment {
+	var attachments []boardAuditAttachment
+	if len(raw) == 0 {
+		return attachments
+	}
+	_ = json.Unmarshal(raw, &attachments)
+	return attachments
+}
+
+func boardAttachmentKey(attachment boardAuditAttachment) string {
+	return strings.TrimSpace(attachment.Type) + "\x00" + strings.TrimSpace(attachment.URL) + "\x00" + strings.TrimSpace(attachment.Name)
+}
+
+func attachmentAuditChanges(before, after []boardAuditAttachment) []boardAuditChange {
+	beforeSet := make(map[string]boardAuditAttachment, len(before))
+	afterSet := make(map[string]boardAuditAttachment, len(after))
+	for _, attachment := range before {
+		beforeSet[boardAttachmentKey(attachment)] = attachment
+	}
+	for _, attachment := range after {
+		afterSet[boardAttachmentKey(attachment)] = attachment
+	}
+
+	changes := make([]boardAuditChange, 0)
+	for key, attachment := range afterSet {
+		if _, exists := beforeSet[key]; !exists {
+			changes = append(changes, boardAuditChange{
+				action:  "board_attachment_added",
+				content: "เพิ่มเอกสารหรือลิงก์: " + readableAuditValue(attachment.Name),
+			})
+		}
+	}
+	for key, attachment := range beforeSet {
+		if _, exists := afterSet[key]; !exists {
+			changes = append(changes, boardAuditChange{
+				action:  "board_attachment_removed",
+				content: "ลบเอกสารหรือลิงก์: " + readableAuditValue(attachment.Name),
+			})
+		}
+	}
+	return changes
+}
+
+func uuidAuditSet(ids []uuid.UUID) map[uuid.UUID]struct{} {
+	result := make(map[uuid.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		result[id] = struct{}{}
+	}
+	return result
+}
+
+func changedAuditAssignees(before, after []uuid.UUID) (added, removed []uuid.UUID) {
+	beforeSet := uuidAuditSet(before)
+	afterSet := uuidAuditSet(after)
+	for _, id := range after {
+		if _, exists := beforeSet[id]; !exists {
+			added = append(added, id)
+		}
+	}
+	for _, id := range before {
+		if _, exists := afterSet[id]; !exists {
+			removed = append(removed, id)
+		}
+	}
+	return added, removed
+}
+
+func (h *BrandCategoryHandler) auditUserNames(c *gin.Context, ids []uuid.UUID) string {
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		user, err := h.userRepo.FindByID(c.Request.Context(), id)
+		if err != nil {
+			names = append(names, id.String())
+			continue
+		}
+		name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+		if name == "" {
+			name = strings.TrimSpace(user.Nickname)
+		}
+		if name == "" {
+			name = id.String()
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, ", ")
 }
 
 // ─────────────────────── Brand Handlers ───────────────────────
@@ -72,6 +236,7 @@ func (h *BrandCategoryHandler) CreateBrand(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่ม Brand ล้มเหลว"})
 		return
 	}
+	h.audit(c, nil, "brand_created", "สร้างแบรนด์: "+brand.Name, nil)
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": brand})
 }
 
@@ -86,6 +251,7 @@ func (h *BrandCategoryHandler) DeleteBrand(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบ Brand ล้มเหลว"})
 		return
 	}
+	h.audit(c, nil, "brand_deleted", "ลบแบรนด์: "+id.String(), nil)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบ Brand สำเร็จ"})
 }
 
@@ -120,6 +286,7 @@ func (h *BrandCategoryHandler) CreateTaskCategory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มหมวดหมู่งานล้มเหลว"})
 		return
 	}
+	h.audit(c, nil, "task_category_created", "สร้างหมวดหมู่งาน: "+cat.Name, nil)
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": cat})
 }
 
@@ -134,6 +301,7 @@ func (h *BrandCategoryHandler) DeleteTaskCategory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบหมวดหมู่งานล้มเหลว"})
 		return
 	}
+	h.audit(c, nil, "task_category_deleted", "ลบหมวดหมู่งาน: "+id.String(), nil)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบหมวดหมู่งานสำเร็จ"})
 }
 
@@ -184,10 +352,11 @@ func (h *BrandCategoryHandler) CreateTaskSubItem(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มรายการย่อยล้มเหลว"})
 		return
 	}
+	scope := &repository.TaskEventScope{TaskID: taskID, SubItemID: &item.ID, Name: item.Title}
+	h.audit(c, scope, "sub_item_created", "เพิ่มรายการย่อย: "+item.Title, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": item})
 }
-
 
 // ToggleTaskSubItem PATCH /api/tasks/sub-items/:id/toggle
 func (h *BrandCategoryHandler) ToggleTaskSubItem(c *gin.Context) {
@@ -219,10 +388,12 @@ func (h *BrandCategoryHandler) ToggleTaskSubItem(c *gin.Context) {
 		status = "pending"
 	}
 
+	scope, _ := h.eventRepo.ScopeForSubItem(c.Request.Context(), id)
 	if err := h.subItemRepo.UpdateSubItemStatus(c.Request.Context(), id, status); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะรายการย่อยล้มเหลว"})
 		return
 	}
+	h.audit(c, scope, "sub_item_status_changed", "เปลี่ยนสถานะรายการย่อยเป็น: "+status, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะสำเร็จ"})
 }
@@ -384,6 +555,8 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างรายการล้มเหลว"})
 		return
 	}
+	scope := &repository.TaskEventScope{TaskID: taskID, ListID: &list.ID, Name: list.Name}
+	h.audit(c, scope, "board_created", "สร้างบอร์ด: "+list.Name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": list})
 }
@@ -396,10 +569,16 @@ func (h *BrandCategoryHandler) DeleteTaskList(c *gin.Context) {
 		return
 	}
 
+	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
 	if err := h.listRepo.Delete(c.Request.Context(), listID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบรายการล้มเหลว"})
 		return
 	}
+	name := listID.String()
+	if scope != nil && scope.Name != "" {
+		name = scope.Name
+	}
+	h.audit(c, scope, "board_deleted", "ลบบอร์ด: "+name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบรายการสำเร็จ"})
 }
@@ -498,6 +677,66 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		attachments = existing.Attachments
 	}
 
+	changes := make([]boardAuditChange, 0, 10)
+	if req.Name != nil && name != existing.Name {
+		changes = append(changes, boardAuditChange{
+			action:  "board_name_changed",
+			content: "เปลี่ยนชื่อบอร์ดจาก " + readableAuditValue(existing.Name) + " เป็น " + readableAuditValue(name),
+		})
+	}
+	if req.Description != nil && desc != existing.Description {
+		changes = append(changes, boardAuditChange{
+			action:  "board_description_changed",
+			content: "เปลี่ยนรายละเอียดจาก " + readableAuditValue(existing.Description) + " เป็น " + readableAuditValue(desc),
+		})
+	}
+	if req.StartDate != nil && !sameAuditDate(existing.StartDate, startDate) {
+		changes = append(changes, boardAuditChange{
+			action:  "board_start_date_changed",
+			content: "เปลี่ยนวันเริ่มต้นจาก " + readableAuditDate(existing.StartDate) + " เป็น " + readableAuditDate(startDate),
+		})
+	}
+	if req.DueDate != nil && !sameAuditDate(existing.DueDate, dueDate) {
+		changes = append(changes, boardAuditChange{
+			action:  "board_due_date_changed",
+			content: "เปลี่ยนวันกำหนดส่งจาก " + readableAuditDate(existing.DueDate) + " เป็น " + readableAuditDate(dueDate),
+		})
+	}
+	if req.Priority != nil && priority != existing.Priority {
+		changes = append(changes, boardAuditChange{
+			action:  "board_priority_changed",
+			content: "เปลี่ยนความสำคัญจาก " + readableBoardPriority(existing.Priority) + " เป็น " + readableBoardPriority(priority),
+		})
+	}
+	if req.Status != nil && status != existing.Status {
+		changes = append(changes, boardAuditChange{
+			action:  "board_status_changed",
+			content: "เปลี่ยนสถานะจาก " + readableBoardStatus(existing.Status) + " เป็น " + readableBoardStatus(status),
+		})
+	}
+	if req.AdminComment != nil && adminComment != existing.AdminComment {
+		changes = append(changes, boardAuditChange{
+			action:  "board_note_changed",
+			content: "เปลี่ยนหมายเหตุจาก " + readableAuditValue(existing.AdminComment) + " เป็น " + readableAuditValue(adminComment),
+		})
+	}
+	if req.Attachments != nil {
+		changes = append(changes, attachmentAuditChanges(
+			parseBoardAuditAttachments(existing.Attachments),
+			parseBoardAuditAttachments(attachments),
+		)...)
+	}
+	var addedAssignees, removedAssignees []uuid.UUID
+	if req.AssigneeIDs != nil {
+		addedAssignees, removedAssignees = changedAuditAssignees(existing.AssigneeIDs, *req.AssigneeIDs)
+	}
+	if req.SortOrder != nil && *req.SortOrder != existing.SortOrder {
+		changes = append(changes, boardAuditChange{
+			action:  "board_order_changed",
+			content: fmt.Sprintf("เปลี่ยนลำดับบอร์ดจาก %d เป็น %d", existing.SortOrder+1, *req.SortOrder+1),
+		})
+	}
+
 	err = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, priority, status, adminComment, attachments, startDate, dueDate, req.AssigneeIDs)
 	if err != nil {
 		log.Printf("UpdateTaskList Detail failed: %v", err)
@@ -507,6 +746,22 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 
 	if req.SortOrder != nil {
 		_ = h.listRepo.UpdateSortOrder(c.Request.Context(), listID, *req.SortOrder)
+	}
+	scope := &repository.TaskEventScope{TaskID: existing.TaskID, ListID: &listID, Name: name}
+	if len(addedAssignees) > 0 {
+		changes = append(changes, boardAuditChange{
+			action:  "board_assignees_added",
+			content: "เพิ่มผู้รับผิดชอบ: " + h.auditUserNames(c, addedAssignees),
+		})
+	}
+	if len(removedAssignees) > 0 {
+		changes = append(changes, boardAuditChange{
+			action:  "board_assignees_removed",
+			content: "นำผู้รับผิดชอบออก: " + h.auditUserNames(c, removedAssignees),
+		})
+	}
+	for _, change := range changes {
+		h.audit(c, scope, change.action, change.content, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตรายการสำเร็จ"})
@@ -555,6 +810,12 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างการ์ดล้มเหลว"})
 		return
 	}
+	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
+	if scope != nil {
+		scope.CardID = &card.ID
+		scope.Name = card.Title
+	}
+	h.audit(c, scope, "card_created", "สร้างการ์ดงาน: "+card.Title, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": card})
 }
@@ -566,6 +827,7 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID การ์ดไม่ถูกต้อง"})
 		return
 	}
+	originalScope, _ := h.eventRepo.ScopeForCard(c.Request.Context(), cardID)
 
 	var req struct {
 		Title        string       `json:"title"`
@@ -640,6 +902,25 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		}
 	}
 
+	scope, scopeErr := h.eventRepo.ScopeForCard(c.Request.Context(), cardID)
+	if scopeErr != nil {
+		scope = originalScope
+	}
+	cardName := cardID.String()
+	if scope != nil && scope.Name != "" {
+		cardName = scope.Name
+	}
+	action := "card_updated"
+	content := "แก้ไขการ์ดงาน: " + cardName
+	if req.ListID != nil {
+		action = "card_moved"
+		content = "ย้ายการ์ดงาน: " + cardName
+	} else if req.Status != "" {
+		action = "card_status_changed"
+		content = "เปลี่ยนสถานะการ์ด " + cardName + " เป็น: " + req.Status
+	}
+	h.audit(c, scope, action, content, nil)
+
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตการ์ดสำเร็จ"})
 }
 
@@ -651,10 +932,16 @@ func (h *BrandCategoryHandler) DeleteTaskCard(c *gin.Context) {
 		return
 	}
 
+	scope, _ := h.eventRepo.ScopeForCard(c.Request.Context(), cardID)
 	if err := h.cardRepo.Delete(c.Request.Context(), cardID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบการ์ดล้มเหลว"})
 		return
 	}
+	name := cardID.String()
+	if scope != nil && scope.Name != "" {
+		name = scope.Name
+	}
+	h.audit(c, scope, "card_deleted", "ลบการ์ดงาน: "+name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบการ์ดสำเร็จ"})
 }
@@ -699,6 +986,12 @@ func (h *BrandCategoryHandler) CreateCardSubItem(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มรายการย่อยล้มเหลว"})
 		return
 	}
+	scope, _ := h.eventRepo.ScopeForCard(c.Request.Context(), cardID)
+	if scope != nil {
+		scope.SubItemID = &item.ID
+		scope.Name = item.Title
+	}
+	h.audit(c, scope, "sub_item_created", "เพิ่มรายการย่อย: "+item.Title, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": item})
 }
@@ -725,6 +1018,7 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 		return
 	}
 
+	scope, _ := h.eventRepo.ScopeForSubItem(c.Request.Context(), subItemID)
 	err = h.subItemRepo.UpdateSubItemDetail(
 		c.Request.Context(),
 		subItemID,
@@ -740,6 +1034,11 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายละเอียดรายการย่อยล้มเหลว"})
 		return
 	}
+	name := req.Title
+	if name == "" && scope != nil {
+		name = scope.Name
+	}
+	h.audit(c, scope, "sub_item_updated", "แก้ไขรายการย่อย: "+name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตรายละเอียดสำเร็จ"})
 }
@@ -752,10 +1051,16 @@ func (h *BrandCategoryHandler) DeleteTaskSubItem(c *gin.Context) {
 		return
 	}
 
+	scope, _ := h.eventRepo.ScopeForSubItem(c.Request.Context(), subItemID)
 	if err := h.subItemRepo.Delete(c.Request.Context(), subItemID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบรายการย่อยล้มเหลว"})
 		return
 	}
+	name := subItemID.String()
+	if scope != nil && scope.Name != "" {
+		name = scope.Name
+	}
+	h.audit(c, scope, "sub_item_deleted", "ลบรายการย่อย: "+name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบรายการย่อยสำเร็จ"})
 }
@@ -781,6 +1086,7 @@ func (h *BrandCategoryHandler) CreateSubItemVerification(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "สถานะการตรวจสอบต้องเป็น approved หรือ rejected"})
 		return
 	}
+	scope, _ := h.eventRepo.ScopeForSubItem(c.Request.Context(), subItemID)
 
 	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	userID := userIDRaw.(uuid.UUID)
@@ -827,6 +1133,11 @@ func (h *BrandCategoryHandler) CreateSubItemVerification(c *gin.Context) {
 
 	// Update verification notes field on the sub-item itself to show latest notes
 	_ = h.subItemRepo.UpdateSubItemVerificationNotes(c.Request.Context(), subItemID, req.Notes)
+	verificationLabel := "ไม่ผ่าน"
+	if req.Status == "approved" {
+		verificationLabel = "ผ่าน"
+	}
+	h.audit(c, scope, "sub_item_verified", "ตรวจรายการย่อย: "+verificationLabel, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": v})
 }
@@ -884,6 +1195,12 @@ func (h *BrandCategoryHandler) CreateCardAttachment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกไฟล์แนบล้มเหลว: " + err.Error()})
 		return
 	}
+	scope, _ := h.eventRepo.ScopeForCard(c.Request.Context(), cardID)
+	attachmentName := attachment.Name
+	if attachmentName == "" {
+		attachmentName = attachment.URL
+	}
+	h.audit(c, scope, "attachment_created", "เพิ่มไฟล์แนบ: "+attachmentName, nil)
 
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "data": attachment})
 }
@@ -919,10 +1236,16 @@ func (h *BrandCategoryHandler) DeleteCardAttachment(c *gin.Context) {
 		return
 	}
 
+	scope, _ := h.eventRepo.ScopeForAttachment(c.Request.Context(), attachmentID)
 	if err := h.attachmentRepo.Delete(c.Request.Context(), attachmentID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบไฟล์แนบล้มเหลว"})
 		return
 	}
+	name := attachmentID.String()
+	if scope != nil && scope.Name != "" {
+		name = scope.Name
+	}
+	h.audit(c, scope, "attachment_deleted", "ลบไฟล์แนบ: "+name, nil)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบไฟล์แนบสำเร็จ"})
 }
