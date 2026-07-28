@@ -151,7 +151,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     // 2. Network sync in background
     try {
       await updateTaskList(list.id, { status: newStatus });
-      await loadSubItems();
+      // Remove loadSubItems() call to prevent database write-delay from flashing/reverting the UI state
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to toggle status', err);
