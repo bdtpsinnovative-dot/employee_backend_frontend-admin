@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Tag,
@@ -72,10 +72,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [modalInputVal1, setModalInputVal1] = useState('');
   const [modalInputVal2, setModalInputVal2] = useState('');
   const [modalSelectVal, setModalSelectVal] = useState<'pass' | 'fail'>('pass');
-  const [modalFile, setModalFile] = useState<File | null>(null);
   const [isModalSubmitting, setIsModalSubmitting] = useState(false);
   const [modalTargetId, setModalTargetId] = useState<string | null>(null);
   const [modalScope, setModalScope] = useState<'list' | 'card'>('card');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
   
   // Card edit states
@@ -271,10 +271,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     if (!editingCardSubView) return;
     setModalScope('card');
     if (type === 'file') {
-      setModalTitle('อัปโหลดไฟล์หลักฐาน');
-      setModalInputVal2('เอกสารแนบ');
-      setModalFile(null);
-      setActiveModal('attach_file');
+      fileInputRef.current?.click();
     } else {
       setModalTitle('แนบลิงก์ภายนอก');
       setModalInputVal1('');
@@ -322,56 +319,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-  const submitAddCardAttachmentFile = async () => {
-    if (!modalFile) return;
-    setIsModalSubmitting(true);
-    try {
-      // 1. Upload file to R2 via api
-      const uploadRes = await uploadFile(modalFile);
-      if (!uploadRes.ok || !uploadRes.url) {
-        alert('การอัปโหลดไฟล์ไปที่ Cloudflare R2 ล้มเหลว');
-        return;
-      }
-
-      if (modalScope === 'list') {
-        setDrawerAttachments([
-          ...drawerAttachments,
-          {
-            name: modalInputVal2.trim() || modalFile.name,
-            url: uploadRes.url,
-            type: 'file',
-          },
-        ]);
-        setActiveModal(null);
-      } else {
-        if (!editingCardSubView) return;
-        // 2. Attach R2 URL to the card
-        await createCardAttachment(editingCardSubView.id, {
-          name: modalInputVal2.trim() || modalFile.name,
-          url: uploadRes.url,
-          type: 'file',
-        });
-
-        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-        setTrelloLists(updatedLists);
-        const updatedList = updatedLists.find(l => l.id === editingList?.id);
-        if (updatedList) {
-          setEditingList(updatedList);
-          const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-          if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
-        }
-        setActiveModal(null);
-        onRefreshTask(true);
-      }
-    } catch (err) {
-      console.error('Failed to upload file attachment', err);
-      alert('อัปโหลดไฟล์ล้มเหลว');
-    } finally {
-      setIsModalSubmitting(false);
-    }
-  };
-
-  const handleDeleteCardAttachment = async (attId: string) => {
+    const handleDeleteCardAttachment = async (attId: string) => {
     if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
     try {
       await deleteCardAttachment(attId);
@@ -405,7 +353,43 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-    const handleAddNewCardClick = () => {
+    const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await uploadFile(file);
+      if (res.ok && res.url) {
+        const name = file.name;
+        if (modalScope === 'list') {
+          setDrawerAttachments(prev => [...prev, { name, url: res.url, type: 'file' }]);
+          alert('อัปโหลดไฟล์สำเร็จ');
+        } else {
+          if (editingCardSubView) {
+            await createCardAttachment(editingCardSubView.id, { name, url: res.url, type: 'file' });
+            const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+            setTrelloLists(updatedLists);
+            const updatedList = updatedLists.find(l => l.id === editingList?.id);
+            if (updatedList) {
+              setEditingList(updatedList);
+              const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+              if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+            }
+            onRefreshTask(true);
+            alert('อัปโหลดไฟล์แนบในการ์ดสำเร็จ');
+          }
+        }
+      } else {
+        alert('อัปโหลดไฟล์ล้มเหลว');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('อัปโหลดไฟล์ล้มเหลว');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleAddNewCardClick = () => {
     setModalTitle('เพิ่มการ์ดงานย่อยใหม่');
     setModalInputVal1('');
     setActiveModal('add_card');
@@ -1364,11 +1348,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <button
                         type="button"
                         onClick={() => {
-                          setModalTitle('อัปโหลดไฟล์หลักฐาน');
-                          setModalInputVal2('เอกสารแนบ');
-                          setModalFile(null);
                           setModalScope('list');
-                          setActiveModal('attach_file');
+                          fileInputRef.current?.click();
                         }}
                         className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/20"
                       >
@@ -1661,35 +1642,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </div>
               )}
 
-              {activeModal === 'attach_file' && (
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase">ชื่อไฟล์/คำอธิบาย</label>
-                    <input
-                      type="text"
-                      value={modalInputVal2}
-                      onChange={(e) => setModalInputVal2(e.target.value)}
-                      placeholder="ระบุคำอธิบายไฟล์แนบ..."
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase">เลือกไฟล์จากอุปกรณ์</label>
-                    <input
-                      type="file"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setModalFile(e.target.files[0]);
-                          if (!modalInputVal2 || modalInputVal2 === 'เอกสารแนบ') {
-                            setModalInputVal2(e.target.files[0].name);
-                          }
-                        }
-                      }}
-                      className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
+
 
               {activeModal === 'verify_subitem' && (
                 <div className="space-y-4">
@@ -1748,13 +1701,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 disabled={
                   isModalSubmitting ||
                   (activeModal === 'add_card' && !modalInputVal1.trim()) ||
-                  (activeModal === 'attach_link' && !modalInputVal1.trim()) ||
-                  (activeModal === 'attach_file' && !modalFile)
+                  (activeModal === 'attach_link' && !modalInputVal1.trim())
                 }
                 onClick={() => {
                   if (activeModal === 'add_card') submitAddNewCard();
                   else if (activeModal === 'attach_link') submitAddCardAttachmentLink();
-                  else if (activeModal === 'attach_file') submitAddCardAttachmentFile();
                   else if (activeModal === 'verify_subitem') submitVerifySubItem();
                 }}
                 className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
@@ -1765,6 +1716,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           </div>
         </div>
       )}
+
+      {/* Hidden File Input for Direct Uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleDirectFileUpload}
+        className="hidden"
+      />
 
       {/* View All Attachments Modal */}
       {viewingAttachmentsList && (
