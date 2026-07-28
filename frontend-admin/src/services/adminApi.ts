@@ -272,6 +272,10 @@ export async function createTaskCard(listId: string, body: { title: string; prio
   return data.data;
 }
 
+export async function deleteTaskCard(cardId: string): Promise<void> {
+  await api.delete(`/api/tasks/cards/${cardId}`);
+}
+
 export async function updateTaskCard(cardId: string, body: {
   title?: string;
   description?: string;
@@ -280,15 +284,39 @@ export async function updateTaskCard(cardId: string, body: {
   status?: string;
   admin_comment?: string;
   assignee_ids?: string[];
+  link_url?: string;
+  attachment_url?: string;
 }): Promise<any> {
   const { data } = await api.patch<ApiResponse<any>>(`/api/tasks/cards/${cardId}`, body);
   return data.data;
+}
+
+export async function createTaskList(taskId: string, body: {
+  name: string;
+  description?: string;
+  due_date?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'in_progress' | 'completed';
+  admin_comment?: string;
+  attachments?: { name: string; url: string; type: 'file' | 'link' }[];
+  assignee_ids?: string[];
+}): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/lists`, body);
+  return data.data;
+}
+
+export async function deleteTaskList(listId: string): Promise<void> {
+  await api.delete(`/api/tasks/lists/${listId}`);
 }
 
 export async function updateTaskList(listId: string, body: {
   name?: string;
   description?: string;
   due_date?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'in_progress' | 'completed';
+  admin_comment?: string;
+  attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   assignee_ids?: string[];
 }): Promise<any> {
   const { data } = await api.patch<ApiResponse<any>>(`/api/tasks/lists/${listId}`, body);
@@ -309,6 +337,26 @@ export async function updateTaskSubItemNote(subItemId: string, adminComment: str
   await api.patch(`/api/tasks/sub-items/${subItemId}/detail`, {
     admin_comment: adminComment,
   });
+}
+
+export function isRealSubItem(sub: any): boolean {
+  if (!sub) return false;
+  return Boolean(sub.id && !String(sub.id).startsWith('demo-') && !String(sub.id).startsWith('mock-'));
+}
+
+export async function updateTaskSubItemDetail(
+  subItemId: string,
+  body: {
+    title: string;
+    start_date?: string;
+    due_date?: string;
+    link_url?: string;
+    attachment_url?: string;
+    verification_notes?: string;
+    admin_comment?: string;
+  }
+): Promise<void> {
+  await api.patch(`/api/tasks/sub-items/${subItemId}/detail`, body);
 }
 
 export async function deleteAdminTask(id: string): Promise<void> {

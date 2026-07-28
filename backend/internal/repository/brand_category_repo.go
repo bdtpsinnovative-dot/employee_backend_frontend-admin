@@ -286,6 +286,15 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 	return lists, nil
 }
 
+func (r *TaskListRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskList, error) {
+	var list domain.TaskList
+	err := r.db.GetContext(ctx, &list, "SELECT * FROM task_lists WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return &list, nil
+}
+
 func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -294,8 +303,8 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO task_lists (id, task_id, name, description, sort_order, start_date, due_date, created_at)
-		VALUES (:id, :task_id, :name, :description, :sort_order, :start_date, :due_date, :created_at)
+		INSERT INTO task_lists (id, task_id, name, description, sort_order, start_date, due_date, priority, status, admin_comment, attachments, created_at)
+		VALUES (:id, :task_id, :name, :description, :sort_order, :start_date, :due_date, :priority, :status, :admin_comment, :attachments, :created_at)
 	`, list)
 	if err != nil {
 		return err
@@ -330,18 +339,22 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description string, startDate, dueDate *time.Time, assigneeIDs *[]uuid.UUID) error {
+func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description, priority, status, adminComment string, attachments []byte, startDate, dueDate *time.Time, assigneeIDs *[]uuid.UUID) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
+	if len(attachments) == 0 {
+		attachments = []byte("[]")
+	}
+
 	_, err = tx.ExecContext(ctx, `
 		UPDATE task_lists 
-		SET name = $1, description = $2, start_date = $3, due_date = $4
-		WHERE id = $5
-	`, name, description, startDate, dueDate, id)
+		SET name = $1, description = $2, priority = $3, status = $4, admin_comment = $5, attachments = $6, start_date = $7, due_date = $8
+		WHERE id = $9
+	`, name, description, priority, status, adminComment, attachments, startDate, dueDate, id)
 	if err != nil {
 		return err
 	}

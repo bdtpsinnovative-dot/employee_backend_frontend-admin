@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -244,11 +245,15 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 	// 2. If lists is empty, auto-create default list and card for backward compatibility
 	if len(lists) == 0 {
 		defaultList := domain.TaskList{
-			ID:        uuid.New(),
-			TaskID:    taskID,
-			Name:      "ทำอะไร",
-			SortOrder: 0,
-			CreatedAt: time.Now(),
+			ID:           uuid.New(),
+			TaskID:       taskID,
+			Name:         "ทำอะไร",
+			SortOrder:    0,
+			Priority:     "medium",
+			Status:       "in_progress",
+			AdminComment: "",
+			Attachments:  json.RawMessage("[]"),
+			CreatedAt:    time.Now(),
 		}
 		if err := h.listRepo.Create(c.Request.Context(), &defaultList); err == nil {
 			defaultCard := domain.TaskCard{
@@ -322,11 +327,15 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	}
 
 	list := domain.TaskList{
-		ID:        uuid.New(),
-		TaskID:    taskID,
-		Name:      req.Name,
-		SortOrder: 99,
-		CreatedAt: time.Now(),
+		ID:           uuid.New(),
+		TaskID:       taskID,
+		Name:         req.Name,
+		SortOrder:    99,
+		Priority:     "medium",
+		Status:       "in_progress",
+		AdminComment: "",
+		Attachments:  json.RawMessage("[]"),
+		CreatedAt:    time.Now(),
 	}
 
 	if err := h.listRepo.Create(c.Request.Context(), &list); err != nil {
@@ -362,15 +371,25 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        *string      `json:"name"`
-		Description *string      `json:"description"`
-		SortOrder   *int         `json:"sort_order"`
-		StartDate   *string      `json:"start_date"`
-		DueDate     *string      `json:"due_date"`
-		AssigneeIDs *[]uuid.UUID `json:"assignee_ids"`
+		Name         *string          `json:"name"`
+		Description  *string          `json:"description"`
+		SortOrder    *int             `json:"sort_order"`
+		StartDate    *string          `json:"start_date"`
+		DueDate      *string          `json:"due_date"`
+		Priority     *string          `json:"priority"`
+		Status       *string          `json:"status"`
+		AdminComment *string          `json:"admin_comment"`
+		Attachments  *json.RawMessage `json:"attachments"`
+		AssigneeIDs  *[]uuid.UUID     `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	existing, err := h.listRepo.Get(c.Request.Context(), listID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบรายการที่ต้องการแก้ไข"})
 		return
 	}
 
@@ -388,6 +407,8 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				return
 			}
 		}
+	} else if existing.StartDate != nil {
+		startDate = existing.StartDate
 	}
 
 	var dueDate *time.Time
@@ -404,19 +425,38 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				return
 			}
 		}
+	} else if existing.DueDate != nil {
+		dueDate = existing.DueDate
 	}
 
-	if req.Name != nil || req.Description != nil || req.StartDate != nil || req.DueDate != nil || req.AssigneeIDs != nil {
-		name := ""
-		if req.Name != nil {
-			name = *req.Name
-		}
-		desc := ""
-		if req.Description != nil {
-			desc = *req.Description
-		}
-		_ = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, startDate, dueDate, req.AssigneeIDs)
+	name := existing.Name
+	if req.Name != nil {
+		name = *req.Name
 	}
+	desc := existing.Description
+	if req.Description != nil {
+		desc = *req.Description
+	}
+	priority := existing.Priority
+	if req.Priority != nil {
+		priority = *req.Priority
+	}
+	status := existing.Status
+	if req.Status != nil {
+		status = *req.Status
+	}
+	adminComment := existing.AdminComment
+	if req.AdminComment != nil {
+		adminComment = *req.AdminComment
+	}
+	var attachments []byte
+	if req.Attachments != nil {
+		attachments = *req.Attachments
+	} else {
+		attachments = existing.Attachments
+	}
+
+	_ = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, priority, status, adminComment, attachments, startDate, dueDate, req.AssigneeIDs)
 
 	if req.SortOrder != nil {
 		_ = h.listRepo.UpdateSortOrder(c.Request.Context(), listID, *req.SortOrder)

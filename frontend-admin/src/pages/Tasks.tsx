@@ -18,6 +18,7 @@ import {
   approveSubmission,
   requestRevision,
   fetchMe,
+  createTaskList,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
@@ -159,17 +160,27 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
-    sub_items?: string[];
+    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high' }[];
   }) => {
-    await createAdminTask({
+    const newTask = await createAdminTask({
       title: data.title,
       description: data.description,
       due_date: data.due_date,
       assignee_ids: data.assignee_ids,
       brand_id: data.brand_id,
       category_id: data.category_id,
-      sub_items: data.sub_items,
     });
+
+    if (data.boards && data.boards.length > 0) {
+      for (const board of data.boards) {
+        await createTaskList(newTask.id, {
+          name: board.name,
+          due_date: board.due_date,
+          description: board.priority ? `ความสำคัญ: ${board.priority}` : undefined,
+          assignee_ids: data.assignee_ids,
+        });
+      }
+    }
     await loadAll();
   };
 
@@ -251,6 +262,15 @@ export default function Tasks() {
 
   // ─── Filter Logic ───
   const filteredTasks = tasks.filter((task) => {
+    // กรองแสดงเฉพาะงานที่เราสร้าง หรือ งานที่เราเข้าร่วม (มีรายชื่อเป็นผู้รับผิดชอบ) เท่านั้น
+    const isOwner = task.assigned_by === currentUser?.id;
+    const taskAssignees = task.assignee_ids && task.assignee_ids.length > 0
+      ? task.assignee_ids
+      : task.assigned_to ? [task.assigned_to] : [];
+    const isAssignee = taskAssignees.includes(currentUser?.id || '');
+
+    if (!isOwner && !isAssignee) return false;
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const titleMatch = task.title.toLowerCase().includes(q);
@@ -425,6 +445,7 @@ export default function Tasks() {
         brands={brands}
         categories={categories}
         initialData={editingTask || undefined}
+        currentUser={currentUser}
         onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
       />
 

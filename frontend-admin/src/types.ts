@@ -176,6 +176,10 @@ export interface TaskList {
   description?: string;
   start_date?: string;
   due_date?: string;
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'in_progress' | 'completed';
+  admin_comment?: string;
+  attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];
   assignee_ids?: string[];
 }

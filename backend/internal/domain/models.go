@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -149,6 +150,8 @@ type Task struct {
 	BrandID     *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
 	CategoryID  *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	LinkURL       *string    `db:"link_url" json:"link_url,omitempty"`
+	AttachmentURL *string    `db:"attachment_url" json:"attachment_url,omitempty"`
 	// Joined fields (not stored in tasks table)
 	SubItems    []TaskSubItem `db:"-" json:"sub_items,omitempty"`
 	AssigneeIDs    []uuid.UUID   `db:"-" json:"assignee_ids,omitempty"`
@@ -228,16 +231,20 @@ type SubItemVerification struct {
 
 // TaskList represents a list (column) within a Trello board task.
 type TaskList struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	TaskID      uuid.UUID  `db:"task_id" json:"task_id"`
-	Name        string     `db:"name" json:"name"`
-	Description string     `db:"description" json:"description"`
-	SortOrder   int        `db:"sort_order" json:"sort_order"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
-	StartDate   *time.Time `db:"start_date" json:"start_date,omitempty"`
-	DueDate     *time.Time `db:"due_date" json:"due_date,omitempty"`
-	Cards       []TaskCard `db:"-" json:"cards"`
-	AssigneeIDs []uuid.UUID `db:"-" json:"assignee_ids"`
+	ID           uuid.UUID       `db:"id" json:"id"`
+	TaskID       uuid.UUID       `db:"task_id" json:"task_id"`
+	Name         string          `db:"name" json:"name"`
+	Description  string          `db:"description" json:"description"`
+	SortOrder    int             `db:"sort_order" json:"sort_order"`
+	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
+	StartDate    *time.Time      `db:"start_date" json:"start_date,omitempty"`
+	DueDate      *time.Time      `db:"due_date" json:"due_date,omitempty"`
+	Priority     string          `db:"priority" json:"priority"`
+	Status       string          `db:"status" json:"status"`
+	AdminComment string          `db:"admin_comment" json:"admin_comment"`
+	Attachments  json.RawMessage `db:"attachments" json:"attachments"`
+	Cards        []TaskCard      `db:"-" json:"cards"`
+	AssigneeIDs  []uuid.UUID     `db:"-" json:"assignee_ids"`
 }
 
 // CardAttachment represents a file/image/link attachment on a task card.
@@ -267,6 +274,8 @@ type TaskCard struct {
 	SubItems    []TaskSubItem    `db:"-" json:"sub_items"`
 	Attachments []CardAttachment `db:"-" json:"attachments"`
 	AdminComment *string         `db:"admin_comment" json:"admin_comment,omitempty"`
+	LinkURL       *string        `db:"link_url" json:"link_url,omitempty"`
+	AttachmentURL *string        `db:"attachment_url" json:"attachment_url,omitempty"`
 	AssigneeIDs []uuid.UUID     `db:"-" json:"assignee_ids"`
 }
 

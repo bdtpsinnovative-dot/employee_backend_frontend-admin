@@ -61,6 +61,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
           <thead>
             <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Due Date</th>
+              <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Assigned</th>
               <th className="px-3 py-2 border-r border-slate-200 w-[17.5%]">รายละเอียดงาน</th>
               <th className="px-3 py-2 w-32 border-r border-slate-200 text-center">หมวดหมู่</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Assigned To</th>
@@ -119,6 +120,13 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                         }`}
                     >
                       {dueInfo.text}
+                    </span>
+                  </td>
+
+                  {/* 1.5 Assigned Date */}
+                  <td data-label="Assigned" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle font-medium">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] border whitespace-nowrap bg-slate-100 text-slate-600 border-slate-200">
+                      {task.created_at ? new Date(task.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '-'}
                     </span>
                   </td>
 

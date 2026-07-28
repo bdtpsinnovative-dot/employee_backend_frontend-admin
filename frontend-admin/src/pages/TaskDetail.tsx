@@ -397,7 +397,7 @@ export default function TaskDetail() {
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
-        onRefresh={() => loadAll()}
+        onRefresh={() => loadAll(true)}
       />
 
       {/* ═══════════ Edit Modal ═══════════ */}
