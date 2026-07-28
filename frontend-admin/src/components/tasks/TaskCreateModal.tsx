@@ -28,6 +28,7 @@ interface BoardInput {
   name: string;
   due_date: string;
   priority: 'low' | 'medium' | 'high';
+  description: string;
 }
 
 export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
@@ -55,7 +56,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   
   // Replace subItems with boards
-  const [boards, setBoards] = useState<BoardInput[]>([{ name: '', due_date: '', priority: 'medium' }]);
+  const [boards, setBoards] = useState<BoardInput[]>([{ name: '', due_date: '', priority: 'medium', description: '' }]);
   const [loading, setLoading] = useState(false);
   
   // Assignee Popover state
@@ -78,7 +79,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setModalAlert(null);
       
       if (!initialData) {
-        setBoards([{ name: '', due_date: '', priority: 'medium' }]);
+        setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
       } else {
         setBoards([]); 
       }
@@ -87,7 +88,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleAddBoard = () => setBoards(prev => [...prev, { name: '', due_date: '', priority: 'medium' }]);
+  const handleAddBoard = () => setBoards(prev => [...prev, { name: '', due_date: '', priority: 'medium', description: '' }]);
   
   const handleUpdateBoard = (index: number, field: keyof BoardInput, value: string) => {
     setBoards(prev => {
@@ -111,7 +112,12 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     setLoading(true);
     try {
       const validBoards = boards
-        .map(b => ({ name: b.name.trim(), due_date: b.due_date || undefined, priority: b.priority }))
+        .map(b => ({
+          name: b.name.trim(),
+          due_date: b.due_date || undefined,
+          priority: b.priority,
+          description: b.description.trim() || undefined
+        }))
         .filter(b => b.name);
 
       await onSubmit({
@@ -127,7 +133,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       // Reset form
       setTitle(''); setDesc(''); setDueDate('');
       setSelectedAssignees([]); setBrandId(''); setCategoryId('');
-      setBoards([{ name: '', due_date: '', priority: 'medium' }]);
+      setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
       onClose();
     } catch (e: any) {
       setModalAlert(e.message || 'สร้างงานล้มเหลว');
@@ -357,7 +363,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                           placeholder={`ชื่อบอร์ดงานที่ ${idx + 1}`}
                           value={board.name}
                           onChange={e => handleUpdateBoard(idx, 'name', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 font-bold"
+                        />
+                        <textarea
+                          rows={2}
+                          placeholder="รายละเอียดเพิ่มเติมของบอร์ดงาน..."
+                          value={board.description}
+                          onChange={e => handleUpdateBoard(idx, 'description', e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 text-xs font-normal"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <div>

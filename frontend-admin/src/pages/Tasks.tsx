@@ -160,7 +160,7 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
-    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high' }[];
+    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high'; description?: string }[];
   }) => {
     const newTask = await createAdminTask({
       title: data.title,
@@ -176,7 +176,8 @@ export default function Tasks() {
         await createTaskList(newTask.id, {
           name: board.name,
           due_date: board.due_date,
-          description: board.priority ? `ความสำคัญ: ${board.priority}` : undefined,
+          priority: board.priority,
+          description: board.description,
           assignee_ids: data.assignee_ids,
         });
       }
