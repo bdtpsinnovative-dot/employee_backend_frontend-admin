@@ -75,6 +75,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [modalTargetId, setModalTargetId] = useState<string | null>(null);
   const [modalScope, setModalScope] = useState<'list' | 'card'>('card');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAlert, setCustomAlert] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showCustomAlert = (message: string, type: 'success' | 'error' = 'success') => {
+    setCustomAlert({ message, type });
+  };
   const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
   
   // Card edit states
@@ -186,10 +191,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         }
       }
       onRefreshTask(true);
-      alert('บันทึกข้อมูลการ์ดงานสำเร็จ');
+      showCustomAlert('บันทึกข้อมูลการ์ดงานสำเร็จ', 'success');
     } catch (err) {
       console.error('Failed to save card', err);
-      alert('บันทึกการ์ดงานล้มเหลว');
+      showCustomAlert('บันทึกการ์ดงานล้มเหลว', 'error');
     } finally {
       setIsSavingCard(false);
     }
@@ -360,7 +365,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         const name = file.name;
         if (modalScope === 'list') {
           setDrawerAttachments(prev => [...prev, { name, url: res.url, type: 'file' }]);
-          alert('อัปโหลดไฟล์สำเร็จ');
+          showCustomAlert('อัปโหลดไฟล์สำเร็จ', 'success');
         } else {
           if (editingCardSubView) {
             await createCardAttachment(editingCardSubView.id, { name, url: res.url, type: 'file' });
@@ -373,15 +378,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
             }
             onRefreshTask(true);
-            alert('อัปโหลดไฟล์แนบในการ์ดสำเร็จ');
+            showCustomAlert('อัปโหลดไฟล์แนบในการ์ดสำเร็จ', 'success');
           }
         }
       } else {
-        alert('อัปโหลดไฟล์ล้มเหลว');
+        showCustomAlert('อัปโหลดไฟล์ล้มเหลว', 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('อัปโหลดไฟล์ล้มเหลว');
+      showCustomAlert('อัปโหลดไฟล์ล้มเหลว', 'error');
     } finally {
       e.target.value = '';
     }
@@ -1710,6 +1715,34 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         onChange={handleDirectFileUpload}
         className="hidden"
       />
+
+      {/* Premium Centered Custom Alert Modal */}
+      {customAlert && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-xs w-full border border-slate-200 text-center animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-center justify-center">
+              <div className={`p-3.5 rounded-full ${
+                customAlert.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+              }`}>
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                {customAlert.type === 'success' ? 'ทำรายการสำเร็จ' : 'เกิดข้อผิดพลาด'}
+              </h4>
+              <p className="text-[11px] text-slate-500 font-bold leading-normal">{customAlert.message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCustomAlert(null)}
+              className="w-full py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all rounded-xl shadow-md cursor-pointer"
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* View All Attachments Modal */}
       {viewingAttachmentsList && (
