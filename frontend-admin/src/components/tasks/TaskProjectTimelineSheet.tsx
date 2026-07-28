@@ -502,6 +502,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const handleOpenExternalUrl = (url: string) => {
     if (!url) return;
     let targetUrl = url.trim();
+    if (targetUrl.startsWith('r2://')) {
+      targetUrl = targetUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/');
+    }
     if (!/^https?:\/\//i.test(targetUrl)) {
       targetUrl = 'https://' + targetUrl;
     }
