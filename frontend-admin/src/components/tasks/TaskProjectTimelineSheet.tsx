@@ -142,12 +142,24 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const handleToggleListStatus = async (list: TaskList, currentStatus?: string) => {
     const newStatus = currentStatus === 'completed' ? 'in_progress' : 'completed';
+    
+    // 1. Optimistic Update for instant real-time response
+    setTrelloLists(prevLists => 
+      prevLists.map(l => l.id === list.id ? { ...l, status: newStatus } : l)
+    );
+
+    // 2. Network sync in background
     try {
       await updateTaskList(list.id, { status: newStatus });
       await loadSubItems();
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to toggle status', err);
+      // Revert if API call fails
+      setTrelloLists(prevLists => 
+        prevLists.map(l => l.id === list.id ? { ...l, status: currentStatus as any } : l)
+      );
+      showCustomAlert('อัปเดตสถานะบอร์ดงานล้มเหลว', 'error');
     }
   };
 
