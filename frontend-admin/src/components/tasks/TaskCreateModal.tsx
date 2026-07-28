@@ -56,7 +56,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   
   // Replace subItems with boards
-  const [boards, setBoards] = useState<BoardInput[]>([{ name: '', due_date: '', priority: 'medium', description: '' }]);
+  const [boards, setBoards] = useState<BoardInput[]>([]);
   const [loading, setLoading] = useState(false);
   
   // Assignee Popover state
@@ -79,7 +79,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setModalAlert(null);
       
       if (!initialData) {
-        setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
+        setBoards([]);
       } else {
         setBoards([]); 
       }
