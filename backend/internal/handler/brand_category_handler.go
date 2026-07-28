@@ -498,7 +498,12 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		attachments = existing.Attachments
 	}
 
-	_ = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, priority, status, adminComment, attachments, startDate, dueDate, req.AssigneeIDs)
+	err = h.listRepo.UpdateDetail(c.Request.Context(), listID, name, desc, priority, status, adminComment, attachments, startDate, dueDate, req.AssigneeIDs)
+	if err != nil {
+		log.Printf("UpdateTaskList Detail failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายละเอียดรายการล้มเหลว: " + err.Error()})
+		return
+	}
 
 	if req.SortOrder != nil {
 		_ = h.listRepo.UpdateSortOrder(c.Request.Context(), listID, *req.SortOrder)
