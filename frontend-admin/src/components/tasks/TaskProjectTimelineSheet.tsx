@@ -1366,15 +1366,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   />
                 </div>
 
-                {/* 2. ชื่อการ์ดงานแรก */}
+                {/* 2. รายละเอียดบอร์ดงาน */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">ชื่อการ์ดงานแรก (Card Name) <span className="text-slate-400 font-normal">(เว้นว่างไว้ถ้าไม่ต้องการสร้างการ์ดตอนนี้)</span></label>
-                  <input
-                    type="text"
-                    value={createListFirstCardName}
-                    onChange={(e) => setCreateListFirstCardName(e.target.value)}
-                    placeholder="เช่น สร้างหน้า Home..."
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                  <label className="text-xs font-bold text-slate-700">รายละเอียดบอร์ดงาน (Board Details/Description)</label>
+                  <textarea
+                    rows={3}
+                    value={createListDescription}
+                    onChange={(e) => setCreateListDescription(e.target.value)}
+                    placeholder="รายละเอียดเพิ่มเติมของบอร์ดงาน..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
                   />
                 </div>
 
@@ -1460,17 +1460,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   )}
                 </div>
 
-                {/* 5. โน้ต / รายละเอียด */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">โน้ต / รายละเอียด</label>
-                  <textarea
-                    rows={3}
-                    value={createListDescription}
-                    onChange={(e) => setCreateListDescription(e.target.value)}
-                    placeholder="รายละเอียดเพิ่มเติม..."
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
-                  />
-                </div>
+
               </div>
               
               {/* Footer */}
