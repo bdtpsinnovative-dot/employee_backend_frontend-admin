@@ -361,7 +361,6 @@ export default function TaskDetail() {
             userMap={userMap}
             brandMap={brandMap}
             categoryMap={categoryMap}
-            onBack={() => navigate('/tasks')}
             onRefreshTask={(silent) => loadAll(silent)}
             currentUser={currentUser}
           />

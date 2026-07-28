@@ -44,7 +44,6 @@ interface TaskProjectTimelineSheetProps {
   userMap: Record<string, User>;
   brandMap: Record<string, Brand>;
   categoryMap: Record<string, TaskCategory>;
-  onBack?: () => void;
   onRefreshTask: (silent?: boolean) => void;
   currentUser: User | null;
 }
@@ -54,7 +53,6 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   userMap,
   brandMap,
   categoryMap,
-  onBack,
   onRefreshTask,
   currentUser: _currentUser,
 }) => {
@@ -697,27 +695,16 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   return (
     <>
       <div className="p-4 md:p-6 space-y-6">
-        {/* Back button */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-full shadow-2xs transition-all active:scale-95 cursor-pointer"
-            title="ย้อนกลับ"
-          >
-            <ArrowLeft className="w-4 h-4 text-slate-500" />
-          </button>
-          <span className="text-xs font-bold text-slate-500">ย้อนกลับ</span>
-        </div>
+
         {/* Spreadsheet Header Banner */}
         <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-xs overflow-hidden">
-          <div className="bg-slate-900 p-6 text-white border-b-4 border-blue-600">
+          <div className="bg-slate-50 p-6 text-slate-800 border-b border-slate-200">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-2xl md:text-3xl font-black tracking-wider uppercase text-blue-300 font-mono">
+                <h1 className="text-xl md:text-2xl font-black tracking-wider uppercase text-slate-800">
                   {task.title}
                 </h1>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">
+                <p className="text-slate-500 text-xs mt-1 font-semibold">
                   แผ่นงานแสดงลำดับเวลาโครงการ (Project Timeline Sheet & Action Items)
                 </p>
               </div>
@@ -725,14 +712,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               {/* Action Toolbar */}
               <div className="flex items-center gap-2">
                 {brand && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold bg-blue-900/60 text-blue-200 rounded-xl border border-blue-800">
-                    <Tag className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold bg-blue-50 text-blue-700 rounded-xl border border-blue-200">
+                    <Tag className="w-3.5 h-3.5 text-blue-600" />
                     <span>{brand.name}</span>
                   </span>
                 )}
                 {category && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold bg-indigo-900/60 text-indigo-200 rounded-xl border border-indigo-800">
-                    <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold bg-violet-50 text-violet-700 rounded-xl border border-violet-200">
+                    <Layers className="w-3.5 h-3.5 text-violet-600" />
                     <span>{category.name}</span>
                   </span>
                 )}
@@ -748,7 +735,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
             </div>
 
             {/* Filter Row */}
-            <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-slate-800/80">
+            <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-slate-200">
               <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 flex items-center gap-1">
                 <Filter className="w-3 h-3 text-slate-500" />
                 <span>ตัวกรอง:</span>
@@ -759,7 +746,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeFilter === 'all'
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                 }`}
               >
                 ทั้งหมด
@@ -770,7 +757,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeFilter === 'pending'
                     ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                 }`}
               >
                 งานยังไม่เสร็จ
@@ -781,7 +768,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                   activeFilter === 'overdue'
                     ? 'bg-red-600 text-white border-red-700 shadow-xs'
-                    : 'bg-slate-800 text-red-400 border-red-950/20 hover:bg-slate-700'
+                    : 'bg-white text-red-500 border border-red-200 hover:bg-red-50/50'
                 }`}
               >
                 งานเลยกำหนด
@@ -792,7 +779,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeFilter === 'high_priority'
                     ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                 }`}
               >
                 High Priority
@@ -803,7 +790,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeFilter === 'completed'
                     ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                 }`}
               >
                 เสร็จสิ้นแล้ว
@@ -840,24 +827,24 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
 {editingCardSubView ? (
-              <div className="bg-slate-900 text-white p-5 flex items-center gap-3 border-b-4 border-blue-600">
+              <div className="bg-slate-50 text-slate-800 p-5 flex items-center gap-3 border-b border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingCardSubView(null)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  className="p-1 text-slate-500 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </button>
                 <div className="flex flex-col">
-                  <span className="text-sm font-extrabold tracking-wide uppercase">การ์ดงาน</span>
-                  <span className="text-[10px] text-slate-400 font-medium">รายการย่อย, ไฟล์หลักฐาน, รายละเอียดการ์ดงาน และความคิดเห็นจากผู้ดูแล</span>
+                  <span className="text-sm font-extrabold tracking-wide uppercase text-slate-800">การ์ดงาน</span>
+                  <span className="text-[10px] text-slate-500 font-medium">รายการย่อย, ไฟล์หลักฐาน, รายละเอียดการ์ดงาน และความคิดเห็นจากผู้ดูแล</span>
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b-4 border-blue-600">
+              <div className="bg-slate-50 text-slate-800 p-5 flex items-center justify-between border-b border-slate-200">
                 <div className="flex items-center gap-2.5">
-                  <FileText className="w-5 h-5 text-indigo-400" />
-                  <span className="text-sm font-extrabold tracking-wide uppercase">แก้ไขข้อมูลคอร์สงาน</span>
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  <span className="text-sm font-extrabold tracking-wide uppercase text-slate-800">แก้ไขข้อมูลคอร์สงาน</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -868,7 +855,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         setEditingList(null);
                       }
                     }}
-                    className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
+                    className="p-1 text-slate-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
                     title="ลบรายการคอร์สงานนี้"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -876,7 +863,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   <button
                     type="button"
                     onClick={() => setEditingList(null)}
-                    className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                    className="p-1 text-slate-500 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -1446,9 +1433,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
-              <h3 className="font-extrabold text-sm flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-blue-400" />
+            <div className="bg-slate-50 text-slate-800 px-6 py-4 flex items-center justify-between border-b border-slate-200">
+              <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-800">
+                <PlusCircle className="w-5 h-5 text-blue-600" />
                 <span>เพิ่มบอร์ดงานใหม่</span>
               </h3>
               <button
@@ -1457,7 +1444,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   setShowCreateListModal(false);
                   setShowInvitePopover(false);
                 }}
-                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1607,12 +1594,12 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b-2 border-blue-600">
-              <span className="text-xs font-black uppercase tracking-wider">{modalTitle}</span>
+            <div className="bg-slate-50 text-slate-800 px-5 py-4 flex items-center justify-between border-b border-slate-200">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800">{modalTitle}</span>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
