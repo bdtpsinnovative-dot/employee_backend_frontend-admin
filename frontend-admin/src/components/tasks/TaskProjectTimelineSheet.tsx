@@ -449,7 +449,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     const listNote = list.admin_comment || '';
 
     return (
-      <tr key={list.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-200">
+      <tr key={list.id} onClick={() => openDrawerForList(list)} className="hover:bg-blue-50/50 hover:border-blue-300 transition-colors border-b border-slate-200 cursor-pointer">
         {/* 1. DUE DATE */}
         <td className="px-3 py-3 border-r border-slate-200 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70">
           {list.due_date ? new Date(list.due_date).toLocaleDateString('th-TH') : '-'}
@@ -457,8 +457,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
         {/* 2. PROJECT */}
         <td 
-          className="px-4 py-3 border-r border-slate-200 align-middle font-bold text-blue-900 bg-blue-50/40 cursor-pointer hover:bg-amber-100/60 transition-colors"
-          onClick={() => openDrawerForList(list)}
+          className="px-4 py-3 border-r border-slate-200 align-middle font-bold text-blue-900 bg-blue-50/40 transition-colors"
         >
           <span className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded-md text-xs font-bold leading-tight">
             {list.name}
@@ -516,7 +515,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         </td>
 
         {/* 7. LIST */}
-        <td className="px-3 py-2 border-r border-slate-200 text-center align-middle">
+        <td className="px-3 py-2 border-r border-slate-200 text-center align-middle" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={listStatus === 'completed'}
@@ -531,7 +530,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         </td>
 
         {/* 9. LINK / FILES */}
-        <td className="px-2 py-2 align-middle font-semibold" style={{ minWidth: 80 }}>
+        <td className="px-2 py-2 align-middle font-semibold" style={{ minWidth: 80 }} onClick={(e) => e.stopPropagation()}>
           {list.attachments && list.attachments.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5 justify-center">
               {list.attachments.slice(0, 1).map((att, i) => (
