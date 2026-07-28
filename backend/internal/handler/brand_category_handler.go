@@ -319,22 +319,64 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	}
 
 	var req struct {
-		Name string `json:"name"`
+		Name         string      `json:"name"`
+		Description  *string     `json:"description"`
+		StartDate    *string     `json:"start_date"`
+		DueDate      *string     `json:"due_date"`
+		Priority     string      `json:"priority"`
+		Status       string      `json:"status"`
+		AdminComment *string     `json:"admin_comment"`
+		AssigneeIDs  []uuid.UUID `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อรายการ"})
 		return
 	}
 
+	var startDate *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		parsed, err := time.Parse("2006-01-02", *req.StartDate)
+		if err == nil {
+			startDate = &parsed
+		}
+	}
+	var dueDate *time.Time
+	if req.DueDate != nil && *req.DueDate != "" {
+		parsed, err := time.Parse("2006-01-02", *req.DueDate)
+		if err == nil {
+			dueDate = &parsed
+		}
+	}
+
+	if req.Priority == "" {
+		req.Priority = "medium"
+	}
+	if req.Status == "" {
+		req.Status = "in_progress"
+	}
+
+	desc := ""
+	if req.Description != nil {
+		desc = *req.Description
+	}
+
+	comment := ""
+	if req.AdminComment != nil {
+		comment = *req.AdminComment
+	}
+
 	list := domain.TaskList{
 		ID:           uuid.New(),
 		TaskID:       taskID,
 		Name:         req.Name,
-		SortOrder:    99,
-		Priority:     "medium",
-		Status:       "in_progress",
-		AdminComment: "",
+		Description:  desc,
+		StartDate:    startDate,
+		DueDate:      dueDate,
+		Priority:     req.Priority,
+		Status:       req.Status,
+		AdminComment: comment,
 		Attachments:  json.RawMessage("[]"),
+		AssigneeIDs:  req.AssigneeIDs,
 		CreatedAt:    time.Now(),
 	}
 
