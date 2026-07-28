@@ -30,6 +30,7 @@ import {
   deleteCardAttachment,
   deleteTaskSubItem,
   createSubItemVerification,
+  uploadFile,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -64,6 +65,16 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showDrawerInvitePopover, setShowDrawerInvitePopover] = useState(false);
   const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments'>('info');
+
+  // Custom premium modal states
+  const [activeModal, setActiveModal] = useState<'add_card' | 'attach_file' | 'attach_link' | 'verify_subitem' | null>(null);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalInputVal1, setModalInputVal1] = useState('');
+  const [modalInputVal2, setModalInputVal2] = useState('');
+  const [modalSelectVal, setModalSelectVal] = useState<'pass' | 'fail'>('pass');
+  const [modalFile, setModalFile] = useState<File | null>(null);
+  const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+  const [modalTargetId, setModalTargetId] = useState<string | null>(null);
   const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
   
   // Card edit states
@@ -222,11 +233,22 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-  const handleVerifySubItem = async (itemId: string) => {
-    const status = confirm('ต้องการบันทึกผลตรวจสอบผ่าน ใช่หรือไม่? (กด Cancel เพื่อระบุไม่ผ่าน)') ? 'pass' : 'fail';
-    const notes = prompt('ระบุความเห็นการตรวจสอบ:') || '';
+  const handleVerifySubItem = (itemId: string) => {
+    setModalTitle('ผลการตรวจสอบงานย่อย');
+    setModalSelectVal('pass');
+    setModalInputVal1('');
+    setModalTargetId(itemId);
+    setActiveModal('verify_subitem');
+  };
+
+  const submitVerifySubItem = async () => {
+    if (!modalTargetId || !editingCardSubView) return;
+    setIsModalSubmitting(true);
     try {
-      await createSubItemVerification(itemId, { status, verification_notes: notes });
+      await createSubItemVerification(modalTargetId, {
+        status: modalSelectVal,
+        verification_notes: modalInputVal1.trim(),
+      });
       const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList?.id);
@@ -235,19 +257,39 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
         if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
       }
+      setActiveModal(null);
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to verify sub item', err);
+    } finally {
+      setIsModalSubmitting(false);
     }
   };
 
-  const handleAddCardAttachment = async (type: 'file' | 'link') => {
+  const handleAddCardAttachment = (type: 'file' | 'link') => {
     if (!editingCardSubView) return;
-    const url = prompt(type === 'file' ? 'ระบุ URL ไฟล์แนบ:' : 'ระบุ URL ลิงก์ภายนอก:');
-    if (!url) return;
-    const name = prompt('ระบุชื่อ/คำอธิบายไฟล์แนบ:') || 'เอกสารแนบ';
+    if (type === 'file') {
+      setModalTitle('อัปโหลดไฟล์หลักฐาน');
+      setModalInputVal2('เอกสารแนบ');
+      setModalFile(null);
+      setActiveModal('attach_file');
+    } else {
+      setModalTitle('แนบลิงก์ภายนอก');
+      setModalInputVal1('');
+      setModalInputVal2('สเปรดชีตลิงก์');
+      setActiveModal('attach_link');
+    }
+  };
+
+  const submitAddCardAttachmentLink = async () => {
+    if (!modalInputVal1.trim() || !editingCardSubView) return;
+    setIsModalSubmitting(true);
     try {
-      await createCardAttachment(editingCardSubView.id, { name, url, type });
+      await createCardAttachment(editingCardSubView.id, {
+        name: modalInputVal2.trim() || 'เอกสารแนบ',
+        url: modalInputVal1.trim(),
+        type: 'link',
+      });
       const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList?.id);
@@ -256,9 +298,48 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
         if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
       }
+      setActiveModal(null);
       onRefreshTask(true);
     } catch (err) {
-      console.error('Failed to add attachment', err);
+      console.error('Failed to add attachment link', err);
+    } finally {
+      setIsModalSubmitting(false);
+    }
+  };
+
+  const submitAddCardAttachmentFile = async () => {
+    if (!modalFile || !editingCardSubView) return;
+    setIsModalSubmitting(true);
+    try {
+      // 1. Upload file to R2 via api
+      const uploadRes = await uploadFile(modalFile);
+      if (!uploadRes.ok || !uploadRes.url) {
+        alert('การอัปโหลดไฟล์ไปที่ Cloudflare R2 ล้มเหลว');
+        return;
+      }
+
+      // 2. Attach R2 URL to the card
+      await createCardAttachment(editingCardSubView.id, {
+        name: modalInputVal2.trim() || modalFile.name,
+        url: uploadRes.url,
+        type: 'file',
+      });
+
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+      }
+      setActiveModal(null);
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to upload file attachment', err);
+      alert('อัปโหลดไฟล์ล้มเหลว');
+    } finally {
+      setIsModalSubmitting(false);
     }
   };
 
@@ -296,12 +377,18 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-    const handleAddNewCardClick = async () => {
-    const title = prompt('ระบุหัวข้อการ์ดงานย่อยใหม่:');
-    if (!title || !title.trim() || !editingList) return;
+    const handleAddNewCardClick = () => {
+    setModalTitle('เพิ่มการ์ดงานย่อยใหม่');
+    setModalInputVal1('');
+    setActiveModal('add_card');
+  };
+
+  const submitAddNewCard = async () => {
+    if (!modalInputVal1.trim() || !editingList) return;
+    setIsModalSubmitting(true);
     try {
       const newCard = await createTaskCard(editingList.id, {
-        title: title.trim(),
+        title: modalInputVal1.trim(),
         priority: 'medium',
       });
       const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
@@ -309,10 +396,13 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       const updatedList = updatedLists.find(l => l.id === editingList.id);
       if (updatedList) setEditingList(updatedList);
       
+      setActiveModal(null);
       handleOpenCardSubView(newCard);
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to create card', err);
+    } finally {
+      setIsModalSubmitting(false);
     }
   };
 
@@ -1482,6 +1572,168 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Center Modals for Premium Inputs */}
+      {activeModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b-2 border-blue-600">
+              <span className="text-xs font-black uppercase tracking-wider">{modalTitle}</span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              {activeModal === 'add_card' && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">ระบุชื่อการ์ดงานย่อยใหม่</label>
+                  <input
+                    type="text"
+                    value={modalInputVal1}
+                    onChange={(e) => setModalInputVal1(e.target.value)}
+                    placeholder="ระบุชื่องาน..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {activeModal === 'attach_link' && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">คำอธิบาย/ชื่อลิงก์</label>
+                    <input
+                      type="text"
+                      value={modalInputVal2}
+                      onChange={(e) => setModalInputVal2(e.target.value)}
+                      placeholder="ระบุชื่อเรียก..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">URL ลิงก์ภายนอก</label>
+                    <input
+                      type="text"
+                      value={modalInputVal1}
+                      onChange={(e) => setModalInputVal1(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeModal === 'attach_file' && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">ชื่อไฟล์/คำอธิบาย</label>
+                    <input
+                      type="text"
+                      value={modalInputVal2}
+                      onChange={(e) => setModalInputVal2(e.target.value)}
+                      placeholder="ระบุคำอธิบายไฟล์แนบ..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">เลือกไฟล์จากอุปกรณ์</label>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setModalFile(e.target.files[0]);
+                          if (!modalInputVal2 || modalInputVal2 === 'เอกสารแนบ') {
+                            setModalInputVal2(e.target.files[0].name);
+                          }
+                        }
+                      }}
+                      className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeModal === 'verify_subitem' && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">ผลการประเมินงานย่อย</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setModalSelectVal('pass')}
+                        className={`py-2.5 text-xs font-bold rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                          modalSelectVal === 'pass'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-500/20'
+                            : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        ผ่านงาน (Pass)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalSelectVal('fail')}
+                        className={`py-2.5 text-xs font-bold rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                          modalSelectVal === 'fail'
+                            ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-500/20'
+                            : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        ไม่ผ่าน (Fail)
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">ความเห็นการตรวจสอบ</label>
+                    <textarea
+                      rows={3}
+                      value={modalInputVal1}
+                      onChange={(e) => setModalInputVal1(e.target.value)}
+                      placeholder="ระบุข้อความ..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isModalSubmitting ||
+                  (activeModal === 'add_card' && !modalInputVal1.trim()) ||
+                  (activeModal === 'attach_link' && !modalInputVal1.trim()) ||
+                  (activeModal === 'attach_file' && !modalFile)
+                }
+                onClick={() => {
+                  if (activeModal === 'add_card') submitAddNewCard();
+                  else if (activeModal === 'attach_link') submitAddCardAttachmentLink();
+                  else if (activeModal === 'attach_file') submitAddCardAttachmentFile();
+                  else if (activeModal === 'verify_subitem') submitVerifySubItem();
+                }}
+                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                {isModalSubmitting ? 'กำลังบันทึก...' : 'ตกลง'}
+              </button>
+            </div>
           </div>
         </div>
       )}

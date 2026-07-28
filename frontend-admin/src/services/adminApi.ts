@@ -410,3 +410,14 @@ export async function createSubItemVerification(subItemId: string, body: { statu
   const { data } = await api.post<ApiResponse<any>>(`/api/tasks/sub-items/${subItemId}/verifications`, body);
   return data.data;
 }
+
+export async function uploadFile(file: File): Promise<{ ok: boolean; url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await api.post('/api/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return data;
+}
