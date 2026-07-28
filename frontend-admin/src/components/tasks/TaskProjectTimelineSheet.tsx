@@ -21,6 +21,7 @@ import {
   deleteTaskList,
   createTaskList,
   createTaskCard,
+  deleteTaskCard,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -54,7 +55,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showDrawerInvitePopover, setShowDrawerInvitePopover] = useState(false);
-  const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments'>('info');
+  const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments' | 'cards'>('info');
+  const [newCardTitle, setNewCardTitle] = useState('');
+  const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [isCreatingCard, setIsCreatingCard] = useState(false);
   const [viewingAttachmentsList, setViewingAttachmentsList] = useState<TaskList | null>(null);
   
   // Drawer editing state
@@ -108,6 +112,45 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to toggle status', err);
+    }
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    if (!window.confirm('คุณต้องการลบการ์ดงานนี้ใช่หรือไม่?')) return;
+    try {
+      await deleteTaskCard(cardId);
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      if (editingList) {
+        const updatedList = updatedLists.find(l => l.id === editingList.id);
+        if (updatedList) setEditingList(updatedList);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to delete card', err);
+    }
+  };
+
+  const handleCreateCard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCardTitle.trim() || !editingList) return;
+    setIsCreatingCard(true);
+    try {
+      await createTaskCard(editingList.id, {
+        title: newCardTitle.trim(),
+        priority: newCardPriority,
+      });
+      setNewCardTitle('');
+      setNewCardPriority('medium');
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList.id);
+      if (updatedList) setEditingList(updatedList);
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to create card', err);
+    } finally {
+      setIsCreatingCard(false);
     }
   };
 
@@ -544,6 +587,17 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               </button>
               <button
                 type="button"
+                onClick={() => setDrawerActiveTab('cards')}
+                className={`flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'cards'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+                }`}
+              >
+                การ์ดงาน (Cards)
+              </button>
+              <button
+                type="button"
                 onClick={() => setDrawerActiveTab('attachments')}
                 className={`flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all cursor-pointer ${
                   drawerActiveTab === 'attachments'
@@ -689,6 +743,81 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <Trash2 className="w-4 h-4" />
                       <span>ลบรายการคอร์สงานนี้ออก</span>
                     </button>
+                  </div>
+                </div>
+              ) : drawerActiveTab === 'cards' ? (
+                /* TAB 3: TASK CARDS */
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Create Card Form */}
+                  <form onSubmit={handleCreateCard} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">เพิ่มการ์ดงานใหม่</span>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={newCardTitle}
+                        onChange={(e) => setNewCardTitle(e.target.value)}
+                        placeholder="ระบุชื่องาน / หัวข้อการ์ด..."
+                        required
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={newCardPriority}
+                          onChange={(e) => setNewCardPriority(e.target.value as any)}
+                          className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1"
+                        >
+                          <option value="low">Low (ต่ำ)</option>
+                          <option value="medium">Medium (ปานกลาง)</option>
+                          <option value="high">High (สูง)</option>
+                        </select>
+                        <button
+                          type="submit"
+                          disabled={isCreatingCard}
+                          className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-all cursor-pointer"
+                        >
+                          {isCreatingCard ? 'กำลังเพิ่ม...' : 'เพิ่มการ์ด'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                  {/* Cards List */}
+                  <div className="space-y-3">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">รายการการ์ดงานในคอร์สนี้ ({editingList.cards?.length || 0})</span>
+                    {editingList.cards && editingList.cards.length > 0 ? (
+                      <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                        {editingList.cards.map(card => (
+                          <div key={card.id} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-slate-800 text-xs truncate">{card.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                  card.priority === 'high' 
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                                    : card.priority === 'medium'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                }`}>
+                                  {card.priority === 'high' ? 'High' : card.priority === 'medium' ? 'Medium' : 'Low'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCard(card.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                title="ลบการ์ดงาน"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">ยังไม่มีการ์ดงานในคอร์สนี้</p>
+                    )}
                   </div>
                 </div>
               ) : (
