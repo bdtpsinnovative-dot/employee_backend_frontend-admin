@@ -540,7 +540,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
                 }`}
               >
-                📝 ข้อมูลทั่วไป (General Info)
+                ข้อมูลทั่วไป (General Info)
               </button>
               <button
                 type="button"
@@ -551,7 +551,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
                 }`}
               >
-                📎 เอกสาร & หมายเหตุ (Docs & Notes)
+                เอกสาร & หมายเหตุ (Docs & Notes)
               </button>
             </div>
 
