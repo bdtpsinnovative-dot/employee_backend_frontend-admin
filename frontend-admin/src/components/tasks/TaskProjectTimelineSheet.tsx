@@ -11,6 +11,7 @@ import {
   Save,
   Paperclip,
   Plus,
+  PlusCircle,
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory, TaskList } from '../../types';
 import { avatarUrl } from './taskUtils';
@@ -19,6 +20,7 @@ import {
   updateTaskList,
   deleteTaskList,
   createTaskList,
+  createTaskCard,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -44,9 +46,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   categoryMap,
   onBack,
   onRefreshTask,
-  currentUser,
+  currentUser: _currentUser,
 }) => {
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
+  const users = Object.values(userMap);
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
@@ -68,6 +71,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [createListName, setCreateListName] = useState('');
   const [createListDueDate, setCreateListDueDate] = useState('');
   const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [createListFirstCardName, setCreateListFirstCardName] = useState('');
+  const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
+  const [createListDescription, setCreateListDescription] = useState('');
+  const [showInvitePopover, setShowInvitePopover] = useState(false);
   const [isCreatingList, setIsCreatingList] = useState(false);
 
   // Filter Toolbar State
@@ -131,21 +138,35 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     if (!createListName.trim()) return;
     setIsCreatingList(true);
     try {
-      await createTaskList(task.id, {
+      const newList = await createTaskList(task.id, {
         name: createListName.trim(),
         due_date: createListDueDate || undefined,
         priority: createListPriority,
         status: 'in_progress',
-        assignee_ids: currentUser ? [currentUser.id] : [],
+        description: createListDescription.trim() || undefined,
+        assignee_ids: createListAssigneeIds,
       });
+
+      // If they provided a first card name, create it
+      if (newList && newList.id && createListFirstCardName.trim()) {
+        await createTaskCard(newList.id, {
+          title: createListFirstCardName.trim(),
+          priority: createListPriority,
+        });
+      }
+
       setCreateListName('');
       setCreateListDueDate('');
       setCreateListPriority('medium');
+      setCreateListFirstCardName('');
+      setCreateListAssigneeIds([]);
+      setCreateListDescription('');
       setShowCreateListModal(false);
+      setShowInvitePopover(false);
       await loadSubItems();
       onRefreshTask(true);
     } catch (err) {
-      console.error('Failed to create list', err);
+      console.error('Failed to create task list', err);
     } finally {
       setIsCreatingList(false);
     }
@@ -686,60 +707,155 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       {showCreateListModal && (
         <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
+            {/* Header */}
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
               <h3 className="font-extrabold text-sm flex items-center gap-2">
-                <Plus className="w-5 h-5 text-blue-400" />
-                <span>เพิ่มคอร์สงานใหม่</span>
+                <PlusCircle className="w-5 h-5 text-blue-400" />
+                <span>เพิ่มบอร์ดงานใหม่</span>
               </h3>
               <button
                 type="button"
-                onClick={() => setShowCreateListModal(false)}
+                onClick={() => {
+                  setShowCreateListModal(false);
+                  setShowInvitePopover(false);
+                }}
                 className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+            
+            {/* Form */}
             <form onSubmit={handleCreateList}>
               <div className="p-6 space-y-4">
+                {/* 1. ชื่อบอร์ดงาน */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">ชื่อรายการคอร์สงาน</label>
+                  <label className="text-xs font-bold text-slate-700">ชื่อบอร์ดงาน (Project Name) <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={createListName}
                     onChange={(e) => setCreateListName(e.target.value)}
                     required
-                    placeholder="เช่น วางแผนการตลาด, ออกแบบสินค้า..."
+                    placeholder="เช่น ออกแบบหน้าเว็บ..."
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
                   />
                 </div>
+
+                {/* 2. ชื่อการ์ดงานแรก */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">ชื่อการ์ดงานแรก (Card Name) <span className="text-slate-400 font-normal">(เว้นว่างไว้ถ้าไม่ต้องการสร้างการ์ดตอนนี้)</span></label>
+                  <input
+                    type="text"
+                    value={createListFirstCardName}
+                    onChange={(e) => setCreateListFirstCardName(e.target.value)}
+                    placeholder="เช่น สร้างหน้า Home..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                  />
+                </div>
+
+                {/* 3. กำหนดส่ง & ความสำคัญ */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">วันกำหนดส่ง</label>
+                    <label className="text-xs font-bold text-slate-700">วันที่กำหนดส่ง</label>
                     <input
                       type="date"
                       value={createListDueDate}
                       onChange={(e) => setCreateListDueDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800"
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Priority</label>
+                    <label className="text-xs font-bold text-slate-700">ความสำคัญ (Priority)</label>
                     <select
                       value={createListPriority}
                       onChange={(e) => setCreateListPriority(e.target.value as any)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
+                      <option value="low">Low (ต่ำ)</option>
+                      <option value="medium">Medium (ปานกลาง)</option>
+                      <option value="high">High (สูง)</option>
                     </select>
                   </div>
                 </div>
+
+                {/* 4. มอบหมายให้ */}
+                <div className="space-y-1.5 relative">
+                  <label className="text-xs font-bold text-slate-700">มอบหมายให้</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {createListAssigneeIds.map(uid => {
+                      const u = users.find(x => x.id === uid);
+                      return (
+                        <div key={uid} className="relative group cursor-pointer" onClick={() => setCreateListAssigneeIds(createListAssigneeIds.filter(x => x !== uid))}>
+                          <img
+                            src={avatarUrl(u?.avatar_url) || undefined}
+                            alt={u ? (u.nickname || u.first_name) : ''}
+                            className="w-8 h-8 rounded-full border-2 border-white shadow-xs object-cover"
+                            title={u ? (u.nickname || u.first_name) : ''}
+                          />
+                          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                            ×
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setShowInvitePopover(!showInvitePopover)}
+                      className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {showInvitePopover && (
+                    <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      {users.map(u => {
+                        const isAssigned = createListAssigneeIds.includes(u.id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              if (isAssigned) {
+                                setCreateListAssigneeIds(createListAssigneeIds.filter(id => id !== u.id));
+                              } else {
+                                setCreateListAssigneeIds([...createListAssigneeIds, u.id]);
+                              }
+                            }}
+                            className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                              <span>{u.nickname || u.first_name}</span>
+                            </div>
+                            {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. โน้ต / รายละเอียด */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">โน้ต / รายละเอียด</label>
+                  <textarea
+                    rows={3}
+                    value={createListDescription}
+                    onChange={(e) => setCreateListDescription(e.target.value)}
+                    placeholder="รายละเอียดเพิ่มเติม..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
+                  />
+                </div>
               </div>
+              
+              {/* Footer */}
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowCreateListModal(false)}
+                  onClick={() => {
+                    setShowCreateListModal(false);
+                    setShowInvitePopover(false);
+                  }}
                   className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
                 >
                   ยกเลิก
@@ -747,9 +863,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 <button
                   type="submit"
                   disabled={isCreatingList}
-                  className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                 >
-                  {isCreatingList ? 'กำลังบันทึก...' : 'เพิ่มรายการ'}
+                  <Save className="w-4 h-4" />
+                  <span>{isCreatingList ? 'กำลังบันทึก...' : 'บันทึก'}</span>
                 </button>
               </div>
             </form>
