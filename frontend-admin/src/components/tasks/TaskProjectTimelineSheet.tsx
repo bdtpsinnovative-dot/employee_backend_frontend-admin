@@ -54,6 +54,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showDrawerInvitePopover, setShowDrawerInvitePopover] = useState(false);
+  const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments'>('info');
   const [viewingAttachmentsList, setViewingAttachmentsList] = useState<TaskList | null>(null);
   
   // Drawer editing state
@@ -528,215 +529,254 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               </button>
             </div>
 
+            {/* Drawer Navigation Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-50 px-4">
+              <button
+                type="button"
+                onClick={() => setDrawerActiveTab('info')}
+                className={`flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'info'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+                }`}
+              >
+                📝 ข้อมูลทั่วไป (General Info)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawerActiveTab('attachments')}
+                className={`flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'attachments'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+                }`}
+              >
+                📎 เอกสาร & หมายเหตุ (Docs & Notes)
+              </button>
+            </div>
+
+            {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">ชื่อรายการคอร์สงาน</label>
-                <input
-                  type="text"
-                  value={drawerTitle}
-                  onChange={(e) => setDrawerTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
-                />
-              </div>
+              {drawerActiveTab === 'info' ? (
+                /* TAB 1: GENERAL INFO */
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">ชื่อรายการคอร์สงาน</label>
+                    <input
+                      type="text"
+                      value={drawerTitle}
+                      onChange={(e) => setDrawerTitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">วันกำหนดส่ง</label>
-                  <input
-                    type="date"
-                    value={drawerDueDate}
-                    onChange={(e) => setDrawerDueDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">ความสำคัญ (Priority)</label>
-                  <select
-                    value={drawerPriority}
-                    onChange={(e) => setDrawerPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">วันกำหนดส่ง</label>
+                      <input
+                        type="date"
+                        value={drawerDueDate}
+                        onChange={(e) => setDrawerDueDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">ความสำคัญ (Priority)</label>
+                      <select
+                        value={drawerPriority}
+                        onChange={(e) => setDrawerPriority(e.target.value as any)}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                      >
+                        <option value="low">Low (ต่ำ)</option>
+                        <option value="medium">Medium (ปานกลาง)</option>
+                        <option value="high">High (สูง)</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">สถานะงาน (Status)</label>
-                <select
-                  value={drawerStatus}
-                  onChange={(e) => setDrawerStatus(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="in_progress">Doing</option>
-                  <option value="completed">Done</option>
-                </select>
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">สถานะงาน (Status)</label>
+                    <select
+                      value={drawerStatus}
+                      onChange={(e) => setDrawerStatus(e.target.value as any)}
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                    >
+                      <option value="in_progress">Doing (กำลังทำ)</option>
+                      <option value="completed">Completed (เสร็จสิ้น)</option>
+                    </select>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">รายละเอียดเพิ่มเติม (Details)</label>
-                <textarea
-                  rows={3}
-                  value={drawerComment}
-                  onChange={(e) => setDrawerComment(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
-                  placeholder="พิมพ์รายละเอียดของคอร์สงาน..."
-                />
-              </div>
-
-              {/* มอบหมายให้ (Assignees) */}
-              <div className="space-y-1.5 relative">
-                <label className="text-xs font-bold text-slate-700">มอบหมายให้ (Assignees)</label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {drawerAssignees.map(uid => {
-                    const u = users.find(x => x.id === uid);
-                    return (
-                      <div key={uid} className="relative group cursor-pointer" onClick={() => setDrawerAssignees(drawerAssignees.filter(x => x !== uid))}>
-                        <img
-                          src={avatarUrl(u?.avatar_url) || undefined}
-                          alt={u ? (u.nickname || u.first_name) : ''}
-                          className="w-8 h-8 rounded-full border-2 border-white shadow-xs object-cover"
-                          title={u ? (u.nickname || u.first_name) : ''}
-                        />
-                        <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                          ×
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setShowDrawerInvitePopover(!showDrawerInvitePopover)}
-                    className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                {showDrawerInvitePopover && (
-                  <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                    {users.map(u => {
-                      const isAssigned = drawerAssignees.includes(u.id);
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => {
-                            if (isAssigned) {
-                              setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
-                            } else {
-                              setDrawerAssignees([...drawerAssignees, u.id]);
-                            }
-                          }}
-                          className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                            <span>{u.nickname || u.first_name}</span>
+                  {/* มอบหมายให้ (Assignees) */}
+                  <div className="space-y-1.5 relative">
+                    <label className="text-xs font-bold text-slate-700">มอบหมายให้ (Assignees)</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {drawerAssignees.map(uid => {
+                        const u = users.find(x => x.id === uid);
+                        return (
+                          <div key={uid} className="relative group cursor-pointer" onClick={() => setDrawerAssignees(drawerAssignees.filter(x => x !== uid))}>
+                            <img
+                              src={avatarUrl(u?.avatar_url) || undefined}
+                              alt={u ? (u.nickname || u.first_name) : ''}
+                              className="w-8 h-8 rounded-full border-2 border-white shadow-xs object-cover"
+                              title={u ? (u.nickname || u.first_name) : ''}
+                            />
+                            <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                              ×
+                            </div>
                           </div>
-                          {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* 5. NOTE / Remark (admin_comment) */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">NOTE / Remark (ความคิดเห็นจากผู้ดูแล)</label>
-                <textarea
-                  rows={3}
-                  value={drawerAdminComment}
-                  onChange={(e) => setDrawerAdminComment(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
-                  placeholder="เพิ่มคำอธิบายหรือความคิดเห็นผู้ดูแล..."
-                />
-              </div>
-
-              {/* 6. เอกสารแนบ & ลิงก์ไฟล์งาน */}
-              <div className="space-y-2 pt-2 border-t border-slate-200">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Paperclip className="w-4 h-4 text-indigo-600" />
-                  <span>เอกสารแนบ & ลิงก์ไฟล์งาน (Attachments)</span>
-                </label>
-                
-                {drawerAttachments.length > 0 && (
-                  <div className="space-y-2">
-                    {drawerAttachments.map((att, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                        <div className="flex items-center gap-2 truncate min-w-0">
-                          {att.type === 'link' ? <Link2 className="w-4 h-4 text-indigo-600 shrink-0" /> : <Paperclip className="w-4 h-4 text-blue-600 shrink-0" />}
-                          <span className="truncate font-semibold text-slate-800">{att.name || att.url}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenExternalUrl(att.url)}
-                            className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer"
-                          >
-                            เปิด
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDrawerAttachments(drawerAttachments.filter((_, i) => i !== idx))}
-                            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setShowDrawerInvitePopover(!showDrawerInvitePopover)}
+                        className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {showDrawerInvitePopover && (
+                      <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        {users.map(u => {
+                          const isAssigned = drawerAssignees.includes(u.id);
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                if (isAssigned) {
+                                  setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
+                                } else {
+                                  setDrawerAssignees([...drawerAssignees, u.id]);
+                                }
+                              }}
+                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                <span>{u.nickname || u.first_name}</span>
+                              </div>
+                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                            </button>
+                          );
+                        })}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = prompt('ระบุ URL ไฟล์แนบ:');
-                      if (url) {
-                        const name = prompt('ระบุชื่อไฟล์/คำอธิบาย:') || 'ไฟล์แนบ';
-                        setDrawerAttachments([...drawerAttachments, { name, url, type: 'file' }]);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/20"
-                  >
-                    <Paperclip className="w-4 h-4 text-indigo-600" />
-                    <span>แนบไฟล์ (ลิงก์)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = prompt('ระบุ URL ลิงก์ภายนอก:');
-                      if (url) {
-                        const name = prompt('ระบุชื่อลิงก์/คำอธิบาย:') || 'ลิงก์ภายนอก';
-                        setDrawerAttachments([...drawerAttachments, { name, url, type: 'link' }]);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl text-emerald-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-emerald-50/20"
-                  >
-                    <Link2 className="w-4 h-4 text-emerald-600" />
-                    <span>แนบลิงก์</span>
-                  </button>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">รายละเอียดเพิ่มเติม (Details)</label>
+                    <textarea
+                      rows={4}
+                      value={drawerComment}
+                      onChange={(e) => setDrawerComment(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
+                      placeholder="พิมพ์รายละเอียดของคอร์สงาน..."
+                    />
+                  </div>
+
+                  {/* Delete Area */}
+                  <div className="pt-4 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('คุณต้องการลบรายการคอร์สงานนี้หรือไม่?')) {
+                          handleDeleteList(editingList.id);
+                          setEditingList(null);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2.5 rounded-xl border border-dashed border-red-200 hover:border-red-300 transition-all w-full justify-center cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>ลบรายการคอร์สงานนี้ออก</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* TAB 2: ATTACHMENTS & COMMENTS */
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* NOTE / Remark (admin_comment) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">NOTE / Remark (ความคิดเห็นจากผู้ดูแล)</label>
+                    <textarea
+                      rows={5}
+                      value={drawerAdminComment}
+                      onChange={(e) => setDrawerAdminComment(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
+                      placeholder="เพิ่มคำอธิบายหรือความคิดเห็นผู้ดูแล..."
+                    />
+                  </div>
 
-              {/* Delete Area */}
-              <div className="pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleDeleteList(editingList.id);
-                    setEditingList(null);
-                  }}
-                  className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2.5 rounded-xl border border-dashed border-red-200 hover:border-red-300 transition-all w-full justify-center cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>ลบรายการคอร์สงานนี้ออก</span>
-                </button>
-              </div>
+                  {/* เอกสารแนบ & ลิงก์ไฟล์งาน */}
+                  <div className="space-y-3 pt-2 border-t border-slate-200">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Paperclip className="w-4 h-4 text-indigo-600" />
+                      <span>เอกสารแนบ & ลิงก์ไฟล์งาน (Attachments)</span>
+                    </label>
+                    
+                    {drawerAttachments.length > 0 ? (
+                      <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        {drawerAttachments.map((att, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                            <div className="flex items-center gap-2 truncate min-w-0">
+                              {att.type === 'link' ? <Link2 className="w-4 h-4 text-indigo-600 shrink-0" /> : <Paperclip className="w-4 h-4 text-blue-600 shrink-0" />}
+                              <span className="truncate font-semibold text-slate-800">{att.name || att.url}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenExternalUrl(att.url)}
+                                className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer"
+                              >
+                                เปิด
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDrawerAttachments(drawerAttachments.filter((_, i) => i !== idx))}
+                                className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">ยังไม่มีเอกสารแนบในคอร์สงานนี้</p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = prompt('ระบุ URL ไฟล์แนบ:');
+                          if (url) {
+                            const name = prompt('ระบุชื่อไฟล์/คำอธิบาย:') || 'ไฟล์แนบ';
+                            setDrawerAttachments([...drawerAttachments, { name, url, type: 'file' }]);
+                          }
+                        }}
+                        className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/20"
+                      >
+                        <Paperclip className="w-4 h-4 text-indigo-600" />
+                        <span>แนบไฟล์ (ลิงก์)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = prompt('ระบุ URL ลิงก์ภายนอก:');
+                          if (url) {
+                            const name = prompt('ระบุชื่อลิงก์/คำอธิบาย:') || 'ลิงก์ภายนอก';
+                            setDrawerAttachments([...drawerAttachments, { name, url, type: 'link' }]);
+                          }
+                        }}
+                        className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl text-emerald-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-emerald-50/20"
+                      >
+                        <Link2 className="w-4 h-4 text-emerald-600" />
+                        <span>แนบลิงก์</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
