@@ -165,6 +165,7 @@ export interface TaskCard {
   assigned_to?: string;
   sub_items?: TaskSubItem[];
   assignee_ids?: string[];
+  attachments?: any[];
 }
 
 export interface TaskList {

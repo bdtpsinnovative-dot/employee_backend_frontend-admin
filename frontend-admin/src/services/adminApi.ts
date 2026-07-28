@@ -391,3 +391,22 @@ export async function fetchTaskTrello(taskId: string): Promise<TaskList[]> {
   const { data } = await api.get<ApiResponse<TaskList[]>>(`/api/tasks/${taskId}/trello`);
   return data.data ?? [];
 }
+
+export async function createCardSubItem(cardId: string, title: string): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/cards/${cardId}/sub-items`, { title });
+  return data.data;
+}
+
+export async function createCardAttachment(cardId: string, body: { name: string; url: string; type: 'image' | 'file' | 'link' }): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/cards/${cardId}/attachments`, body);
+  return data.data;
+}
+
+export async function deleteCardAttachment(attachmentId: string): Promise<void> {
+  await api.delete(`/api/tasks/cards/attachments/${attachmentId}`);
+}
+
+export async function createSubItemVerification(subItemId: string, body: { status: 'pass' | 'fail'; verification_notes?: string; admin_comment?: string }): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/sub-items/${subItemId}/verifications`, body);
+  return data.data;
+}

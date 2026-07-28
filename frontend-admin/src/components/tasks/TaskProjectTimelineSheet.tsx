@@ -12,6 +12,8 @@ import {
   Paperclip,
   Plus,
   PlusCircle,
+  CheckCircle2,
+  Users
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory, TaskList } from '../../types';
 import { avatarUrl } from './taskUtils';
@@ -22,6 +24,12 @@ import {
   createTaskList,
   createTaskCard,
   deleteTaskCard,
+  updateTaskCard,
+  createCardSubItem,
+  createCardAttachment,
+  deleteCardAttachment,
+  deleteTaskSubItem,
+  createSubItemVerification,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -56,6 +64,19 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [showCreateListModal, setShowCreateListModal] = useState(false);
   const [showDrawerInvitePopover, setShowDrawerInvitePopover] = useState(false);
   const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments' | 'cards'>('info');
+  const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
+  
+  // Card edit states
+  const [cardDescInput, setCardDescInput] = useState('');
+  const [cardDueDateInput, setCardDueDateInput] = useState('');
+  const [cardPriorityInput, setCardPriorityInput] = useState<'low' | 'medium' | 'high'>('medium');
+  const [cardAssigneesInput, setCardAssigneesInput] = useState<string[]>([]);
+  const [cardAdminCommentInput, setCardAdminCommentInput] = useState('');
+  const [cardAttachmentsInput, setCardAttachmentsInput] = useState<any[]>([]);
+  const [cardSubItemsInput, setCardSubItemsInput] = useState<any[]>([]);
+  const [showCardAssigneePopover, setShowCardAssigneePopover] = useState(false);
+  const [newSubItemTitle, setNewSubItemTitle] = useState('');
+  const [isSavingCard, setIsSavingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [isCreatingCard, setIsCreatingCard] = useState(false);
@@ -112,6 +133,151 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to toggle status', err);
+    }
+  };
+
+  const handleOpenCardSubView = (card: any) => {
+    setEditingCardSubView(card);
+    setCardDescInput(card.description || '');
+    setCardDueDateInput(card.due_date ? card.due_date.split('T')[0] : '');
+    setCardPriorityInput(card.priority || 'medium');
+    setCardAssigneesInput(card.assignee_ids || []);
+    setCardAdminCommentInput(card.admin_comment || '');
+    setCardAttachmentsInput(card.attachments || []);
+    setCardSubItemsInput(card.sub_items || []);
+    setShowCardAssigneePopover(false);
+    setNewSubItemTitle('');
+  };
+
+  const handleSaveCardSubView = async () => {
+    if (!editingCardSubView) return;
+    setIsSavingCard(true);
+    try {
+      await updateTaskCard(editingCardSubView.id, {
+        title: editingCardSubView.title,
+        description: cardDescInput,
+        due_date: cardDueDateInput || undefined,
+        priority: cardPriorityInput,
+        assignee_ids: cardAssigneesInput,
+        admin_comment: cardAdminCommentInput || undefined,
+      });
+
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) {
+          setEditingCardSubView(updatedCard);
+          setCardSubItemsInput(updatedCard.sub_items || []);
+          setCardAttachmentsInput(updatedCard.attachments || []);
+        }
+      }
+      onRefreshTask(true);
+      alert('บันทึกข้อมูลการ์ดงานสำเร็จ');
+    } catch (err) {
+      console.error('Failed to save card', err);
+      alert('บันทึกการ์ดงานล้มเหลว');
+    } finally {
+      setIsSavingCard(false);
+    }
+  };
+
+  const handleAddCardSubItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubItemTitle.trim() || !editingCardSubView) return;
+    try {
+      await createCardSubItem(editingCardSubView.id, newSubItemTitle.trim());
+      setNewSubItemTitle('');
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to add sub item', err);
+    }
+  };
+
+  const handleDeleteCardSubItem = async (itemId: string) => {
+    if (!confirm('ต้องการลบรายการย่อยนี้ใช่หรือไม่?')) return;
+    try {
+      await deleteTaskSubItem(itemId);
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to delete sub item', err);
+    }
+  };
+
+  const handleVerifySubItem = async (itemId: string) => {
+    const status = confirm('ต้องการบันทึกผลตรวจสอบผ่าน ใช่หรือไม่? (กด Cancel เพื่อระบุไม่ผ่าน)') ? 'pass' : 'fail';
+    const notes = prompt('ระบุความเห็นการตรวจสอบ:') || '';
+    try {
+      await createSubItemVerification(itemId, { status, verification_notes: notes });
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to verify sub item', err);
+    }
+  };
+
+  const handleAddCardAttachment = async (type: 'file' | 'link') => {
+    if (!editingCardSubView) return;
+    const url = prompt(type === 'file' ? 'ระบุ URL ไฟล์แนบ:' : 'ระบุ URL ลิงก์ภายนอก:');
+    if (!url) return;
+    const name = prompt('ระบุชื่อ/คำอธิบายไฟล์แนบ:') || 'เอกสารแนบ';
+    try {
+      await createCardAttachment(editingCardSubView.id, { name, url, type });
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to add attachment', err);
+    }
+  };
+
+  const handleDeleteCardAttachment = async (attId: string) => {
+    if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
+    try {
+      await deleteCardAttachment(attId);
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+      }
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to delete attachment', err);
     }
   };
 
@@ -558,22 +724,261 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       {editingList && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b-4 border-blue-600">
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-5 h-5 text-indigo-400" />
-                <span className="text-sm font-extrabold tracking-wide uppercase">แก้ไขข้อมูลคอร์สงาน</span>
+{editingCardSubView ? (
+              <div className="bg-slate-900 text-white p-5 flex items-center gap-3 border-b-4 border-blue-600">
+                <button
+                  type="button"
+                  onClick={() => setEditingCardSubView(null)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+                <div className="flex flex-col">
+                  <span className="text-sm font-extrabold tracking-wide uppercase">การ์ดงาน</span>
+                  <span className="text-[10px] text-slate-400 font-medium">รายการย่อย, ไฟล์หลักฐาน, รายละเอียดการ์ดงาน และความคิดเห็นจากผู้ดูแล</span>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditingList(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+            ) : (
+              <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b-4 border-blue-600">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-5 h-5 text-indigo-400" />
+                  <span className="text-sm font-extrabold tracking-wide uppercase">แก้ไขข้อมูลคอร์สงาน</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingList(null)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            )}
 
             {/* Drawer Navigation Tabs */}
-            <div className="flex border-b border-slate-200 bg-slate-50 px-4">
+            {editingCardSubView ? (
+              /* CARD SUB-VIEW DETAILS (EXACTLY MATCHING USER SCREENSHOT) */
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 animate-in fade-in duration-150">
+                {/* 1. รายการย่อย (Sub-items) */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                      <span>รายการย่อย</span>
+                    </span>
+                    <span className="text-xs text-slate-500 font-semibold">{cardSubItemsInput.length} รายการ</span>
+                  </div>
+
+                  {cardSubItemsInput.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {cardSubItemsInput.map(sub => (
+                        <div key={sub.id} className="p-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-700">{sub.title}</p>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                              เริ่ม - {sub.start_date ? new Date(sub.start_date).toLocaleDateString('th-TH', {day: 'numeric', month: 'numeric'}) : '-'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleVerifySubItem(sub.id)}
+                              className={`px-3 py-1 text-[11px] font-bold text-white rounded-lg transition-all active:scale-95 cursor-pointer ${
+                                sub.status === 'completed' ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
+                            >
+                              {sub.status === 'completed' ? 'ผ่านแล้ว' : 'ตรวจงาน'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCardSubItem(sub.id)}
+                              className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl">ยังไม่มีรายการย่อยในการ์ดนี้</p>
+                  )}
+
+                  {/* Add Sub-item Form */}
+                  <form onSubmit={handleAddCardSubItem} className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="พิมพ์รายการย่อยใหม่..."
+                      value={newSubItemTitle}
+                      onChange={e => setNewSubItemTitle(e.target.value)}
+                      className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer transition-all"
+                    >
+                      เพิ่ม
+                    </button>
+                  </form>
+                </div>
+
+                {/* 2. เพิ่มไฟล์แนบหลักฐาน */}
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Paperclip className="w-4 h-4 text-indigo-600" />
+                    <span>เพิ่มไฟล์แนบหลักฐาน</span>
+                  </label>
+
+                  {cardAttachmentsInput.length > 0 && (
+                    <div className="space-y-2">
+                      {cardAttachmentsInput.map((att, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                          <span className="truncate font-semibold text-slate-700">{att.name || att.url}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenExternalUrl(att.url)}
+                              className="text-xs text-blue-600 hover:underline font-bold cursor-pointer"
+                            >
+                              เปิด
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCardAttachment(att.id)}
+                              className="text-rose-500 p-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAddCardAttachment('file')}
+                      className="flex items-center justify-center gap-1.5 p-3.5 border border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/10"
+                    >
+                      <Paperclip className="w-4 h-4 text-indigo-600" />
+                      <span>แนบไฟล์</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddCardAttachment('link')}
+                      className="flex items-center justify-center gap-1.5 p-3.5 border border-dashed border-emerald-200 hover:border-emerald-400 rounded-2xl text-emerald-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-emerald-50/10"
+                    >
+                      <Link2 className="w-4 h-4 text-emerald-600" />
+                      <span>แนบลิงก์</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. รายละเอียดการ์ดงาน */}
+                <div className="space-y-1.5 pt-3 border-t border-slate-200">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-slate-600" />
+                    <span>รายละเอียดการ์ดงาน</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={cardDescInput}
+                    onChange={e => setCardDescInput(e.target.value)}
+                    placeholder="รายละเอียดงาน..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                  />
+                </div>
+
+                {/* 4. วันกำหนดส่ง */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-700">วันกำหนดส่ง</label>
+                  <input
+                    type="date"
+                    value={cardDueDateInput}
+                    onChange={e => setCardDueDateInput(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-800"
+                  />
+                </div>
+
+                {/* 5. ผู้รับผิดชอบการ์ดนี้ (Card Assignees) */}
+                <div className="space-y-2 relative pt-2 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-indigo-600" />
+                    <span>ผู้รับผิดชอบการ์ดนี้ (Card Assignees)</span>
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {cardAssigneesInput.map(uid => {
+                      const u = users.find(x => x.id === uid);
+                      return (
+                        <div key={uid} className="relative group cursor-pointer" onClick={() => setCardAssigneesInput(cardAssigneesInput.filter(x => x !== uid))}>
+                          <img
+                            src={avatarUrl(u?.avatar_url) || undefined}
+                            alt={u ? (u.nickname || u.first_name) : ''}
+                            className="w-8 h-8 rounded-full border-2 border-white shadow-xs object-cover"
+                            title={u ? (u.nickname || u.first_name) : ''}
+                          />
+                          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                            ×
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setShowCardAssigneePopover(!showCardAssigneePopover)}
+                      className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {showCardAssigneePopover && (
+                    <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      {users.map(u => {
+                        const isAssigned = cardAssigneesInput.includes(u.id);
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              if (isAssigned) {
+                                setCardAssigneesInput(cardAssigneesInput.filter(id => id !== u.id));
+                              } else {
+                                setCardAssigneesInput([...cardAssigneesInput, u.id]);
+                              }
+                            }}
+                            className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                              <span>{u.nickname || u.first_name}</span>
+                            </div>
+                            {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 6. ความคิดเห็นจากผู้ดูแล */}
+                <div className="p-4 bg-amber-50/40 border border-amber-200 rounded-2xl space-y-3 pt-3">
+                  <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    <span>ความคิดเห็นจากผู้ดูแล</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={cardAdminCommentInput}
+                    onChange={e => setCardAdminCommentInput(e.target.value)}
+                    placeholder="พิมพ์ความคิดเห็นหรือคำแนะนำผู้ดูแล..."
+                    className="w-full px-3.5 py-2.5 text-xs bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex border-b border-slate-200 bg-slate-50 px-4">
               <button
                 type="button"
                 onClick={() => setDrawerActiveTab('info')}
@@ -787,7 +1192,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     {editingList.cards && editingList.cards.length > 0 ? (
                       <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
                         {editingList.cards.map(card => (
-                          <div key={card.id} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-3">
+                          <div key={card.id} onClick={() => handleOpenCardSubView(card)} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer hover:border-blue-400">
                             <div className="min-w-0 flex-1">
                               <p className="font-bold text-slate-800 text-xs truncate">{card.title}</p>
                               <div className="flex items-center gap-2 mt-1">
@@ -908,23 +1313,49 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               )}
             </div>
 
+              </>
+            )}
+
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setEditingList(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDrawer}
-                disabled={isSavingDrawer}
-                className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSavingDrawer ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
-              </button>
+              {editingCardSubView ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCardSubView(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCardSubView}
+                    disabled={isSavingCard}
+                    className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingCard ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditingList(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDrawer}
+                    disabled={isSavingDrawer}
+                    className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingDrawer ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
