@@ -75,6 +75,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [modalFile, setModalFile] = useState<File | null>(null);
   const [isModalSubmitting, setIsModalSubmitting] = useState(false);
   const [modalTargetId, setModalTargetId] = useState<string | null>(null);
+  const [modalScope, setModalScope] = useState<'list' | 'card'>('card');
   const [editingCardSubView, setEditingCardSubView] = useState<any | null>(null);
   
   // Card edit states
@@ -268,6 +269,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const handleAddCardAttachment = (type: 'file' | 'link') => {
     if (!editingCardSubView) return;
+    setModalScope('card');
     if (type === 'file') {
       setModalTitle('อัปโหลดไฟล์หลักฐาน');
       setModalInputVal2('เอกสารแนบ');
@@ -282,24 +284,37 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   };
 
   const submitAddCardAttachmentLink = async () => {
-    if (!modalInputVal1.trim() || !editingCardSubView) return;
+    if (!modalInputVal1.trim()) return;
     setIsModalSubmitting(true);
     try {
-      await createCardAttachment(editingCardSubView.id, {
-        name: modalInputVal2.trim() || 'เอกสารแนบ',
-        url: modalInputVal1.trim(),
-        type: 'link',
-      });
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      const updatedList = updatedLists.find(l => l.id === editingList?.id);
-      if (updatedList) {
-        setEditingList(updatedList);
-        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+      if (modalScope === 'list') {
+        setDrawerAttachments([
+          ...drawerAttachments,
+          {
+            name: modalInputVal2.trim() || 'ลิงก์ภายนอก',
+            url: modalInputVal1.trim(),
+            type: 'link',
+          },
+        ]);
+        setActiveModal(null);
+      } else {
+        if (!editingCardSubView) return;
+        await createCardAttachment(editingCardSubView.id, {
+          name: modalInputVal2.trim() || 'เอกสารแนบ',
+          url: modalInputVal1.trim(),
+          type: 'link',
+        });
+        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        setTrelloLists(updatedLists);
+        const updatedList = updatedLists.find(l => l.id === editingList?.id);
+        if (updatedList) {
+          setEditingList(updatedList);
+          const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+          if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+        }
+        setActiveModal(null);
+        onRefreshTask(true);
       }
-      setActiveModal(null);
-      onRefreshTask(true);
     } catch (err) {
       console.error('Failed to add attachment link', err);
     } finally {
@@ -308,7 +323,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   };
 
   const submitAddCardAttachmentFile = async () => {
-    if (!modalFile || !editingCardSubView) return;
+    if (!modalFile) return;
     setIsModalSubmitting(true);
     try {
       // 1. Upload file to R2 via api
@@ -318,23 +333,36 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         return;
       }
 
-      // 2. Attach R2 URL to the card
-      await createCardAttachment(editingCardSubView.id, {
-        name: modalInputVal2.trim() || modalFile.name,
-        url: uploadRes.url,
-        type: 'file',
-      });
+      if (modalScope === 'list') {
+        setDrawerAttachments([
+          ...drawerAttachments,
+          {
+            name: modalInputVal2.trim() || modalFile.name,
+            url: uploadRes.url,
+            type: 'file',
+          },
+        ]);
+        setActiveModal(null);
+      } else {
+        if (!editingCardSubView) return;
+        // 2. Attach R2 URL to the card
+        await createCardAttachment(editingCardSubView.id, {
+          name: modalInputVal2.trim() || modalFile.name,
+          url: uploadRes.url,
+          type: 'file',
+        });
 
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      const updatedList = updatedLists.find(l => l.id === editingList?.id);
-      if (updatedList) {
-        setEditingList(updatedList);
-        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        setTrelloLists(updatedLists);
+        const updatedList = updatedLists.find(l => l.id === editingList?.id);
+        if (updatedList) {
+          setEditingList(updatedList);
+          const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+          if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+        }
+        setActiveModal(null);
+        onRefreshTask(true);
       }
-      setActiveModal(null);
-      onRefreshTask(true);
     } catch (err) {
       console.error('Failed to upload file attachment', err);
       alert('อัปโหลดไฟล์ล้มเหลว');
@@ -1336,11 +1364,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <button
                         type="button"
                         onClick={() => {
-                          const url = prompt('ระบุ URL ไฟล์แนบ:');
-                          if (url) {
-                            const name = prompt('ระบุชื่อไฟล์/คำอธิบาย:') || 'ไฟล์แนบ';
-                            setDrawerAttachments([...drawerAttachments, { name, url, type: 'file' }]);
-                          }
+                          setModalTitle('อัปโหลดไฟล์หลักฐาน');
+                          setModalInputVal2('เอกสารแนบ');
+                          setModalFile(null);
+                          setModalScope('list');
+                          setActiveModal('attach_file');
                         }}
                         className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/20"
                       >
@@ -1350,11 +1378,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <button
                         type="button"
                         onClick={() => {
-                          const url = prompt('ระบุ URL ลิงก์ภายนอก:');
-                          if (url) {
-                            const name = prompt('ระบุชื่อลิงก์/คำอธิบาย:') || 'ลิงก์ภายนอก';
-                            setDrawerAttachments([...drawerAttachments, { name, url, type: 'link' }]);
-                          }
+                          setModalTitle('แนบลิงก์ภายนอก');
+                          setModalInputVal1('');
+                          setModalInputVal2('สเปรดชีตลิงก์');
+                          setModalScope('list');
+                          setActiveModal('attach_link');
                         }}
                         className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl text-emerald-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-emerald-50/20"
                       >
