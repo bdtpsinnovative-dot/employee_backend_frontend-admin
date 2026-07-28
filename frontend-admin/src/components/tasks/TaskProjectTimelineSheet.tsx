@@ -49,7 +49,12 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   currentUser: _currentUser,
 }) => {
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
-  const users = Object.values(userMap);
+  const users = Object.values(userMap).filter(u => {
+    if (task.assignee_ids && task.assignee_ids.length > 0) {
+      return task.assignee_ids.includes(u.id);
+    }
+    return u.id === task.assigned_to;
+  });
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
