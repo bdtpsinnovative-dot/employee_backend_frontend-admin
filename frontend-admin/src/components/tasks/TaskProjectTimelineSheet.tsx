@@ -77,9 +77,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [showCardAssigneePopover, setShowCardAssigneePopover] = useState(false);
   const [newSubItemTitle, setNewSubItemTitle] = useState('');
   const [isSavingCard, setIsSavingCard] = useState(false);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [isCreatingCard, setIsCreatingCard] = useState(false);
+
+
   const [viewingAttachmentsList, setViewingAttachmentsList] = useState<TaskList | null>(null);
   
   // Drawer editing state
@@ -297,26 +296,23 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-  const handleCreateCard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCardTitle.trim() || !editingList) return;
-    setIsCreatingCard(true);
+    const handleAddNewCardClick = async () => {
+    const title = prompt('ระบุหัวข้อการ์ดงานย่อยใหม่:');
+    if (!title || !title.trim() || !editingList) return;
     try {
-      await createTaskCard(editingList.id, {
-        title: newCardTitle.trim(),
-        priority: newCardPriority,
+      const newCard = await createTaskCard(editingList.id, {
+        title: title.trim(),
+        priority: 'medium',
       });
-      setNewCardTitle('');
-      setNewCardPriority('medium');
       const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList.id);
       if (updatedList) setEditingList(updatedList);
+      
+      handleOpenCardSubView(newCard);
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to create card', err);
-    } finally {
-      setIsCreatingCard(false);
     }
   };
 
@@ -1125,42 +1121,19 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
                   {/* การ์ดงาน (Cards) Section */}
                   <div className="space-y-4 pt-4 border-t border-slate-200">
-                    {/* Create Card Form */}
-                    <form onSubmit={handleCreateCard} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">เพิ่มการ์ดงานใหม่</span>
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          value={newCardTitle}
-                          onChange={(e) => setNewCardTitle(e.target.value)}
-                          placeholder="ระบุชื่องาน / หัวข้อการ์ด..."
-                          required
-                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
-                        />
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={newCardPriority}
-                            onChange={(e) => setNewCardPriority(e.target.value as any)}
-                            className="px-2 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1"
-                          >
-                            <option value="low">Low (ต่ำ)</option>
-                            <option value="medium">Medium (ปานกลาง)</option>
-                            <option value="high">High (สูง)</option>
-                          </select>
-                          <button
-                            type="submit"
-                            disabled={isCreatingCard}
-                            className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-all cursor-pointer"
-                          >
-                            {isCreatingCard ? 'กำลังเพิ่ม...' : 'เพิ่มการ์ด'}
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-
-                    {/* Cards List */}
+                    {/* Cards List Header & Add Button */}
                     <div className="space-y-3">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">รายการการ์ดงานในคอร์สนี้ ({editingList.cards?.length || 0})</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">รายการการ์ดงานในคอร์สนี้ ({editingList.cards?.length || 0})</span>
+                        <button
+                          type="button"
+                          onClick={handleAddNewCardClick}
+                          className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>เพิ่มการ์ดงาน</span>
+                        </button>
+                      </div>
                       {editingList.cards && editingList.cards.length > 0 ? (
                         <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
                           {editingList.cards.map(card => (
