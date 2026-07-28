@@ -53,6 +53,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
+  const [showDrawerInvitePopover, setShowDrawerInvitePopover] = useState(false);
   const [viewingAttachmentsList, setViewingAttachmentsList] = useState<TaskList | null>(null);
   
   // Drawer editing state
@@ -583,6 +584,63 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
                   placeholder="พิมพ์รายละเอียดของคอร์สงาน..."
                 />
+              </div>
+
+              {/* มอบหมายให้ (Assignees) */}
+              <div className="space-y-1.5 relative">
+                <label className="text-xs font-bold text-slate-700">มอบหมายให้ (Assignees)</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {drawerAssignees.map(uid => {
+                    const u = users.find(x => x.id === uid);
+                    return (
+                      <div key={uid} className="relative group cursor-pointer" onClick={() => setDrawerAssignees(drawerAssignees.filter(x => x !== uid))}>
+                        <img
+                          src={avatarUrl(u?.avatar_url) || undefined}
+                          alt={u ? (u.nickname || u.first_name) : ''}
+                          className="w-8 h-8 rounded-full border-2 border-white shadow-xs object-cover"
+                          title={u ? (u.nickname || u.first_name) : ''}
+                        />
+                        <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          ×
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setShowDrawerInvitePopover(!showDrawerInvitePopover)}
+                    className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                {showDrawerInvitePopover && (
+                  <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    {users.map(u => {
+                      const isAssigned = drawerAssignees.includes(u.id);
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            if (isAssigned) {
+                              setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
+                            } else {
+                              setDrawerAssignees([...drawerAssignees, u.id]);
+                            }
+                          }}
+                          className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                            <span>{u.nickname || u.first_name}</span>
+                          </div>
+                          {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* 5. NOTE / Remark (admin_comment) */}
