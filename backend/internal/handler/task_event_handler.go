@@ -105,7 +105,9 @@ func (h *TaskEventHandler) ListByTask(c *gin.Context) {
 		cardID = &parsed
 	}
 
-	events, err := h.repo.ListByTask(c.Request.Context(), taskID, listID, cardID)
+	taskOnly := c.Query("task_only") == "true"
+
+	events, err := h.repo.ListByTask(c.Request.Context(), taskID, listID, cardID, taskOnly)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task activity"})
 		return
@@ -150,7 +152,7 @@ func (h *TaskEventHandler) AddComment(c *gin.Context) {
 		return
 	}
 
-	created, err := h.repo.ListByTask(c.Request.Context(), taskID, nil, nil)
+	created, err := h.repo.ListByTask(c.Request.Context(), taskID, nil, nil, false)
 	if err == nil {
 		for _, item := range created {
 			if item.ID == event.ID {

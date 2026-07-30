@@ -262,6 +262,8 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	roleRaw, _ := c.Get(middleware.ContextKeyRole)
 	isAdmin := roleRaw.(string) == "admin"
 
+	existingTask, _ := h.taskSvc.GetTask(c.Request.Context(), id)
+
 	task, err := h.taskSvc.UpdateTask(
 		c.Request.Context(),
 		id,
@@ -277,6 +279,52 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
+	}
+
+	if existingTask != nil {
+		if req.Title != existingTask.Title {
+			h.audit(c, nil, "task_updated", "เปลี่ยนชื่องานจาก \""+existingTask.Title+"\" เป็น \""+req.Title+"\"", &id)
+		}
+		if req.Description != existingTask.Description {
+			h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงาน", &id)
+		}
+		if req.DueDate != "" {
+			oldDue := ""
+			if existingTask.DueDate != nil {
+				oldDue = existingTask.DueDate.Format("2006-01-02")
+			}
+			if req.DueDate != oldDue {
+				h.audit(c, nil, "task_updated", "เปลี่ยนวันครบกำหนดงานจาก \""+oldDue+"\" เป็น \""+req.DueDate+"\"", &id)
+			}
+		}
+		// Check if assignees changed (simple length check + set compare)
+		oldIDs := make(map[uuid.UUID]bool)
+		for _, aid := range existingTask.AssigneeIDs {
+			oldIDs[aid] = true
+		}
+		var added, removed []string
+		for _, uid := range assigneeUUIDs {
+			if !oldIDs[uid] {
+				added = append(added, uid.String())
+			}
+		}
+		newIDSet := make(map[uuid.UUID]bool)
+		for _, uid := range assigneeUUIDs {
+			newIDSet[uid] = true
+		}
+		for _, uid := range existingTask.AssigneeIDs {
+			if !newIDSet[uid] {
+				removed = append(removed, uid.String())
+			}
+		}
+		if len(added) > 0 {
+			h.audit(c, nil, "task_updated", "เพิ่มผู้รับผิดชอบงาน", &id)
+		}
+		if len(removed) > 0 {
+			h.audit(c, nil, "task_updated", "นำผู้รับผิดชอบงานออก", &id)
+		}
+	} else {
+		h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงาน: "+req.Title, &id)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})

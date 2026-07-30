@@ -84,12 +84,17 @@ func (r *TaskEventRepo) ListByTask(
 	taskID uuid.UUID,
 	listID *uuid.UUID,
 	cardID *uuid.UUID,
+	taskOnly bool,
 ) ([]domain.TaskEvent, error) {
 	events := make([]domain.TaskEvent, 0)
 	if r == nil || r.db == nil {
 		return events, nil
 	}
-	err := r.db.SelectContext(ctx, &events, `
+	taskOnlyFilter := ""
+	if taskOnly {
+		taskOnlyFilter = "AND e.list_id IS NULL AND e.card_id IS NULL AND e.sub_item_id IS NULL"
+	}
+	query := `
 		SELECT
 			e.id, e.task_id, e.list_id, e.card_id, e.sub_item_id, e.user_id,
 			e.event_type, e.action, e.content, e.created_at,
@@ -107,9 +112,11 @@ func (r *TaskEventRepo) ListByTask(
 		WHERE e.task_id = $1
 		  AND ($2::uuid IS NULL OR e.list_id = $2)
 		  AND ($3::uuid IS NULL OR e.card_id = $3)
+		  ` + taskOnlyFilter + `
 		ORDER BY e.created_at DESC
 		LIMIT 500
-	`, taskID, listID, cardID)
+	`
+	err := r.db.SelectContext(ctx, &events, query, taskID, listID, cardID)
 	return events, err
 }
 
