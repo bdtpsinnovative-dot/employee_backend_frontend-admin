@@ -140,14 +140,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		return nil, fmt.Errorf("failed to update task: %w", err)
 	}
 
-	content := "แก้ไขรายละเอียดงาน"
-	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
-		TaskID:    task.ID,
-		UserID:    userID,
-		EventType: "system",
-		Action:    "task_updated",
-		Content:   &content,
-	})
+	// Task-level audits are now handled specifically in task_handler.go to prevent duplicate/generic logs.
 
 	// Check if assignees changed
 	oldMap := make(map[uuid.UUID]bool)
