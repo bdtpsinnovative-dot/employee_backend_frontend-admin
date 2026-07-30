@@ -248,7 +248,7 @@ export default function TaskDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* ═══════════ Header Bar ═══════════ */}
       <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 shadow-2xs">
         {/* Top Row: Back + Task Info */}

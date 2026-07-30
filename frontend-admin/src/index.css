@@ -935,4 +935,14 @@
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Flush container style to extend header and contents 100% left/right/top */
+.content-area-flush {
+  margin: -40px;
+}
+@media (max-width: 900px) {
+  .content-area-flush {
+    margin: -15px;
+  }
 }

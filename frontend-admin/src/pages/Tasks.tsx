@@ -389,7 +389,7 @@ export default function Tasks() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* Asana Style Toolbar */}
       <TaskToolbar
         viewMode={viewMode}
