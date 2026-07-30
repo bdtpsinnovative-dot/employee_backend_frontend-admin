@@ -166,32 +166,73 @@ func boardAttachmentKey(attachment boardAuditAttachment) string {
 }
 
 func attachmentAuditChanges(before, after []boardAuditAttachment) []boardAuditChange {
-	beforeSet := make(map[string]boardAuditAttachment, len(before))
-	afterSet := make(map[string]boardAuditAttachment, len(after))
-	for _, attachment := range before {
-		beforeSet[boardAttachmentKey(attachment)] = attachment
-	}
-	for _, attachment := range after {
-		afterSet[boardAttachmentKey(attachment)] = attachment
+	changes := make([]boardAuditChange, 0)
+
+	matchedBefore := make(map[int]bool)
+	matchedAfter := make(map[int]bool)
+
+	for i, a := range after {
+		for j, b := range before {
+			if !matchedBefore[j] && a.Type == b.Type && a.URL == b.URL && a.Name == b.Name {
+				matchedBefore[j] = true
+				matchedAfter[i] = true
+				break
+			}
+		}
 	}
 
-	changes := make([]boardAuditChange, 0)
-	for key, attachment := range afterSet {
-		if _, exists := beforeSet[key]; !exists {
+	for i, a := range after {
+		if matchedAfter[i] {
+			continue
+		}
+		for j, b := range before {
+			if !matchedBefore[j] && a.Type == b.Type && a.URL == b.URL {
+				changes = append(changes, boardAuditChange{
+					action:  "board_updated",
+					content: "แก้ไขชื่อลิงก์จาก " + readableAuditValue(b.Name) + " เป็น " + readableAuditValue(a.Name),
+				})
+				matchedBefore[j] = true
+				matchedAfter[i] = true
+				break
+			}
+		}
+	}
+
+	for i, a := range after {
+		if matchedAfter[i] {
+			continue
+		}
+		for j, b := range before {
+			if !matchedBefore[j] && a.Type == b.Type && a.Name == b.Name {
+				changes = append(changes, boardAuditChange{
+					action:  "board_updated",
+					content: "แก้ไขลิงก์ของ " + readableAuditValue(a.Name) + " จาก " + readableAuditValue(b.URL) + " เป็น " + readableAuditValue(a.URL),
+				})
+				matchedBefore[j] = true
+				matchedAfter[i] = true
+				break
+			}
+		}
+	}
+
+	for i, a := range after {
+		if !matchedAfter[i] {
 			changes = append(changes, boardAuditChange{
 				action:  "board_attachment_added",
-				content: "เพิ่มเอกสารหรือลิงก์: " + readableAuditValue(attachment.Name),
+				content: "เพิ่มเอกสารหรือลิงก์: " + readableAuditValue(a.Name),
 			})
 		}
 	}
-	for key, attachment := range beforeSet {
-		if _, exists := afterSet[key]; !exists {
+
+	for j, b := range before {
+		if !matchedBefore[j] {
 			changes = append(changes, boardAuditChange{
 				action:  "board_attachment_removed",
-				content: "ลบเอกสารหรือลิงก์: " + readableAuditValue(attachment.Name),
+				content: "ลบเอกสารหรือลิงก์: " + readableAuditValue(b.Name),
 			})
 		}
 	}
+
 	return changes
 }
 
