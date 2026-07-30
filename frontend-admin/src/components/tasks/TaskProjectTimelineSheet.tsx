@@ -432,46 +432,65 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   };
 
   const handleDeleteCardAttachment = async (attId: string) => {
-    if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
-    try {
-      await deleteCardAttachment(attId);
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      const updatedList = updatedLists.find(l => l.id === editingList?.id);
-      if (updatedList) {
-        setEditingList(updatedList);
-        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+    if (modalScope === 'list') {
+      const idx = parseInt(attId, 10);
+      if (!isNaN(idx)) {
+        setDrawerAttachments((prev) => prev.filter((_, i) => i !== idx));
       }
       setActiveModal(null);
-      onRefreshTask(true);
-    } catch (err) {
-      console.error('Failed to delete attachment', err);
+    } else {
+      if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
+      try {
+        await deleteCardAttachment(attId);
+        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        setTrelloLists(updatedLists);
+        const updatedList = updatedLists.find(l => l.id === editingList?.id);
+        if (updatedList) {
+          setEditingList(updatedList);
+          const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+          if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+        }
+        setActiveModal(null);
+        onRefreshTask(true);
+      } catch (err) {
+        console.error('Failed to delete attachment', err);
+      }
     }
   };
 
   const submitUpdateCardAttachment = async () => {
     if (!modalTargetId || !modalInputVal1.trim()) return;
-    setIsModalSubmitting(true);
-    try {
-      const name = modalInputVal2.trim() || modalInputVal1.trim();
-      const url = modalInputVal1.trim();
-      await updateCardAttachment(modalTargetId, { name, url });
+    const name = modalInputVal2.trim() || modalInputVal1.trim();
+    const url = modalInputVal1.trim();
 
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      const updatedList = updatedLists.find(l => l.id === editingList?.id);
-      if (updatedList) {
-        setEditingList(updatedList);
-        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+    if (modalScope === 'list') {
+      const idx = parseInt(modalTargetId, 10);
+      if (!isNaN(idx)) {
+        setDrawerAttachments((prev) =>
+          prev.map((att, i) => (i === idx ? { ...att, name, url } : att))
+        );
       }
       setActiveModal(null);
-      onRefreshTask(true);
-    } catch (err) {
-      console.error('Failed to update attachment', err);
-    } finally {
-      setIsModalSubmitting(false);
+    } else {
+      setIsModalSubmitting(true);
+      try {
+        await updateCardAttachment(modalTargetId, { name, url });
+
+        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        setTrelloLists(updatedLists);
+        const updatedList = updatedLists.find(l => l.id === editingList?.id);
+        if (updatedList) {
+          setEditingList(updatedList);
+          const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+          if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+        }
+        setActiveModal(null);
+        onRefreshTask(true);
+      } catch (err) {
+        console.error('Failed to update attachment', err);
+      } finally {
+        setIsModalSubmitting(false);
+      }
     }
   };
 
@@ -1584,10 +1603,18 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setDrawerAttachments(drawerAttachments.filter((_, i) => i !== idx))}
-                                className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                                onClick={() => {
+                                  setModalTitle(att.type === 'link' ? 'แก้ไขลิงก์แนบ' : 'แก้ไขไฟล์แนบ');
+                                  setModalInputVal1(att.url);
+                                  setModalInputVal2(att.name || '');
+                                  setModalTargetId(String(idx));
+                                  setModalScope('list');
+                                  setActiveModal('edit_link');
+                                }}
+                                className="text-slate-500 hover:text-indigo-600 p-1 cursor-pointer transition-all active:scale-95"
+                                title="แก้ไขไฟล์แนบ/ลิงก์"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Pencil className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
