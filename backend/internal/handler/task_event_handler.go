@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -127,10 +129,34 @@ func (h *TaskEventHandler) AddComment(c *gin.Context) {
 
 	var req struct {
 		Content string `json:"content"`
+		ListID  string `json:"list_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Content) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "comment is required"})
 		return
+	}
+
+	var listID *uuid.UUID
+	if value := strings.TrimSpace(req.ListID); value != "" {
+		parsed, parseErr := uuid.Parse(value)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid list id"})
+			return
+		}
+		scope, scopeErr := h.repo.ScopeForList(c.Request.Context(), parsed)
+		if errors.Is(scopeErr, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "list not found"})
+			return
+		}
+		if scopeErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate list"})
+			return
+		}
+		if scope == nil || scope.TaskID != taskID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "list does not belong to task"})
+			return
+		}
+		listID = &parsed
 	}
 
 	var uID uuid.UUID
@@ -141,6 +167,7 @@ func (h *TaskEventHandler) AddComment(c *gin.Context) {
 	event := &domain.TaskEvent{
 		ID:        uuid.New(),
 		TaskID:    taskID,
+		ListID:    listID,
 		UserID:    uID,
 		EventType: "comment",
 		Action:    "comment_added",
@@ -152,7 +179,7 @@ func (h *TaskEventHandler) AddComment(c *gin.Context) {
 		return
 	}
 
-	created, err := h.repo.ListByTask(c.Request.Context(), taskID, nil, nil, false)
+	created, err := h.repo.ListByTask(c.Request.Context(), taskID, listID, nil, false)
 	if err == nil {
 		for _, item := range created {
 			if item.ID == event.ID {

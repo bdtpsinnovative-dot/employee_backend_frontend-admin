@@ -105,7 +105,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 type completeProfileBody struct {
 	FirstName  string    `json:"first_name" binding:"required"`
 	LastName   string    `json:"last_name" binding:"required"`
-	Nickname   string    `json:"nickname" binding:"required"`
+	Nickname   string    `json:"nickname"`
 	AvatarURL  string    `json:"avatar_url" binding:"required"`
 	FaceVector []float64 `json:"face_vector" binding:"required"`
 }
@@ -122,8 +122,8 @@ func (h *UserHandler) CompleteProfile(c *gin.Context) {
 	lastName := strings.TrimSpace(body.LastName)
 	nickname := strings.TrimSpace(body.Nickname)
 	avatarURL := strings.TrimSpace(body.AvatarURL)
-	if firstName == "" || lastName == "" || nickname == "" || avatarURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล ชื่อเล่น และรูปโปรไฟล์ห้ามเว้นว่าง"})
+	if firstName == "" || lastName == "" || avatarURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล และรูปโปรไฟล์ห้ามเว้นว่าง"})
 		return
 	}
 	faceVector, err := formatFaceVector(body.FaceVector, true)
@@ -155,7 +155,7 @@ func (h *UserHandler) CompleteProfile(c *gin.Context) {
 type updateProfileInfoBody struct {
 	FirstName string `json:"first_name" binding:"required"`
 	LastName  string `json:"last_name" binding:"required"`
-	Nickname  string `json:"nickname" binding:"required"`
+	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatar_url" binding:"required"`
 }
 
@@ -171,8 +171,9 @@ func (h *UserHandler) UpdateProfileInfo(c *gin.Context) {
 	lastName := strings.TrimSpace(body.LastName)
 	nickname := strings.TrimSpace(body.Nickname)
 	avatarURL := strings.TrimSpace(body.AvatarURL)
-	if firstName == "" || lastName == "" || nickname == "" || avatarURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล ชื่อเล่น หรือรูปภาพว่างไม่ได้"})
+
+	if firstName == "" || lastName == "" || avatarURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล และรูปโปรไฟล์ห้ามเว้นว่าง"})
 		return
 	}
 
