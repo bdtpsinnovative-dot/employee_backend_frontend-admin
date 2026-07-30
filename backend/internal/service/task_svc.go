@@ -155,14 +155,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	}
 
 	if len(newAssignees) > 0 {
-		assignContent := "เปลี่ยนผู้รับผิดชอบงาน"
-		_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
-			TaskID:    task.ID,
-			UserID:    userID,
-			EventType: "system",
-			Action:    "task_assigned",
-			Content:   &assignContent,
-		})
+		// Specific assign/unassign audits are now written by task_handler.go to show real names.
 
 		if s.notifSvc != nil {
 			for _, assigneeID := range newAssignees {
