@@ -109,6 +109,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [activeModal, setActiveModal] = useState<'add_card' | 'attach_file' | 'attach_link' | 'verify_subitem' | null>(null);
   const [modalTitle, setModalTitle] = useState('');
   const [modalInputVal1, setModalInputVal1] = useState('');
+  const [modalInputVal2, setModalInputVal2] = useState('');
   const [modalSelectVal, setModalSelectVal] = useState<'pass' | 'fail'>('pass');
   const [isModalSubmitting, setIsModalSubmitting] = useState(false);
   const [modalTargetId, setModalTargetId] = useState<string | null>(null);
@@ -384,6 +385,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     } else {
       setModalTitle('แนบลิงก์ภายนอก');
       setModalInputVal1('');
+      setModalInputVal2('');
       setActiveModal('attach_link');
     }
   };
@@ -396,7 +398,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         setDrawerAttachments([
           ...drawerAttachments,
           {
-            name: modalInputVal1.trim(),
+            name: modalInputVal2.trim() || modalInputVal1.trim(),
             url: modalInputVal1.trim(),
             type: 'link',
           },
@@ -405,7 +407,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       } else {
         if (!editingCardSubView) return;
         await createCardAttachment(editingCardSubView.id, {
-          name: modalInputVal1.trim(),
+          name: modalInputVal2.trim() || modalInputVal1.trim(),
           url: modalInputVal1.trim(),
           type: 'link',
         });
@@ -1832,16 +1834,28 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               )}
 
               {activeModal === 'attach_link' && (
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase">URL ลิงก์ภายนอก</label>
-                  <input
-                    type="text"
-                    value={modalInputVal1}
-                    onChange={(e) => setModalInputVal1(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
-                    autoFocus
-                  />
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">ชื่อลิงก์</label>
+                    <input
+                      type="text"
+                      value={modalInputVal2}
+                      onChange={(e) => setModalInputVal2(e.target.value)}
+                      placeholder="เช่น เอกสาร Figma, แหล่งอ้างอิง..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase">URL ลิงก์ภายนอก *</label>
+                    <input
+                      type="text"
+                      value={modalInputVal1}
+                      onChange={(e) => setModalInputVal1(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
                 </div>
               )}
 
