@@ -226,7 +226,7 @@ export default function Tasks() {
         });
       }
     }
-    await loadAll();
+    await loadAll(true);
   };
 
   const handleUpdateTask = async (data: {
@@ -247,7 +247,7 @@ export default function Tasks() {
       category_id: data.category_id,
     });
     setEditingTask(null);
-    await loadAll();
+    await loadAll(true);
   };
 
   const handleAddComment = async () => {
@@ -269,7 +269,7 @@ export default function Tasks() {
     if (!window.confirm('ยืนยันการอนุมัติผลงาน?')) return;
     try {
       await approveSubmission(task.id, task.latest_submission.id);
-      await loadAll();
+      await loadAll(true);
     } catch (e: any) {
       alert(e.message || 'อนุมัติผลงานล้มเหลว');
     }
@@ -281,7 +281,7 @@ export default function Tasks() {
     if (note === null) return;
     try {
       await requestRevision(task.id, task.latest_submission.id, note);
-      await loadAll();
+      await loadAll(true);
     } catch (e: any) {
       alert(e.message || 'ขอแก้ไขผลงานล้มเหลว');
     }
@@ -488,7 +488,7 @@ export default function Tasks() {
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
         onRefresh={() => {
-          loadAll();
+          loadAll(true);
           // Also optionally reload the selected task if we have an endpoint for it.
           // Since loadAll fetches all tasks, it will refresh the data, but we might want to manually sync the selectedTask.
           // For now, loadAll() is okay if the user reopens the drawer or the drawer re-renders based on updated tasks array.
