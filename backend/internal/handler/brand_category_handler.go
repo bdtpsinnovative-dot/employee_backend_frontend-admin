@@ -814,6 +814,12 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		return
 	}
 
+	existingList, err := h.listRepo.Get(c.Request.Context(), listID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบรายการนี้"})
+		return
+	}
+
 	var req struct {
 		Name         *string          `json:"name"`
 		Description  *string          `json:"description"`
@@ -871,6 +877,87 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายการล้มเหลว"})
 			return
+		}
+
+		// Audit Logs
+		scope := &repository.TaskEventScope{
+			TaskID: taskID,
+			ListID: &listID,
+		}
+
+		if req.Name != nil && *req.Name != existingList.Name {
+			h.audit(c, scope, "board_name_changed", "เปลี่ยนชื่อบอร์ดเป็น: "+*req.Name, &taskID)
+		}
+		if req.Description != nil && *req.Description != existingList.Description {
+			h.audit(c, scope, "board_description_changed", "แก้ไขรายละเอียดบอร์ด", &taskID)
+		}
+		if req.Status != nil && *req.Status != existingList.Status {
+			h.audit(c, scope, "board_status_changed", "เปลี่ยนสถานะบอร์ดเป็น: "+*req.Status, &taskID)
+		}
+		if req.Priority != nil && *req.Priority != existingList.Priority {
+			h.audit(c, scope, "board_priority_changed", "เปลี่ยนความสำคัญบอร์ดเป็น: "+*req.Priority, &taskID)
+		}
+		if req.AdminComment != nil && *req.AdminComment != existingList.AdminComment {
+			h.audit(c, scope, "board_note_changed", "แก้ไขหมายเหตุบอร์ด", &taskID)
+		}
+		if hasStartDate {
+			oldStartStr := ""
+			if existingList.StartDate != nil {
+				oldStartStr = existingList.StartDate.Format("2006-01-02")
+			}
+			newStartStr := ""
+			if startDate != nil {
+				newStartStr = startDate.Format("2006-01-02")
+			}
+			if newStartStr != oldStartStr {
+				h.audit(c, scope, "board_start_date_changed", "เปลี่ยนวันเริ่มต้นบอร์ดเป็น: "+newStartStr, &taskID)
+			}
+		}
+		if hasDueDate {
+			oldDueStr := ""
+			if existingList.DueDate != nil {
+				oldDueStr = existingList.DueDate.Format("2006-01-02")
+			}
+			newDueStr := ""
+			if dueDate != nil {
+				newDueStr = dueDate.Format("2006-01-02")
+			}
+			if newDueStr != oldDueStr {
+				h.audit(c, scope, "board_due_date_changed", "เปลี่ยนวันครบกำหนดบอร์ดเป็น: "+newDueStr, &taskID)
+			}
+		}
+		if req.Attachments != nil {
+			h.audit(c, scope, "board_updated", "แก้ไขเอกสารแนบบอร์ด", &taskID)
+		}
+		if req.AssigneeIDs != nil {
+			existingIDsMap := make(map[uuid.UUID]bool)
+			for _, id := range existingList.AssigneeIDs {
+				existingIDsMap[id] = true
+			}
+			reqIDsMap := make(map[uuid.UUID]bool)
+			for _, id := range *req.AssigneeIDs {
+				reqIDsMap[id] = true
+			}
+
+			var addedIDs []uuid.UUID
+			for _, id := range *req.AssigneeIDs {
+				if !existingIDsMap[id] {
+					addedIDs = append(addedIDs, id)
+				}
+			}
+			var removedIDs []uuid.UUID
+			for _, id := range existingList.AssigneeIDs {
+				if !reqIDsMap[id] {
+					removedIDs = append(removedIDs, id)
+				}
+			}
+
+			if len(addedIDs) > 0 {
+				h.audit(c, scope, "board_assignees_added", "เพิ่มผู้รับผิดชอบบอร์ด", &taskID)
+			}
+			if len(removedIDs) > 0 {
+				h.audit(c, scope, "board_assignees_removed", "นำผู้รับผิดชอบบอร์ดออก", &taskID)
+			}
 		}
 	}
 
@@ -1005,6 +1092,12 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		return
 	}
 
+	existingCard, err := h.cardRepo.Get(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบการ์ดงานนี้"})
+		return
+	}
+
 	var req struct {
 		Title        *string    `json:"title"`
 		Description  *string    `json:"description"`
@@ -1101,6 +1194,41 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลการ์ดล้มเหลว"})
 		return
+	}
+
+	// Audit Logs
+	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), existingCard.ListID)
+	if scope != nil {
+		scope.CardID = &cardID
+		scope.Name = existingCard.Title
+		if req.Title != nil {
+			scope.Name = *req.Title
+		}
+	}
+
+	if req.Title != nil && *req.Title != existingCard.Title {
+		h.audit(c, scope, "card_updated", "แก้ไขการ์ดงาน: "+*req.Title, &sourceTaskID)
+	}
+	if req.Status != nil && *req.Status != existingCard.Status {
+		h.audit(c, scope, "card_status_changed", "เปลี่ยนสถานะการ์ดเป็น: "+*req.Status, &sourceTaskID)
+	}
+	if req.Priority != nil && *req.Priority != existingCard.Priority {
+		h.audit(c, scope, "card_updated", "เปลี่ยนระดับความสำคัญการ์ดเป็น: "+*req.Priority, &sourceTaskID)
+	}
+	if req.Description != nil && *req.Description != existingCard.Description {
+		h.audit(c, scope, "card_updated", "แก้ไขรายละเอียดการ์ดงาน", &sourceTaskID)
+	}
+	if req.AdminComment != nil {
+		oldComment := ""
+		if existingCard.AdminComment != nil {
+			oldComment = *existingCard.AdminComment
+		}
+		if *req.AdminComment != oldComment {
+			h.audit(c, scope, "card_updated", "แก้ไขหมายเหตุการ์ดงาน", &sourceTaskID)
+		}
+	}
+	if req.ListID != nil && *req.ListID != existingCard.ListID {
+		h.audit(c, scope, "card_moved", "ย้ายการ์ดงานไปยังรายการอื่น", &sourceTaskID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตการ์ดสำเร็จ"})

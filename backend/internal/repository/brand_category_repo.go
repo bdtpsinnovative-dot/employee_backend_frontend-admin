@@ -598,3 +598,18 @@ func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID)
 	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
 	return err
 }
+
+func (r *TaskCardRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskCard, error) {
+	var card domain.TaskCard
+	err := r.db.GetContext(ctx, &card, `
+		SELECT id, list_id, title, description, status, sort_order, created_at,
+		       start_date, due_date, priority, admin_comment
+		FROM task_cards
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &card, nil
+}
+
