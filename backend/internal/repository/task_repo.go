@@ -17,6 +17,59 @@ func NewTaskRepo(db *sqlx.DB) *TaskRepo {
 	return &TaskRepo{db: db}
 }
 
+func (r *TaskRepo) ValidateAssignees(
+	ctx context.Context,
+	assigneeIDs []uuid.UUID,
+	projectID *uuid.UUID,
+) error {
+	if len(assigneeIDs) == 0 {
+		return fmt.Errorf("at least one assignee is required")
+	}
+
+	uniqueIDs := make(map[uuid.UUID]struct{}, len(assigneeIDs))
+	for _, id := range assigneeIDs {
+		if id == uuid.Nil {
+			return fmt.Errorf("invalid assignee")
+		}
+		uniqueIDs[id] = struct{}{}
+	}
+	if len(uniqueIDs) != len(assigneeIDs) {
+		return fmt.Errorf("duplicate assignee")
+	}
+
+	query := `
+		SELECT COUNT(*)
+		FROM users u
+		WHERE u.id IN (?)
+		  AND u.status = 'active'
+	`
+	args := []any{assigneeIDs}
+	if projectID != nil {
+		query += `
+		  AND EXISTS (
+		    SELECT 1 FROM project_members pm
+		    WHERE pm.project_id = ? AND pm.user_id = u.id
+		  )
+		`
+		args = append(args, *projectID)
+	}
+
+	query, boundArgs, err := sqlx.In(query, args...)
+	if err != nil {
+		return err
+	}
+	query = r.db.Rebind(query)
+
+	var validCount int
+	if err := r.db.GetContext(ctx, &validCount, query, boundArgs...); err != nil {
+		return err
+	}
+	if validCount != len(assigneeIDs) {
+		return fmt.Errorf("assignees must be active project members")
+	}
+	return nil
+}
+
 func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
 	if len(tasks) == 0 {
 		return tasks, nil

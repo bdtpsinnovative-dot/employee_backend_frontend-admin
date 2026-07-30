@@ -547,59 +547,13 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		return
 	}
 
-	// Get task ID for the list
-	var taskID uuid.UUID
-	err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &taskID, `
-		SELECT task_id FROM task_lists WHERE id = $1
-	`, listID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่พบรายการหรือบอร์ดงานนี้"})
+	taskID, ok := h.taskIDForList(c, listID)
+	if !ok || !h.requireTaskAccess(c, taskID) {
 		return
 	}
 
 	assignerIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	assignerID := assignerIDRaw.(uuid.UUID)
-	userRoleRaw, _ := c.Get(middleware.ContextKeyRole)
-	userRole, _ := userRoleRaw.(string)
-
-	isAuthorized := false
-	if userRole == "admin" {
-		isAuthorized = true
-	} else {
-		// Fetch task details for permission checks
-		type taskPermissionMeta struct {
-			ID         uuid.UUID  `db:"id"`
-			ProjectID  *uuid.UUID `db:"project_id"`
-			AssignedTo *uuid.UUID `db:"assigned_to"`
-			AssignedBy *uuid.UUID `db:"assigned_by"`
-		}
-		var task taskPermissionMeta
-		err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &task, `
-			SELECT id, project_id, assigned_to, assigned_by FROM tasks WHERE id = $1
-		`, taskID)
-		if err == nil {
-			if task.AssignedTo != nil && *task.AssignedTo == assignerID {
-				isAuthorized = true
-			} else if task.AssignedBy != nil && *task.AssignedBy == assignerID {
-				isAuthorized = true
-			} else {
-				var isTaskMember bool
-				err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &isTaskMember, `
-					SELECT EXISTS(
-						SELECT 1 FROM task_assignees WHERE task_id = $1 AND user_id = $2
-					)
-				`, task.ID, assignerID)
-				if err == nil && isTaskMember {
-					isAuthorized = true
-				}
-			}
-		}
-	}
-
-	if !isAuthorized {
-		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์สร้างการ์ดงานในบอร์ดนี้"})
-		return
-	}
 
 	var req struct {
 		Title       string     `json:"title"`
@@ -630,6 +584,13 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 
 	if card.Priority == "" {
 		card.Priority = "medium"
+	}
+	if card.Priority != "low" &&
+		card.Priority != "medium" &&
+		card.Priority != "high" &&
+		card.Priority != "urgent" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ระดับความสำคัญไม่ถูกต้อง"})
+		return
 	}
 
 	var uids []uuid.UUID
@@ -696,10 +657,6 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "สถานะการ์ดไม่ถูกต้อง"})
 			return
 		}
-		if err := h.cardRepo.UpdateStatus(c.Request.Context(), cardID, *req.Status); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตสถานะการ์ดล้มเหลว"})
-			return
-		}
 	}
 
 	if req.ListID != nil {
@@ -709,17 +666,6 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		}
 		if targetTaskID != sourceTaskID {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่สามารถย้ายการ์ดข้ามบอร์ดงานได้"})
-			return
-		}
-		if err := h.cardRepo.MoveToList(c.Request.Context(), cardID, *req.ListID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "ย้ายการ์ดไปยังรายการอื่นล้มเหลว"})
-			return
-		}
-	}
-
-	if req.SortOrder != nil {
-		if err := h.cardRepo.UpdateSortOrder(c.Request.Context(), cardID, *req.SortOrder); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "เรียงลำดับการ์ดล้มเหลว"})
 			return
 		}
 	}
@@ -734,26 +680,22 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		}
 	}
 
-	if req.Title != nil ||
-		req.Description != nil ||
-		req.StartDate != nil ||
-		req.DueDate != nil ||
-		req.AdminComment != nil ||
-		req.Priority != nil {
-		err = h.cardRepo.UpdateCard(
-			c.Request.Context(),
-			cardID,
-			req.Title,
-			req.Description,
-			req.StartDate,
-			req.DueDate,
-			req.AdminComment,
-			req.Priority,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลการ์ดล้มเหลว"})
-			return
-		}
+	err = h.cardRepo.Update(
+		c.Request.Context(),
+		cardID,
+		req.Status,
+		req.ListID,
+		req.SortOrder,
+		req.Title,
+		req.Description,
+		req.StartDate,
+		req.DueDate,
+		req.AdminComment,
+		req.Priority,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลการ์ดล้มเหลว"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตการ์ดสำเร็จ"})

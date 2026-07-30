@@ -310,38 +310,34 @@ func (r *TaskCardRepo) Create(ctx context.Context, card *domain.TaskCard) error 
 	return err
 }
 
-func (r *TaskCardRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET status = $1 WHERE id = $2`, status, id)
-	return err
-}
-
-func (r *TaskCardRepo) UpdateSortOrder(ctx context.Context, id uuid.UUID, sortOrder int) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET sort_order = $1 WHERE id = $2`, sortOrder, id)
-	return err
-}
-
 func (r *TaskCardRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM task_cards WHERE id = $1`, id)
 	return err
 }
 
-func (r *TaskCardRepo) UpdateCard(
+func (r *TaskCardRepo) Update(
 	ctx context.Context,
 	id uuid.UUID,
+	status *string,
+	listID *uuid.UUID,
+	sortOrder *int,
 	title, description *string,
 	startDate, dueDate *time.Time,
 	adminComment, priority *string,
 ) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE task_cards
-		SET title = COALESCE($1, title),
-		    description = COALESCE($2, description),
-		    start_date = COALESCE($3, start_date),
-		    due_date = COALESCE($4, due_date),
-		    admin_comment = COALESCE($5, admin_comment),
-		    priority = COALESCE($6, priority)
-		WHERE id = $7
-	`, title, description, startDate, dueDate, adminComment, priority, id)
+		SET status = COALESCE($1, status),
+		    list_id = COALESCE($2, list_id),
+		    sort_order = COALESCE($3, sort_order),
+		    title = COALESCE($4, title),
+		    description = COALESCE($5, description),
+		    start_date = COALESCE($6, start_date),
+		    due_date = COALESCE($7, due_date),
+		    admin_comment = COALESCE($8, admin_comment),
+		    priority = COALESCE($9, priority)
+		WHERE id = $10
+	`, status, listID, sortOrder, title, description, startDate, dueDate, adminComment, priority, id)
 	return err
 }
 
@@ -353,9 +349,4 @@ func (r *TaskCardRepo) GetTaskID(ctx context.Context, cardID uuid.UUID) (uuid.UU
 		WHERE c.id = $1
 	`, cardID)
 	return taskID, err
-}
-
-func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
-	return err
 }

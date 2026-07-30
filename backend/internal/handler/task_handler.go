@@ -45,14 +45,20 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 	var assigneeUUIDs []uuid.UUID
 	for _, idStr := range req.AssigneeIDs {
-		if u, err := uuid.Parse(idStr); err == nil {
-			assigneeUUIDs = append(assigneeUUIDs, u)
+		u, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
 		}
+		assigneeUUIDs = append(assigneeUUIDs, u)
 	}
 	if len(assigneeUUIDs) == 0 && req.AssignedTo != "" {
-		if u, err := uuid.Parse(req.AssignedTo); err == nil {
-			assigneeUUIDs = append(assigneeUUIDs, u)
+		u, err := uuid.Parse(req.AssignedTo)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
 		}
+		assigneeUUIDs = append(assigneeUUIDs, u)
 	}
 
 	if len(assigneeUUIDs) == 0 {
@@ -170,9 +176,12 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 
 	assigneeUUIDs := make([]uuid.UUID, 0, len(req.AssigneeIDs))
 	for _, idStr := range req.AssigneeIDs {
-		if parsed, parseErr := uuid.Parse(idStr); parseErr == nil {
-			assigneeUUIDs = append(assigneeUUIDs, parsed)
+		parsed, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
 		}
+		assigneeUUIDs = append(assigneeUUIDs, parsed)
 	}
 	if len(assigneeUUIDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})

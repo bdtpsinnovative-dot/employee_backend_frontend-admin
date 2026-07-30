@@ -40,6 +40,10 @@ func (s *TaskService) ListTasksByUser(ctx context.Context, userID uuid.UUID) ([]
 }
 
 func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string) (*domain.Task, error) {
+	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, projectID); err != nil {
+		return nil, fmt.Errorf("invalid assignees: %w", err)
+	}
+
 	var primaryAssignee *uuid.UUID
 	if len(assigneeIDs) > 0 {
 		primaryAssignee = &assigneeIDs[0]
@@ -107,6 +111,9 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		if !isCreator {
 			return nil, fmt.Errorf("permission denied: you cannot edit this task")
 		}
+	}
+	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, task.ProjectID); err != nil {
+		return nil, fmt.Errorf("invalid assignees: %w", err)
 	}
 
 	var primaryAssignee *uuid.UUID
