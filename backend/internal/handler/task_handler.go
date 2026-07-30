@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
@@ -17,15 +18,19 @@ type TaskHandler struct {
 	taskSvc     *service.TaskService
 	subItemRepo *repository.TaskSubItemRepo
 	eventRepo   *repository.TaskEventRepo
+	listRepo    *repository.TaskListRepo
+	cardRepo    *repository.TaskCardRepo
 }
 
-func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo, eventRepo *repository.TaskEventRepo) *TaskHandler {
-	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo, eventRepo: eventRepo}
+func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo, eventRepo *repository.TaskEventRepo, listRepo *repository.TaskListRepo, cardRepo *repository.TaskCardRepo) *TaskHandler {
+	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo, eventRepo: eventRepo, listRepo: listRepo, cardRepo: cardRepo}
 }
 
 func (h *TaskHandler) audit(c *gin.Context, scope *repository.TaskEventScope, action, content string, taskID *uuid.UUID) {
-	if err := recordTaskEvent(c, h.eventRepo, scope, action, content, taskID); err != nil {
-		log.Printf("task audit write failed (%s): %v", action, err)
+	if h.eventRepo != nil {
+		if err := recordTaskEvent(c, h.eventRepo, scope, action, content, taskID); err != nil {
+			log.Printf("task audit write failed (%s): %v", action, err)
+		}
 	}
 }
 
@@ -38,6 +43,7 @@ type createTaskReq struct {
 	BrandID     string   `json:"brand_id"`
 	CategoryID  string   `json:"category_id"`
 	SubItems    []string `json:"sub_items"` // list of sub-item titles
+	ListNames   []string `json:"list_names"`
 }
 
 // CreateTask POST /admin/tasks (Admin only)
@@ -50,19 +56,38 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 	var assigneeUUIDs []uuid.UUID
 	for _, idStr := range req.AssigneeIDs {
-		if u, err := uuid.Parse(idStr); err == nil {
-			assigneeUUIDs = append(assigneeUUIDs, u)
+		u, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
 		}
+		assigneeUUIDs = append(assigneeUUIDs, u)
 	}
 	if len(assigneeUUIDs) == 0 && req.AssignedTo != "" {
-		if u, err := uuid.Parse(req.AssignedTo); err == nil {
-			assigneeUUIDs = append(assigneeUUIDs, u)
+		u, err := uuid.Parse(req.AssignedTo)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
 		}
+		assigneeUUIDs = append(assigneeUUIDs, u)
 	}
 
 	if len(assigneeUUIDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
 		return
+	}
+
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	if req.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่องาน"})
+		return
+	}
+	listNames := make([]string, 0, len(req.ListNames))
+	for _, name := range req.ListNames {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			listNames = append(listNames, trimmed)
+		}
 	}
 
 	var dueDate time.Time
@@ -96,7 +121,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, dueDate, adminUserID, brandID, categoryID)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -185,6 +210,78 @@ func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
+// UpdateTask PATCH /api/tasks/:id
+func (h *TaskHandler) UpdateTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var req createTaskReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้องหรือใส่ข้อมูลไม่ครบ"})
+		return
+	}
+
+	assigneeUUIDs := make([]uuid.UUID, 0, len(req.AssigneeIDs))
+	for _, idStr := range req.AssigneeIDs {
+		parsed, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID ผู้รับผิดชอบไม่ถูกต้อง"})
+			return
+		}
+		assigneeUUIDs = append(assigneeUUIDs, parsed)
+	}
+	if len(assigneeUUIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องเลือกผู้รับผิดชอบอย่างน้อย 1 คน"})
+		return
+	}
+
+	dueDate, err := time.Parse("2006-01-02", req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่กำหนดส่งไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)"})
+		return
+	}
+
+	var brandID *uuid.UUID
+	if req.BrandID != "" {
+		if parsed, parseErr := uuid.Parse(req.BrandID); parseErr == nil {
+			brandID = &parsed
+		}
+	}
+	var categoryID *uuid.UUID
+	if req.CategoryID != "" {
+		if parsed, parseErr := uuid.Parse(req.CategoryID); parseErr == nil {
+			categoryID = &parsed
+		}
+	}
+
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	isAdmin := roleRaw.(string) == "admin"
+
+	task, err := h.taskSvc.UpdateTask(
+		c.Request.Context(),
+		id,
+		assigneeUUIDs,
+		req.Title,
+		req.Description,
+		&dueDate,
+		userID,
+		isAdmin,
+		brandID,
+		categoryID,
+	)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
+}
+
 type updateTaskStatusReq struct {
 	Status string `json:"status" binding:"required"`
 }
@@ -220,99 +317,4 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะงานสำเร็จ"})
 }
 
-type updateTaskReq struct {
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	DueDate     string      `json:"due_date"`
-	AssignedTo  *string     `json:"assigned_to"`
-	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
-	BrandID     *string     `json:"brand_id"`
-	CategoryID  *string     `json:"category_id"`
-}
 
-// UpdateTask PUT /api/tasks/:id
-func (h *TaskHandler) UpdateTask(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
-		return
-	}
-
-	var req updateTaskReq
-	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
-		return
-	}
-
-	dueDate, err := time.Parse("2006-01-02", req.DueDate)
-	if err != nil {
-		t, err2 := time.Parse(time.RFC3339, req.DueDate)
-		if err2 == nil {
-			dueDate = t
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันกำหนดส่งไม่ถูกต้อง"})
-			return
-		}
-	}
-
-	var brandID *uuid.UUID
-	if req.BrandID != nil && *req.BrandID != "" {
-		u, err := uuid.Parse(*req.BrandID)
-		if err == nil {
-			brandID = &u
-		}
-	}
-
-	var categoryID *uuid.UUID
-	if req.CategoryID != nil && *req.CategoryID != "" {
-		u, err := uuid.Parse(*req.CategoryID)
-		if err == nil {
-			categoryID = &u
-		}
-	}
-
-	task, err := h.taskSvc.UpdateTask(c.Request.Context(), id, req.AssigneeIDs, req.Title, req.Description, dueDate, brandID, categoryID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	h.audit(c, nil, "task_updated", "แก้ไขข้อมูลงาน: "+task.Title, &task.ID)
-
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
-}
-
-// ListTrashTasks GET /api/tasks/trash
-func (h *TaskHandler) ListTrashTasks(c *gin.Context) {
-	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
-	userID := userIDRaw.(uuid.UUID)
-
-	roleRaw, _ := c.Get(middleware.ContextKeyRole)
-	role := roleRaw.(string)
-	isAdmin := role == "admin"
-
-	tasks, err := h.taskSvc.ListTrashTasks(c.Request.Context(), userID, isAdmin)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานในถังขยะล้มเหลว"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
-}
-
-// RestoreTask POST /api/tasks/:id/restore
-func (h *TaskHandler) RestoreTask(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
-		return
-	}
-
-	err = h.taskSvc.RestoreTask(c.Request.Context(), id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "กู้คืนงานล้มเหลว"})
-		return
-	}
-	h.audit(c, nil, "task_restored", "กู้คืนงานจากถังขยะ", &id)
-
-	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "กู้คืนงานสำเร็จ"})
-}

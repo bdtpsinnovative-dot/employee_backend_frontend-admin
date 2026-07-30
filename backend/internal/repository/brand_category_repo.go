@@ -258,7 +258,11 @@ func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
 	var lists []domain.TaskList
 	err := r.db.SelectContext(ctx, &lists, `
-		SELECT * FROM task_lists WHERE task_id = $1 AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC
+		SELECT id, task_id, name, description, sort_order, created_at,
+		       start_date, due_date, priority, status, admin_comment, attachments
+		FROM task_lists
+		WHERE task_id = $1
+		ORDER BY sort_order ASC, created_at ASC
 	`, taskID)
 	if err != nil {
 		return nil, err
@@ -288,7 +292,12 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 
 func (r *TaskListRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskList, error) {
 	var list domain.TaskList
-	err := r.db.GetContext(ctx, &list, "SELECT * FROM task_lists WHERE id = $1", id)
+	err := r.db.GetContext(ctx, &list, `
+		SELECT id, task_id, name, description, sort_order, created_at,
+		       start_date, due_date, priority, status, admin_comment, attachments
+		FROM task_lists
+		WHERE id = $1
+	`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -332,43 +341,7 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 }
 
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_lists SET deleted_at = NOW() WHERE id = $1`, id)
-	return err
-}
-
-func (r *TaskListRepo) ListTrashByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
-	var lists []domain.TaskList
-	err := r.db.SelectContext(ctx, &lists, `
-		SELECT * FROM task_lists WHERE task_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
-	`, taskID)
-	if err != nil {
-		return nil, err
-	}
-	if len(lists) > 0 {
-		var listAssignees []struct {
-			ListID uuid.UUID `db:"list_id"`
-			UserID uuid.UUID `db:"user_id"`
-		}
-		err = r.db.SelectContext(ctx, &listAssignees, `SELECT list_id, user_id FROM list_assignees`)
-		if err == nil {
-			listMap := make(map[uuid.UUID][]uuid.UUID)
-			for _, la := range listAssignees {
-				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
-			}
-			for i, l := range lists {
-				ids := listMap[l.ID]
-				if ids == nil {
-					ids = []uuid.UUID{}
-				}
-				lists[i].AssigneeIDs = ids
-			}
-		}
-	}
-	return lists, nil
-}
-
-func (r *TaskListRepo) Restore(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_lists SET deleted_at = NULL WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM task_lists WHERE id = $1`, id)
 	return err
 }
 
@@ -382,45 +355,16 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description, priority, status, adminComment string, attachments []byte, startDate, dueDate *time.Time, assigneeIDs *[]uuid.UUID) error {
-	tx, err := r.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if len(attachments) == 0 {
-		attachments = []byte("[]")
-	}
-
-	_, err = tx.ExecContext(ctx, `
+func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description *string, startDate, dueDate *time.Time) error {
+	_, err := r.db.ExecContext(ctx, `
 		UPDATE task_lists 
-		SET name = $1, description = $2, priority = $3, status = $4, admin_comment = $5, attachments = $6, start_date = $7, due_date = $8
-		WHERE id = $9
-	`, name, description, priority, status, adminComment, attachments, startDate, dueDate, id)
-	if err != nil {
-		return err
-	}
-
-	if assigneeIDs != nil {
-		_, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id)
-		if err != nil {
-			return err
-		}
-
-		for _, userID := range *assigneeIDs {
-			_, err = tx.ExecContext(ctx, `
-				INSERT INTO list_assignees (list_id, user_id)
-				VALUES ($1, $2)
-				ON CONFLICT DO NOTHING
-			`, id, userID)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
+		SET name = COALESCE($1, name),
+		    description = COALESCE($2, description),
+		    start_date = COALESCE($3, start_date),
+		    due_date = COALESCE($4, due_date)
+		WHERE id = $5
+	`, name, description, startDate, dueDate, id)
+	return err
 }
 
 type TaskCardRepo struct {
@@ -431,10 +375,17 @@ func NewTaskCardRepo(db *sqlx.DB) *TaskCardRepo {
 	return &TaskCardRepo{db: db}
 }
 
+// GetDB exposes the underlying DB for advanced queries in handlers.
+func (r *TaskCardRepo) GetDB() *sqlx.DB { return r.db }
+
 func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]domain.TaskCard, error) {
 	var cards []domain.TaskCard
 	err := r.db.SelectContext(ctx, &cards, `
-		SELECT * FROM task_cards WHERE list_id = $1 ORDER BY sort_order ASC, created_at ASC
+		SELECT id, list_id, title, description, status, sort_order, created_at,
+		       start_date, due_date, priority, admin_comment
+		FROM task_cards
+		WHERE list_id = $1
+		ORDER BY sort_order ASC, created_at ASC
 	`, listID)
 	if err != nil {
 		return nil, err
@@ -491,11 +442,6 @@ func (r *TaskCardRepo) Create(ctx context.Context, card *domain.TaskCard) error 
 	return tx.Commit()
 }
 
-func (r *TaskCardRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET status = $1 WHERE id = $2`, status, id)
-	return err
-}
-
 func (r *TaskCardRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM task_cards WHERE id = $1`, id)
 	return err
@@ -538,6 +484,32 @@ func (r *TaskCardRepo) UpdateCard(ctx context.Context, id uuid.UUID, title, desc
 	return tx.Commit()
 }
 
+func (r *TaskCardRepo) Update(
+	ctx context.Context,
+	id uuid.UUID,
+	status *string,
+	listID *uuid.UUID,
+	sortOrder *int,
+	title, description *string,
+	startDate, dueDate *time.Time,
+	adminComment, priority *string,
+) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE task_cards
+		SET status = COALESCE($1, status),
+		    list_id = COALESCE($2, list_id),
+		    sort_order = COALESCE($3, sort_order),
+		    title = COALESCE($4, title),
+		    description = COALESCE($5, description),
+		    start_date = COALESCE($6, start_date),
+		    due_date = COALESCE($7, due_date),
+		    admin_comment = COALESCE($8, admin_comment),
+		    priority = COALESCE($9, priority)
+		WHERE id = $10
+	`, status, listID, sortOrder, title, description, startDate, dueDate, adminComment, priority, id)
+	return err
+}
+
 func (r *TaskCardRepo) GetTaskID(ctx context.Context, cardID uuid.UUID) (uuid.UUID, error) {
 	var taskID uuid.UUID
 	err := r.db.GetContext(ctx, &taskID, `
@@ -547,7 +519,6 @@ func (r *TaskCardRepo) GetTaskID(ctx context.Context, cardID uuid.UUID) (uuid.UU
 	`, cardID)
 	return taskID, err
 }
-
 func (r *TaskCardRepo) MoveToList(ctx context.Context, cardID, listID uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE task_cards SET list_id = $1 WHERE id = $2`, listID, cardID)
 	return err

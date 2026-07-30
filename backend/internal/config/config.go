@@ -11,10 +11,10 @@ type Config struct {
 	Port string
 
 	// Supabase
-	SupabaseURL       string
-	SupabaseAnonKey   string
+	SupabaseURL         string
+	SupabaseAnonKey     string
 	SupabaseDatabaseURL string
-	SupabaseJWTSecret string
+	SupabaseJWTSecret   string
 
 	// Geofencing
 	DefaultGeofenceRadiusM int
@@ -34,8 +34,11 @@ func Load() (*Config, error) {
 		LateThresholdHour:      9,
 		LateThresholdMinute:    0,
 	}
-	if cfg.Port == ""{
-		return nil , fmt.Errorf("PORT is required")
+	if cfg.Port == "" {
+		return nil, fmt.Errorf("PORT is required")
+	}
+	if cfg.SupabaseDatabaseURL == "" {
+		cfg.SupabaseDatabaseURL = getEnv("DATABASE_URL", "")
 	}
 	// Validate required fields
 	if cfg.SupabaseDatabaseURL == "" {

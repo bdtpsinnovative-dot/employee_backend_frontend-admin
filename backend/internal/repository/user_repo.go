@@ -95,19 +95,21 @@ func (r *UserRepo) UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, faceEm
 func (r *UserRepo) UpdateProfileCompletion(
 	ctx context.Context,
 	id uuid.UUID,
-	firstName, lastName, avatarURL, faceEmbedding string,
+	firstName, lastName, nickname, avatarURL, faceEmbedding string,
 ) error {
 	_, err := r.db.ExecContext(
 		ctx,
 		`UPDATE users
 		 SET first_name = $1,
 		     last_name = $2,
-		     avatar_url = $3,
-		     face_embedding = $4::vector,
+		     nickname = $3,
+		     avatar_url = $4,
+		     face_embedding = $5::vector,
 		     updated_at = NOW()
-		 WHERE id = $5`,
+		 WHERE id = $6`,
 		firstName,
 		lastName,
+		nickname,
 		avatarURL,
 		faceEmbedding,
 		id,
@@ -115,13 +117,13 @@ func (r *UserRepo) UpdateProfileCompletion(
 	return err
 }
 
-// UpdateProfileInfo updates a user's first name, last name, and avatar URL.
-func (r *UserRepo) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, avatarURL string) error {
+// UpdateProfileInfo updates a user's first name, last name, nickname, and avatar URL.
+func (r *UserRepo) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, avatarURL string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE users
-		SET first_name = $1, last_name = $2, avatar_url = $3, updated_at = NOW()
-		WHERE id = $4`,
-		firstName, lastName, avatarURL, id)
+		SET first_name = $1, last_name = $2, nickname = $3, avatar_url = $4, updated_at = NOW()
+		WHERE id = $5`,
+		firstName, lastName, nickname, avatarURL, id)
 	return err
 }
 

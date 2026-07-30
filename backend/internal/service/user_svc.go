@@ -49,7 +49,7 @@ func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, fir
 func (s *UserService) CompleteProfile(
 	ctx context.Context,
 	userID uuid.UUID,
-	firstName, lastName, avatarURL, faceEmbedding string,
+	firstName, lastName, nickname, avatarURL, faceEmbedding string,
 ) error {
 	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
 		return errors.New("ไม่พบข้อมูลผู้ใช้")
@@ -59,17 +59,18 @@ func (s *UserService) CompleteProfile(
 		userID,
 		firstName,
 		lastName,
+		nickname,
 		avatarURL,
 		faceEmbedding,
 	)
 }
 
-// UpdateProfileInfo updates a user's first name, last name, and avatar URL.
-func (s *UserService) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, avatarURL string) error {
+// UpdateProfileInfo updates a user's first name, last name, nickname, and avatar URL.
+func (s *UserService) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, avatarURL string) error {
 	if _, err := s.userRepo.FindByID(ctx, id); err != nil {
 		return errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
-	return s.userRepo.UpdateProfileInfo(ctx, id, firstName, lastName, avatarURL)
+	return s.userRepo.UpdateProfileInfo(ctx, id, firstName, lastName, nickname, avatarURL)
 }
 
 // GetByAuthID ดึงข้อมูล user จาก Supabase Auth ID

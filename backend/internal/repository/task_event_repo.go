@@ -64,6 +64,9 @@ func (r *TaskEventRepo) EnsureTable(ctx context.Context) error {
 }
 
 func (r *TaskEventRepo) Create(ctx context.Context, event *domain.TaskEvent) error {
+	if r == nil || r.db == nil {
+		return nil
+	}
 	_, err := r.db.NamedExecContext(ctx, `
 		INSERT INTO task_events (
 			id, task_id, list_id, card_id, sub_item_id, user_id,
@@ -83,6 +86,9 @@ func (r *TaskEventRepo) ListByTask(
 	cardID *uuid.UUID,
 ) ([]domain.TaskEvent, error) {
 	events := make([]domain.TaskEvent, 0)
+	if r == nil || r.db == nil {
+		return events, nil
+	}
 	err := r.db.SelectContext(ctx, &events, `
 		SELECT
 			e.id, e.task_id, e.list_id, e.card_id, e.sub_item_id, e.user_id,
@@ -109,6 +115,9 @@ func (r *TaskEventRepo) ListByTask(
 
 func (r *TaskEventRepo) ListAll(ctx context.Context) ([]domain.TaskEvent, error) {
 	events := make([]domain.TaskEvent, 0)
+	if r == nil || r.db == nil {
+		return events, nil
+	}
 	err := r.db.SelectContext(ctx, &events, `
 		SELECT
 			e.id, e.task_id, e.list_id, e.card_id, e.sub_item_id, e.user_id,
@@ -142,6 +151,9 @@ type TaskEventScope struct {
 }
 
 func (r *TaskEventRepo) ScopeForList(ctx context.Context, listID uuid.UUID) (*TaskEventScope, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
 	var scope TaskEventScope
 	err := r.db.GetContext(ctx, &scope, `
 		SELECT task_id, id AS list_id, NULL::uuid AS card_id,
@@ -152,6 +164,9 @@ func (r *TaskEventRepo) ScopeForList(ctx context.Context, listID uuid.UUID) (*Ta
 }
 
 func (r *TaskEventRepo) ScopeForCard(ctx context.Context, cardID uuid.UUID) (*TaskEventScope, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
 	var scope TaskEventScope
 	err := r.db.GetContext(ctx, &scope, `
 		SELECT l.task_id, c.list_id, c.id AS card_id,
@@ -164,6 +179,9 @@ func (r *TaskEventRepo) ScopeForCard(ctx context.Context, cardID uuid.UUID) (*Ta
 }
 
 func (r *TaskEventRepo) ScopeForSubItem(ctx context.Context, subItemID uuid.UUID) (*TaskEventScope, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
 	var scope TaskEventScope
 	err := r.db.GetContext(ctx, &scope, `
 		SELECT s.task_id, c.list_id, s.card_id, s.id AS sub_item_id,
@@ -176,6 +194,9 @@ func (r *TaskEventRepo) ScopeForSubItem(ctx context.Context, subItemID uuid.UUID
 }
 
 func (r *TaskEventRepo) ScopeForAttachment(ctx context.Context, attachmentID uuid.UUID) (*TaskEventScope, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
 	var scope TaskEventScope
 	err := r.db.GetContext(ctx, &scope, `
 		SELECT l.task_id, c.list_id, a.card_id, NULL::uuid AS sub_item_id,
