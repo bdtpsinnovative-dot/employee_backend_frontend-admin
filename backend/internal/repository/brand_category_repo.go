@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 
 	"time"
 
@@ -261,7 +262,7 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 		SELECT id, task_id, name, description, sort_order, created_at,
 		       start_date, due_date, priority, status, admin_comment, attachments
 		FROM task_lists
-		WHERE task_id = $1
+		WHERE task_id = $1 AND deleted_at IS NULL
 		ORDER BY sort_order ASC, created_at ASC
 	`, taskID)
 	if err != nil {
@@ -296,7 +297,7 @@ func (r *TaskListRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskList,
 		SELECT id, task_id, name, description, sort_order, created_at,
 		       start_date, due_date, priority, status, admin_comment, attachments
 		FROM task_lists
-		WHERE id = $1
+		WHERE id = $1 AND deleted_at IS NULL
 	`, id)
 	if err != nil {
 		return nil, err
@@ -341,7 +342,13 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 }
 
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM task_lists WHERE id = $1`, id)
+	// Deliverables are soft-deleted so legacy cards and sub-items remain
+	// recoverable if this hidden hierarchy is restored in the future.
+	_, err := r.db.ExecContext(
+		ctx,
+		`UPDATE task_lists SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+		id,
+	)
 	return err
 }
 
@@ -355,16 +362,53 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description *string, startDate, dueDate *time.Time) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE task_lists 
+func (r *TaskListRepo) UpdateDetail(
+	ctx context.Context,
+	id uuid.UUID,
+	name, description *string,
+	startDate, dueDate *time.Time,
+	priority, status, adminComment *string,
+	attachments *json.RawMessage,
+	assigneeIDs *[]uuid.UUID,
+) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE task_lists
 		SET name = COALESCE($1, name),
 		    description = COALESCE($2, description),
 		    start_date = COALESCE($3, start_date),
-		    due_date = COALESCE($4, due_date)
-		WHERE id = $5
-	`, name, description, startDate, dueDate, id)
-	return err
+		    due_date = COALESCE($4, due_date),
+		    priority = COALESCE($5, priority),
+		    status = COALESCE($6, status),
+		    admin_comment = COALESCE($7, admin_comment),
+		    attachments = COALESCE($8, attachments)
+		WHERE id = $9
+	`, name, description, startDate, dueDate, priority, status, adminComment, attachments, id)
+	if err != nil {
+		return err
+	}
+
+	if assigneeIDs != nil {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id); err != nil {
+			return err
+		}
+		for _, userID := range *assigneeIDs {
+			if _, err = tx.ExecContext(ctx, `
+				INSERT INTO list_assignees (list_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, id, userID); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 type TaskCardRepo struct {

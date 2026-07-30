@@ -620,14 +620,15 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	}
 
 	var req struct {
-		Name         string      `json:"name"`
-		Description  *string     `json:"description"`
-		StartDate    *string     `json:"start_date"`
-		DueDate      *string     `json:"due_date"`
-		Priority     string      `json:"priority"`
-		Status       string      `json:"status"`
-		AdminComment *string     `json:"admin_comment"`
-		AssigneeIDs  []uuid.UUID `json:"assignee_ids"`
+		Name         string          `json:"name"`
+		Description  *string         `json:"description"`
+		StartDate    *string         `json:"start_date"`
+		DueDate      *string         `json:"due_date"`
+		Priority     string          `json:"priority"`
+		Status       string          `json:"status"`
+		AdminComment *string         `json:"admin_comment"`
+		Attachments  json.RawMessage `json:"attachments"`
+		AssigneeIDs  []uuid.UUID     `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อรายการ"})
@@ -665,6 +666,10 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	if req.AdminComment != nil {
 		comment = *req.AdminComment
 	}
+	attachments := req.Attachments
+	if len(attachments) == 0 {
+		attachments = json.RawMessage("[]")
+	}
 
 	list := domain.TaskList{
 		ID:           uuid.New(),
@@ -676,7 +681,7 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 		Priority:     req.Priority,
 		Status:       req.Status,
 		AdminComment: comment,
-		Attachments:  json.RawMessage("[]"),
+		Attachments:  attachments,
 		AssigneeIDs:  req.AssigneeIDs,
 		CreatedAt:    time.Now(),
 	}
@@ -746,7 +751,39 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		return
 	}
 
-	if req.Name != nil || req.Description != nil || req.StartDate != nil || req.DueDate != nil {
+	if req.Priority != nil &&
+		*req.Priority != "low" &&
+		*req.Priority != "medium" &&
+		*req.Priority != "high" &&
+		*req.Priority != "urgent" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ระดับความสำคัญไม่ถูกต้อง"})
+		return
+	}
+	if req.Status != nil &&
+		*req.Status != "pending" &&
+		*req.Status != "in_progress" &&
+		*req.Status != "in_review" &&
+		*req.Status != "completed" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "สถานะงานไม่ถูกต้อง"})
+		return
+	}
+	if req.Attachments != nil {
+		var attachments []map[string]any
+		if err := json.Unmarshal(*req.Attachments, &attachments); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไฟล์แนบไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	if req.Name != nil ||
+		req.Description != nil ||
+		req.StartDate != nil ||
+		req.DueDate != nil ||
+		req.Priority != nil ||
+		req.Status != nil ||
+		req.AdminComment != nil ||
+		req.Attachments != nil ||
+		req.AssigneeIDs != nil {
 		if err := h.listRepo.UpdateDetail(
 			c.Request.Context(),
 			listID,
@@ -754,6 +791,11 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			req.Description,
 			req.StartDate,
 			req.DueDate,
+			req.Priority,
+			req.Status,
+			req.AdminComment,
+			req.Attachments,
+			req.AssigneeIDs,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายการล้มเหลว"})
 			return
@@ -767,7 +809,13 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตรายการสำเร็จ"})
+	updated, err := h.listRepo.Get(c.Request.Context(), listID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "โหลดรายการหลังอัปเดตล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": updated})
 }
 
 // CreateTaskCard POST /api/tasks/lists/:id/cards

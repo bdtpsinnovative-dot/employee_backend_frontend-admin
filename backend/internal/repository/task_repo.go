@@ -179,8 +179,8 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done,
+	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
+	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0) AS card_done,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
@@ -246,8 +246,8 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id), 0) AS card_total,
-		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done,
+	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
+	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0) AS card_done,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
@@ -358,12 +358,25 @@ func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listName
 		if name == "" {
 			continue
 		}
+		listID := uuid.New()
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO task_lists (id, task_id, name, description, sort_order, created_at)
-			VALUES ($1, $2, $3, '', $4, NOW())
-		`, uuid.New(), t.ID, name, index)
+			INSERT INTO task_lists (
+				id, task_id, name, description, sort_order, due_date,
+				priority, status, admin_comment, attachments, created_at
+			)
+			VALUES ($1, $2, $3, '', $4, $5, 'medium', 'in_progress', '', '[]'::jsonb, NOW())
+		`, listID, t.ID, name, index, t.DueDate)
 		if err != nil {
 			return err
+		}
+		for _, userID := range t.AssigneeIDs {
+			if _, err = tx.ExecContext(ctx, `
+				INSERT INTO list_assignees (list_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, listID, userID); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -417,8 +430,6 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 
 	return tx.Commit()
 }
-
-
 
 func (r *TaskRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
 	var err error
