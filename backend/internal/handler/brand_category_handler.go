@@ -855,14 +855,19 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		}
 	}
 
-	if req.Name != nil || req.Description != nil || hasStartDate || hasDueDate {
+	if req.Name != nil || req.Description != nil || hasStartDate || hasDueDate || req.Priority != nil || req.Status != nil || req.AdminComment != nil || req.Attachments != nil || req.AssigneeIDs != nil {
 		if err := h.listRepo.UpdateDetail(
 			c.Request.Context(),
 			listID,
 			req.Name,
 			req.Description,
+			req.Priority,
+			req.Status,
+			req.AdminComment,
 			startDate,
 			dueDate,
+			req.Attachments,
+			req.AssigneeIDs,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายการล้มเหลว"})
 			return

@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-
+	"encoding/json"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
@@ -391,16 +391,55 @@ func (r *TaskListRepo) UpdateName(ctx context.Context, id uuid.UUID, name string
 	return err
 }
 
-func (r *TaskListRepo) UpdateDetail(ctx context.Context, id uuid.UUID, name, description *string, startDate, dueDate *time.Time) error {
-	_, err := r.db.ExecContext(ctx, `
+func (r *TaskListRepo) UpdateDetail(
+	ctx context.Context,
+	id uuid.UUID,
+	name, description, priority, status, adminComment *string,
+	startDate, dueDate *time.Time,
+	attachments *json.RawMessage,
+	assigneeIDs *[]uuid.UUID,
+) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
 		UPDATE task_lists 
 		SET name = COALESCE($1, name),
 		    description = COALESCE($2, description),
 		    start_date = COALESCE($3, start_date),
-		    due_date = COALESCE($4, due_date)
-		WHERE id = $5
-	`, name, description, startDate, dueDate, id)
-	return err
+		    due_date = COALESCE($4, due_date),
+		    priority = COALESCE($5, priority),
+		    status = COALESCE($6, status),
+		    admin_comment = COALESCE($7, admin_comment),
+		    attachments = COALESCE($8, attachments)
+		WHERE id = $9
+	`, name, description, startDate, dueDate, priority, status, adminComment, attachments, id)
+	if err != nil {
+		return err
+	}
+
+	if assigneeIDs != nil {
+		_, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id)
+		if err != nil {
+			return err
+		}
+
+		for _, userID := range *assigneeIDs {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO list_assignees (list_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, id, userID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 type TaskCardRepo struct {
