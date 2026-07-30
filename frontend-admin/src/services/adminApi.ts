@@ -446,6 +446,10 @@ export async function deleteCardAttachment(attachmentId: string): Promise<void> 
   await api.delete(`/api/tasks/cards/attachments/${attachmentId}`);
 }
 
+export async function updateCardAttachment(attachmentId: string, body: { name: string; url: string }): Promise<void> {
+  await api.patch(`/api/tasks/cards/attachments/${attachmentId}`, body);
+}
+
 export async function createSubItemVerification(subItemId: string, body: { status: 'pass' | 'fail'; verification_notes?: string; admin_comment?: string }): Promise<any> {
   const { data } = await api.post<ApiResponse<any>>(`/api/tasks/sub-items/${subItemId}/verifications`, body);
   return data.data;

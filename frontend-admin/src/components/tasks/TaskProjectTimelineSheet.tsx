@@ -8,6 +8,7 @@ import {
   Link2,
   Filter,
   Trash2,
+  Pencil,
   Save,
   Paperclip,
   Plus,
@@ -30,6 +31,7 @@ import {
   createCardSubItem,
   createCardAttachment,
   deleteCardAttachment,
+  updateCardAttachment,
   deleteTaskSubItem,
   createSubItemVerification,
   uploadFile,
@@ -429,7 +431,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
-    const handleDeleteCardAttachment = async (attId: string) => {
+  const handleDeleteCardAttachment = async (attId: string) => {
     if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
     try {
       await deleteCardAttachment(attId);
@@ -441,9 +443,35 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
         if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
       }
+      setActiveModal(null);
       onRefreshTask(true);
     } catch (err) {
       console.error('Failed to delete attachment', err);
+    }
+  };
+
+  const submitUpdateCardAttachment = async () => {
+    if (!modalTargetId || !modalInputVal1.trim()) return;
+    setIsModalSubmitting(true);
+    try {
+      const name = modalInputVal2.trim() || modalInputVal1.trim();
+      const url = modalInputVal1.trim();
+      await updateCardAttachment(modalTargetId, { name, url });
+
+      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      setTrelloLists(updatedLists);
+      const updatedList = updatedLists.find(l => l.id === editingList?.id);
+      if (updatedList) {
+        setEditingList(updatedList);
+        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+        if (updatedCard) setCardAttachmentsInput(updatedCard.attachments || []);
+      }
+      setActiveModal(null);
+      onRefreshTask(true);
+    } catch (err) {
+      console.error('Failed to update attachment', err);
+    } finally {
+      setIsModalSubmitting(false);
     }
   };
 
@@ -1172,10 +1200,18 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteCardAttachment(att.id)}
-                              className="text-rose-500 p-1 cursor-pointer"
+                              onClick={() => {
+                                setModalTitle(att.type === 'link' ? 'แก้ไขลิงก์แนบ' : 'แก้ไขไฟล์แนบ');
+                                setModalInputVal1(att.url);
+                                setModalInputVal2(att.name || '');
+                                setModalTargetId(att.id);
+                                setModalScope('card');
+                                setActiveModal('edit_link');
+                              }}
+                              className="text-slate-500 hover:text-indigo-600 p-1 cursor-pointer transition-all active:scale-95"
+                              title="แก้ไขไฟล์แนบ/ลิงก์"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -1833,7 +1869,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </div>
               )}
 
-              {activeModal === 'attach_link' && (
+              {(activeModal === 'attach_link' || activeModal === 'edit_link') && (
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase">ชื่อลิงก์</label>
@@ -1905,30 +1941,46 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                disabled={
-                  isModalSubmitting ||
-                  (activeModal === 'add_card' && !modalInputVal1.trim()) ||
-                  (activeModal === 'attach_link' && !modalInputVal1.trim())
-                }
-                onClick={() => {
-                  if (activeModal === 'add_card') submitAddNewCard();
-                  else if (activeModal === 'attach_link') submitAddCardAttachmentLink();
-                  else if (activeModal === 'verify_subitem') submitVerifySubItem();
-                }}
-                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                {isModalSubmitting ? 'กำลังบันทึก...' : 'ตกลง'}
-              </button>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5">
+              {activeModal === 'edit_link' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (modalTargetId) handleDeleteCardAttachment(modalTargetId);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 hover:border-rose-300 rounded-xl transition-all cursor-pointer"
+                >
+                  ลบลิงก์นี้
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isModalSubmitting ||
+                    (activeModal === 'add_card' && !modalInputVal1.trim()) ||
+                    ((activeModal === 'attach_link' || activeModal === 'edit_link') && !modalInputVal1.trim())
+                  }
+                  onClick={() => {
+                    if (activeModal === 'add_card') submitAddNewCard();
+                    else if (activeModal === 'attach_link') submitAddCardAttachmentLink();
+                    else if (activeModal === 'edit_link') submitUpdateCardAttachment();
+                    else if (activeModal === 'verify_subitem') submitVerifySubItem();
+                  }}
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  {isModalSubmitting ? 'กำลังบันทึก...' : 'ตกลง'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

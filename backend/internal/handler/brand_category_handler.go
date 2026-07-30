@@ -1311,3 +1311,33 @@ func (h *BrandCategoryHandler) DeleteCardAttachment(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบไฟล์แนบสำเร็จ"})
 }
+
+// UpdateCardAttachment PATCH /api/tasks/cards/attachments/:id
+// อัปเดตชื่อ/URL ของไฟล์แนบ
+func (h *BrandCategoryHandler) UpdateCardAttachment(c *gin.Context) {
+	attachmentID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไฟล์แนบไม่ถูกต้อง"})
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+		URL  string `json:"url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	scope, _ := h.eventRepo.ScopeForAttachment(c.Request.Context(), attachmentID)
+	
+	if err := h.attachmentRepo.Update(c.Request.Context(), attachmentID, req.Name, req.URL); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตไฟล์แนบล้มเหลว"})
+		return
+	}
+
+	h.audit(c, scope, "attachment_updated", "แก้ไขไฟล์แนบเป็น: "+req.Name, nil)
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตไฟล์แนบสำเร็จ"})
+}

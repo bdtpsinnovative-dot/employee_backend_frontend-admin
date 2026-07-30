@@ -229,6 +229,8 @@ func registerRoutes(
 		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)            // เพิ่มไฟล์แนบในการ์ด
 		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)              // ดึงไฟล์แนบทั้งหมดของการ์ด
 		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment)          // ลบไฟล์แนบ
+		api.PATCH("/tasks/cards/attachments/:id", brandCategoryH.UpdateCardAttachment)            // แก้ไขไฟล์แนบ
+
 
 		// การแจ้งเตือน (Notifications)
 		api.GET("/notifications", notifH.GetMyNotifications)     // ดึงรายการแจ้งเตือน

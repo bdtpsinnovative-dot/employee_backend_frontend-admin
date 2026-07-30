@@ -47,6 +47,16 @@ func (r *CardAttachmentRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// Update อัปเดตข้อมูลไฟล์แนบ (ชื่อ, url)
+func (r *CardAttachmentRepo) Update(ctx context.Context, id uuid.UUID, name string, url string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE card_attachments
+		SET name = $1, url = $2
+		WHERE id = $3
+	`, name, url, id)
+	return err
+}
+
 // EnsureTable รัน migration สร้างตาราง card_attachments ถ้ายังไม่มี
 func (r *CardAttachmentRepo) EnsureTable(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `
