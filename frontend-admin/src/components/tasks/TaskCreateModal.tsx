@@ -31,6 +31,11 @@ interface BoardInput {
   description: string;
 }
 
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   isOpen,
   onClose,
@@ -44,7 +49,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [title, setTitle] = useState(initialData?.title || '');
   const [desc, setDesc] = useState(initialData?.description || '');
   const [dueDate, setDueDate] = useState(
-    initialData?.due_date ? initialData.due_date.split('T')[0] : ''
+    initialData?.due_date ? initialData.due_date.split('T')[0] : getTodayStr()
   );
   
   const initialAssignees = initialData?.assignee_ids && initialData.assignee_ids.length > 0
@@ -69,7 +74,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     if (isOpen) {
       setTitle(initialData?.title || '');
       setDesc(initialData?.description || '');
-      setDueDate(initialData?.due_date ? initialData.due_date.split('T')[0] : '');
+      setDueDate(initialData?.due_date ? initialData.due_date.split('T')[0] : getTodayStr());
       const initAssignees = initialData?.assignee_ids && initialData.assignee_ids.length > 0
         ? initialData.assignee_ids
         : initialData?.assigned_to ? [initialData.assigned_to] : [];
