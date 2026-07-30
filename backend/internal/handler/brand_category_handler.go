@@ -886,19 +886,19 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		}
 
 		if req.Name != nil && *req.Name != existingList.Name {
-			h.audit(c, scope, "board_name_changed", "เปลี่ยนชื่อบอร์ดเป็น: "+*req.Name, &taskID)
+			h.audit(c, scope, "board_name_changed", "เปลี่ยนชื่อบอร์ดจาก "+readableAuditValue(existingList.Name)+" เป็น "+readableAuditValue(*req.Name), &taskID)
 		}
 		if req.Description != nil && *req.Description != existingList.Description {
-			h.audit(c, scope, "board_description_changed", "แก้ไขรายละเอียดบอร์ด", &taskID)
+			h.audit(c, scope, "board_description_changed", "แก้ไขรายละเอียดบอร์ดจาก "+readableAuditValue(existingList.Description)+" เป็น "+readableAuditValue(*req.Description), &taskID)
 		}
 		if req.Status != nil && *req.Status != existingList.Status {
-			h.audit(c, scope, "board_status_changed", "เปลี่ยนสถานะบอร์ดเป็น: "+*req.Status, &taskID)
+			h.audit(c, scope, "board_status_changed", "เปลี่ยนสถานะบอร์ดจาก "+readableBoardStatus(existingList.Status)+" เป็น "+readableBoardStatus(*req.Status), &taskID)
 		}
 		if req.Priority != nil && *req.Priority != existingList.Priority {
-			h.audit(c, scope, "board_priority_changed", "เปลี่ยนความสำคัญบอร์ดเป็น: "+*req.Priority, &taskID)
+			h.audit(c, scope, "board_priority_changed", "เปลี่ยนความสำคัญบอร์ดจาก "+readableBoardPriority(existingList.Priority)+" เป็น "+readableBoardPriority(*req.Priority), &taskID)
 		}
 		if req.AdminComment != nil && *req.AdminComment != existingList.AdminComment {
-			h.audit(c, scope, "board_note_changed", "แก้ไขหมายเหตุบอร์ด", &taskID)
+			h.audit(c, scope, "board_note_changed", "แก้ไขหมายเหตุบอร์ดจาก "+readableAuditValue(existingList.AdminComment)+" เป็น "+readableAuditValue(*req.AdminComment), &taskID)
 		}
 		if hasStartDate {
 			oldStartStr := ""
@@ -910,7 +910,7 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				newStartStr = startDate.Format("2006-01-02")
 			}
 			if newStartStr != oldStartStr {
-				h.audit(c, scope, "board_start_date_changed", "เปลี่ยนวันเริ่มต้นบอร์ดเป็น: "+newStartStr, &taskID)
+				h.audit(c, scope, "board_start_date_changed", "เปลี่ยนวันเริ่มต้นบอร์ดจาก "+readableAuditValue(oldStartStr)+" เป็น "+readableAuditValue(newStartStr), &taskID)
 			}
 		}
 		if hasDueDate {
@@ -923,40 +923,26 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				newDueStr = dueDate.Format("2006-01-02")
 			}
 			if newDueStr != oldDueStr {
-				h.audit(c, scope, "board_due_date_changed", "เปลี่ยนวันครบกำหนดบอร์ดเป็น: "+newDueStr, &taskID)
+				h.audit(c, scope, "board_due_date_changed", "เปลี่ยนวันครบกำหนดบอร์ดจาก "+readableAuditValue(oldDueStr)+" เป็น "+readableAuditValue(newDueStr), &taskID)
 			}
 		}
 		if req.Attachments != nil {
-			h.audit(c, scope, "board_updated", "แก้ไขเอกสารแนบบอร์ด", &taskID)
+			beforeAttach := parseBoardAuditAttachments(existingList.Attachments)
+			afterAttach := parseBoardAuditAttachments(*req.Attachments)
+			changes := attachmentAuditChanges(beforeAttach, afterAttach)
+			for _, change := range changes {
+				h.audit(c, scope, change.action, change.content, &taskID)
+			}
 		}
 		if req.AssigneeIDs != nil {
-			existingIDsMap := make(map[uuid.UUID]bool)
-			for _, id := range existingList.AssigneeIDs {
-				existingIDsMap[id] = true
+			added, removed := changedAuditAssignees(existingList.AssigneeIDs, *req.AssigneeIDs)
+			if len(added) > 0 {
+				names := h.auditUserNames(c, added)
+				h.audit(c, scope, "board_assignees_added", "เพิ่มผู้รับผิดชอบบอร์ด: "+names, &taskID)
 			}
-			reqIDsMap := make(map[uuid.UUID]bool)
-			for _, id := range *req.AssigneeIDs {
-				reqIDsMap[id] = true
-			}
-
-			var addedIDs []uuid.UUID
-			for _, id := range *req.AssigneeIDs {
-				if !existingIDsMap[id] {
-					addedIDs = append(addedIDs, id)
-				}
-			}
-			var removedIDs []uuid.UUID
-			for _, id := range existingList.AssigneeIDs {
-				if !reqIDsMap[id] {
-					removedIDs = append(removedIDs, id)
-				}
-			}
-
-			if len(addedIDs) > 0 {
-				h.audit(c, scope, "board_assignees_added", "เพิ่มผู้รับผิดชอบบอร์ด", &taskID)
-			}
-			if len(removedIDs) > 0 {
-				h.audit(c, scope, "board_assignees_removed", "นำผู้รับผิดชอบบอร์ดออก", &taskID)
+			if len(removed) > 0 {
+				names := h.auditUserNames(c, removed)
+				h.audit(c, scope, "board_assignees_removed", "นำผู้รับผิดชอบบอร์ดออก: "+names, &taskID)
 			}
 		}
 	}
