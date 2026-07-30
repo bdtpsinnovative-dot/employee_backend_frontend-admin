@@ -675,6 +675,53 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     const listDetails = list.description || '';
     const listNote = list.admin_comment || '';
 
+    // Relative due date calculation for sub-tasks (งานย่อย)
+    const isCompletedList = listStatus === 'completed';
+    const hasDueDate = !!list.due_date && !list.due_date.startsWith('0001-01-01');
+    let dueBadge = null;
+
+    if (hasDueDate && list.due_date) {
+      const listDueDateStr = list.due_date.split('T')[0];
+      const isOverdue = !isCompletedList && listDueDateStr < todayStr;
+      const formattedDate = new Date(list.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+      if (isOverdue) {
+        const targetDate = new Date(listDueDateStr);
+        const todayDate = new Date(todayStr);
+        const diffTime = todayDate.getTime() - targetDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+        const overdueText = diffDays > 0 ? `เลยกำหนด ${diffDays} วัน` : 'เลยกำหนด';
+
+        dueBadge = (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-red-50 text-red-700 border border-red-200 font-extrabold whitespace-nowrap shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span>{overdueText} ({formattedDate})</span>
+          </span>
+        );
+      } else if (isCompletedList) {
+        dueBadge = (
+          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold whitespace-nowrap">
+            {formattedDate}
+          </span>
+        );
+      } else if (listDueDateStr === todayStr) {
+        dueBadge = (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-800 border border-amber-200 font-bold whitespace-nowrap shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>วันนี้ ({formattedDate})</span>
+          </span>
+        );
+      } else {
+        dueBadge = (
+          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600 border border-slate-200 font-medium whitespace-nowrap">
+            {formattedDate}
+          </span>
+        );
+      }
+    } else {
+      dueBadge = <span className="text-slate-400 font-medium text-[11px]">-</span>;
+    }
+
     return (
       <tr 
         key={list.id} 
@@ -682,8 +729,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         className={`hover:bg-blue-50/50 hover:border-blue-300 transition-colors border-b border-slate-200 ${activeFilter === 'trash' ? 'cursor-default' : 'cursor-pointer'}`}
       >
         {/* 1. DUE DATE */}
-        <td className="px-3 py-3 border-r border-slate-200 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70">
-          {list.due_date ? new Date(list.due_date).toLocaleDateString('th-TH') : '-'}
+        <td className="px-3 py-3 border-r border-slate-200 text-center align-middle bg-slate-50/70">
+          {dueBadge}
         </td>
 
         {/* 2. PROJECT */}

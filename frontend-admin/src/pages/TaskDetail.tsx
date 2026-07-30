@@ -281,15 +281,21 @@ export default function TaskDetail() {
                 )}
                 {dueInfo && (
                   <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-[10px] border font-bold ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
                       dueInfo.variant === 'overdue'
-                        ? 'bg-red-50 text-red-700 border-red-200'
+                        ? 'bg-red-50 text-red-700 border-red-200 shadow-xs'
                         : dueInfo.variant === 'today'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-xs'
                         : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}
                   >
-                    {dueInfo.text}
+                    {dueInfo.variant === 'overdue' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                    )}
+                    {dueInfo.variant === 'today' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    )}
+                    <span>{dueInfo.text}</span>
                   </span>
                 )}
                 {/* Assignees */}

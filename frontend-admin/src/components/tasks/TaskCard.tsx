@@ -150,9 +150,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Footer Meta Row: Due Date + Assignees + Metrics */}
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-500">
-        {/* Due Date Pill */}
-        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] ${dueBg}`}>
-          <Calendar className="w-3 h-3" />
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] ${dueBg}`}>
+          {dueInfo.variant === 'overdue' ? (
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+          ) : dueInfo.variant === 'today' ? (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          ) : (
+            <Calendar className="w-3 h-3 shrink-0" />
+          )}
           <span>{dueInfo.text}</span>
         </div>
 

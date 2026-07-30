@@ -221,12 +221,18 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <span>วันกำหนดส่ง (Due Date)</span>
                 </span>
                 <div className="pt-1">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-medium ${
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold ${
                     dueInfo.variant === 'overdue' ? 'bg-red-50 text-red-700 border-red-200' :
                     dueInfo.variant === 'today' ? 'bg-amber-50 text-amber-800 border-amber-300' :
                     'bg-white text-slate-700 border-slate-200'
                   }`}>
-                    {dueInfo.text}
+                    {dueInfo.variant === 'overdue' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                    )}
+                    {dueInfo.variant === 'today' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    )}
+                    <span>{dueInfo.text}</span>
                   </span>
                 </div>
               </div>

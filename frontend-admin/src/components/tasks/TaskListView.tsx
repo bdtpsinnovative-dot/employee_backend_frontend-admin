@@ -119,16 +119,22 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   {/* 1. Due Date Column */}
                   <td data-label="Due Date" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle font-medium">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${dueInfo.variant === 'overdue'
-                          ? 'bg-red-50 text-red-700 border-red-200 font-bold'
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${dueInfo.variant === 'overdue'
+                          ? 'bg-red-50 text-red-700 border-red-200 font-extrabold shadow-xs'
                           : dueInfo.variant === 'today'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold shadow-xs'
                             : dueInfo.variant === 'tomorrow'
                               ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                     >
-                      {dueInfo.text}
+                      {dueInfo.variant === 'overdue' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                      )}
+                      {dueInfo.variant === 'today' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      )}
+                      <span>{dueInfo.text}</span>
                     </span>
                   </td>
 
