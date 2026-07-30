@@ -20,10 +20,25 @@ type TaskHandler struct {
 	eventRepo   *repository.TaskEventRepo
 	listRepo    *repository.TaskListRepo
 	cardRepo    *repository.TaskCardRepo
+	taskRepo    *repository.TaskRepo
 }
 
-func NewTaskHandler(taskSvc *service.TaskService, subItemRepo *repository.TaskSubItemRepo, eventRepo *repository.TaskEventRepo, listRepo *repository.TaskListRepo, cardRepo *repository.TaskCardRepo) *TaskHandler {
-	return &TaskHandler{taskSvc: taskSvc, subItemRepo: subItemRepo, eventRepo: eventRepo, listRepo: listRepo, cardRepo: cardRepo}
+func NewTaskHandler(
+	taskSvc *service.TaskService,
+	subItemRepo *repository.TaskSubItemRepo,
+	eventRepo *repository.TaskEventRepo,
+	listRepo *repository.TaskListRepo,
+	cardRepo *repository.TaskCardRepo,
+	taskRepo *repository.TaskRepo,
+) *TaskHandler {
+	return &TaskHandler{
+		taskSvc:     taskSvc,
+		subItemRepo: subItemRepo,
+		eventRepo:   eventRepo,
+		listRepo:    listRepo,
+		cardRepo:    cardRepo,
+		taskRepo:    taskRepo,
+	}
 }
 
 func (h *TaskHandler) audit(c *gin.Context, scope *repository.TaskEventScope, action, content string, taskID *uuid.UUID) {
@@ -291,7 +306,21 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 			h.audit(c, nil, "task_updated", "เปลี่ยนชื่องานจาก \""+existTitleTrimmed+"\" เป็น \""+reqTitleTrimmed+"\"", &id)
 		}
 		if reqDescTrimmed != existDescTrimmed {
-			h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงาน", &id)
+			oldShort := existDescTrimmed
+			if len(oldShort) > 30 {
+				oldShort = oldShort[:30] + "..."
+			}
+			if oldShort == "" {
+				oldShort = "ไม่มีรายละเอียด"
+			}
+			newShort := reqDescTrimmed
+			if len(newShort) > 30 {
+				newShort = newShort[:30] + "..."
+			}
+			if newShort == "" {
+				newShort = "ว่าง"
+			}
+			h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงานจาก \""+oldShort+"\" เป็น \""+newShort+"\"", &id)
 		}
 		if req.DueDate != "" {
 			oldDue := ""
@@ -302,15 +331,68 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 				h.audit(c, nil, "task_updated", "เปลี่ยนวันครบกำหนดงานจาก \""+oldDue+"\" เป็น \""+req.DueDate+"\"", &id)
 			}
 		}
-		// Check if assignees changed (simple length check + set compare)
+
+		// Check brand change
+		oldBrandID := existingTask.BrandID
+		brandChanged := false
+		if oldBrandID == nil && brandID != nil {
+			brandChanged = true
+		} else if oldBrandID != nil && brandID == nil {
+			brandChanged = true
+		} else if oldBrandID != nil && brandID != nil && *oldBrandID != *brandID {
+			brandChanged = true
+		}
+		if brandChanged {
+			oldBrandName := "ไม่มีแบรนด์"
+			if oldBrandID != nil {
+				if name, err := h.taskRepo.GetBrandName(c.Request.Context(), *oldBrandID); err == nil && name != "" {
+					oldBrandName = name
+				}
+			}
+			newBrandName := "ไม่มีแบรนด์"
+			if brandID != nil {
+				if name, err := h.taskRepo.GetBrandName(c.Request.Context(), *brandID); err == nil && name != "" {
+					newBrandName = name
+				}
+			}
+			h.audit(c, nil, "task_updated", "เปลี่ยนแบรนด์จาก \""+oldBrandName+"\" เป็น \""+newBrandName+"\"", &id)
+		}
+
+		// Check category change
+		oldCatID := existingTask.CategoryID
+		catChanged := false
+		if oldCatID == nil && categoryID != nil {
+			catChanged = true
+		} else if oldCatID != nil && categoryID == nil {
+			catChanged = true
+		} else if oldCatID != nil && categoryID != nil && *oldCatID != *categoryID {
+			catChanged = true
+		}
+		if catChanged {
+			oldCatName := "ไม่มีหมวดหมู่"
+			if oldCatID != nil {
+				if name, err := h.taskRepo.GetCategoryName(c.Request.Context(), *oldCatID); err == nil && name != "" {
+					oldCatName = name
+				}
+			}
+			newCatName := "ไม่มีหมวดหมู่"
+			if categoryID != nil {
+				if name, err := h.taskRepo.GetCategoryName(c.Request.Context(), *categoryID); err == nil && name != "" {
+					newCatName = name
+				}
+			}
+			h.audit(c, nil, "task_updated", "เปลี่ยนหมวดหมู่จาก \""+oldCatName+"\" เป็น \""+newCatName+"\"", &id)
+		}
+
+		// Check if assignees changed
 		oldIDs := make(map[uuid.UUID]bool)
 		for _, aid := range existingTask.AssigneeIDs {
 			oldIDs[aid] = true
 		}
-		var added, removed []string
+		var added, removed []uuid.UUID
 		for _, uid := range assigneeUUIDs {
 			if !oldIDs[uid] {
-				added = append(added, uid.String())
+				added = append(added, uid)
 			}
 		}
 		newIDSet := make(map[uuid.UUID]bool)
@@ -319,14 +401,26 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		}
 		for _, uid := range existingTask.AssigneeIDs {
 			if !newIDSet[uid] {
-				removed = append(removed, uid.String())
+				removed = append(removed, uid)
 			}
 		}
-		if len(added) > 0 {
-			h.audit(c, nil, "task_updated", "เพิ่มผู้รับผิดชอบงาน", &id)
+
+		allChangeIDs := append(added, removed...)
+		userNames, _ := h.taskRepo.GetUserNames(c.Request.Context(), allChangeIDs)
+
+		for _, uid := range added {
+			name := userNames[uid]
+			if name == "" {
+				name = uid.String()
+			}
+			h.audit(c, nil, "task_updated", "เพิ่มผู้รับผิดชอบงาน: \""+name+"\"", &id)
 		}
-		if len(removed) > 0 {
-			h.audit(c, nil, "task_updated", "นำผู้รับผิดชอบงานออก", &id)
+		for _, uid := range removed {
+			name := userNames[uid]
+			if name == "" {
+				name = uid.String()
+			}
+			h.audit(c, nil, "task_updated", "นำผู้รับผิดชอบงานออก: \""+name+"\"", &id)
 		}
 	} else {
 		h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงาน: "+req.Title, &id)

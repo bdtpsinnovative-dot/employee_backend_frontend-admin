@@ -590,3 +590,45 @@ func (r *TaskRepo) UpdateSubmissionStatus(ctx context.Context, id uuid.UUID, sta
 	`, status, reviewerID, note, id)
 	return err
 }
+
+func (r *TaskRepo) GetBrandName(ctx context.Context, id uuid.UUID) (string, error) {
+	var name string
+	err := r.db.GetContext(ctx, &name, `SELECT name FROM brands WHERE id = $1`, id)
+	if err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
+func (r *TaskRepo) GetCategoryName(ctx context.Context, id uuid.UUID) (string, error) {
+	var name string
+	err := r.db.GetContext(ctx, &name, `SELECT name FROM task_categories WHERE id = $1`, id)
+	if err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
+func (r *TaskRepo) GetUserNames(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	names := make(map[uuid.UUID]string)
+	if len(ids) == 0 {
+		return names, nil
+	}
+	query, args, err := sqlx.In(`SELECT id, first_name || ' ' || last_name AS name FROM users WHERE id IN (?)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+	var rows []struct {
+		ID   uuid.UUID `db:"id"`
+		Name string    `db:"name"`
+	}
+	err = r.db.SelectContext(ctx, &rows, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		names[row.ID] = row.Name
+	}
+	return names, nil
+}
