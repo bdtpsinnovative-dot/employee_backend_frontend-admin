@@ -42,6 +42,8 @@ func NewBrandCategoryHandler(
 	commentRepo *repository.CardCommentRepo,
 	assigneeRepo *repository.CardAssigneeRepo,
 	notifSvc *service.NotificationService,
+	eventRepo *repository.TaskEventRepo,
+	userRepo *repository.UserRepo,
 ) *BrandCategoryHandler {
 	return &BrandCategoryHandler{
 		brandRepo:      brandRepo,
@@ -53,6 +55,8 @@ func NewBrandCategoryHandler(
 		commentRepo:    commentRepo,
 		assigneeRepo:   assigneeRepo,
 		notifSvc:       notifSvc,
+		eventRepo:      eventRepo,
+		userRepo:       userRepo,
 	}
 }
 

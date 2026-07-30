@@ -49,6 +49,7 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 			ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 		
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT '';
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS admin_comment TEXT;
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium';
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS link_url TEXT;

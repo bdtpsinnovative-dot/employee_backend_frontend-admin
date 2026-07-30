@@ -258,7 +258,11 @@ func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
 	var lists []domain.TaskList
 	err := r.db.SelectContext(ctx, &lists, `
-		SELECT * FROM task_lists WHERE task_id = $1 ORDER BY sort_order ASC, created_at ASC
+		SELECT id, task_id, name, description, sort_order, created_at,
+		       start_date, due_date, priority, status, admin_comment, attachments
+		FROM task_lists
+		WHERE task_id = $1
+		ORDER BY sort_order ASC, created_at ASC
 	`, taskID)
 	if err != nil {
 		return nil, err
@@ -288,7 +292,12 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 
 func (r *TaskListRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskList, error) {
 	var list domain.TaskList
-	err := r.db.GetContext(ctx, &list, "SELECT * FROM task_lists WHERE id = $1", id)
+	err := r.db.GetContext(ctx, &list, `
+		SELECT id, task_id, name, description, sort_order, created_at,
+		       start_date, due_date, priority, status, admin_comment, attachments
+		FROM task_lists
+		WHERE id = $1
+	`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +381,11 @@ func (r *TaskCardRepo) GetDB() *sqlx.DB { return r.db }
 func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]domain.TaskCard, error) {
 	var cards []domain.TaskCard
 	err := r.db.SelectContext(ctx, &cards, `
-		SELECT * FROM task_cards WHERE list_id = $1 ORDER BY sort_order ASC, created_at ASC
+		SELECT id, list_id, title, description, status, sort_order, created_at,
+		       start_date, due_date, priority, admin_comment
+		FROM task_cards
+		WHERE list_id = $1
+		ORDER BY sort_order ASC, created_at ASC
 	`, listID)
 	if err != nil {
 		return nil, err

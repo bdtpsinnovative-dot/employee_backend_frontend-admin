@@ -84,7 +84,7 @@ func New(cfg *config.Config) (*Server, error) {
 	holidayH := handler.NewHolidayHandler(holidaySvc)
 	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc, firebaseSvc, notifSvc)
 	taskH := handler.NewTaskHandler(taskSvc, subItemRepo, taskEventRepo, listRepo, cardRepo)
-	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, commentRepo, assigneeRepo, notifSvc)
+	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, commentRepo, assigneeRepo, notifSvc, taskEventRepo, userRepo)
 	taskEventH := handler.NewTaskEventHandler(taskEventRepo)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
