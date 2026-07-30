@@ -398,12 +398,13 @@ export async function deleteAdminTask(id: string): Promise<void> {
 
 export async function fetchTaskEvents(
   taskId: string,
-  scope?: { listId?: string; cardId?: string },
+  scope?: { listId?: string; cardId?: string; taskOnly?: boolean },
 ): Promise<TaskEvent[]> {
   const { data } = await api.get<ApiResponse<TaskEvent[]>>(`/api/tasks/${taskId}/events`, {
     params: {
       list_id: scope?.listId,
       card_id: scope?.cardId,
+      task_only: scope?.taskOnly ? 'true' : undefined,
     },
   });
   return data.data ?? [];

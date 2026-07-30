@@ -66,6 +66,8 @@ export default function Tasks() {
   const [editingTask, setEditingTask]               = useState<AdminTask | null>(null);
   const [defaultCreateStatus, setDefaultCreateStatus] = useState<TaskStatus | undefined>();
   const [showSettingsModal, setShowSettingsModal]   = useState(false);
+  const [editTaskEvents, setEditTaskEvents]         = useState<TaskEvent[]>([]);
+  const [editEventsLoading, setEditEventsLoading]   = useState(false);
 
   // ─── Trash Bin & Delete Confirmation State ───
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -120,6 +122,19 @@ export default function Tasks() {
       setCommentText('');
     }
   }, [selectedTask?.id]); // Only refetch events if task ID changes
+
+  // ─── Load task-only events when editing task ───
+  useEffect(() => {
+    if (editingTask) {
+      setEditEventsLoading(true);
+      fetchTaskEvents(editingTask.id, { taskOnly: true })
+        .then(setEditTaskEvents)
+        .catch(console.error)
+        .finally(() => setEditEventsLoading(false));
+    } else {
+      setEditTaskEvents([]);
+    }
+  }, [editingTask?.id]);
 
   // ─── Sync selectedTask with tasks list ───
   useEffect(() => {
@@ -509,6 +524,8 @@ export default function Tasks() {
         categories={categories}
         initialData={editingTask || undefined}
         currentUser={currentUser}
+        taskEvents={editTaskEvents}
+        eventsLoading={editEventsLoading}
         onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
       />
 

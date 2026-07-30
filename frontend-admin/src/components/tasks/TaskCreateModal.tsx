@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, LayoutGrid } from 'lucide-react';
-import type { User as UserType, Brand, TaskCategory, AdminTask } from '../../types';
+import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity } from 'lucide-react';
+import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
 
@@ -13,6 +13,8 @@ interface TaskCreateModalProps {
   categories: TaskCategory[];
   initialData?: AdminTask;
   currentUser?: UserType | null;
+  taskEvents?: TaskEvent[];
+  eventsLoading?: boolean;
   onSubmit: (data: {
     title: string;
     description: string;
@@ -44,6 +46,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   categories,
   initialData,
   currentUser,
+  taskEvents = [],
+  eventsLoading = false,
   onSubmit,
 }) => {
   const [title, setTitle] = useState(initialData?.title || '');
@@ -63,6 +67,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   // Replace subItems with boards
   const [boards, setBoards] = useState<BoardInput[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'form' | 'history'>('form');
   
   // Assignee Popover state
   const [showInvitePopover, setShowInvitePopover] = useState(false);
@@ -82,6 +87,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setBrandId(initialData?.brand_id || '');
       setCategoryId(initialData?.category_id || '');
       setModalAlert(null);
+      setActiveTab('form');
       
       if (!initialData) {
         setBoards([]);
@@ -168,7 +174,41 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
             </button>
           </div>
 
-          {/* Form */}
+          {/* Tabs - only when editing */}
+          {initialData && (
+            <div className="flex border-b border-slate-200 bg-slate-50 px-4">
+              <button
+                type="button"
+                onClick={() => setActiveTab('form')}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'form'
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <AlignLeft className="w-3.5 h-3.5" />
+                รายละเอียด
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'history'
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                ประวัติกิจกรรม
+                {taskEvents.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">{taskEvents.length}</span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Form (hidden when history tab is active) */}
+          {(!initialData || activeTab === 'form') && (
           <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
             {/* Modal Error Alert */}
             {modalAlert && (
@@ -432,6 +472,70 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               </button>
             </div>
           </form>
+          )}
+
+          {/* Activity History Tab */}
+          {initialData && activeTab === 'history' && (
+            <div className="p-5 max-h-[480px] overflow-y-auto">
+              {eventsLoading ? (
+                <div className="flex items-center justify-center py-12 text-slate-400">
+                  <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin mr-2" />
+                  <span className="text-xs">กำลังโหลดประวัติ...</span>
+                </div>
+              ) : taskEvents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Activity className="w-10 h-10 mb-2 opacity-30" />
+                  <p className="text-xs font-medium">ยังไม่มีประวัติกิจกรรม</p>
+                </div>
+              ) : (
+                <ol className="relative border-l-2 border-slate-100 ml-2 space-y-4">
+                  {taskEvents.map((ev) => {
+                    const actionLabel: Record<string, { label: string; color: string; dot: string }> = {
+                      task_created:       { label: 'สร้างงาน',              color: 'text-emerald-700 bg-emerald-50 border-emerald-200',   dot: 'bg-emerald-400' },
+                      task_updated:       { label: 'แก้ไขงาน',              color: 'text-blue-700 bg-blue-50 border-blue-200',           dot: 'bg-blue-400' },
+                      task_status_changed:{ label: 'เปลี่ยนสถานะ',         color: 'text-violet-700 bg-violet-50 border-violet-200',     dot: 'bg-violet-400' },
+                      task_deleted:       { label: 'ย้ายไปถังขยะ',         color: 'text-red-700 bg-red-50 border-red-200',             dot: 'bg-red-400' },
+                      task_restored:      { label: 'กู้คืนจากถังขยะ',     color: 'text-amber-700 bg-amber-50 border-amber-200',       dot: 'bg-amber-400' },
+                      comment:            { label: 'ความคิดเห็น',           color: 'text-slate-700 bg-slate-50 border-slate-200',       dot: 'bg-slate-400' },
+                    };
+                    const meta = actionLabel[ev.action] ?? { label: ev.action, color: 'text-slate-600 bg-slate-50 border-slate-200', dot: 'bg-slate-300' };
+                    const displayName = [ev.user_first_name, ev.user_last_name].filter(Boolean).join(' ') || 'ระบบ';
+                    const avatarSrc = ev.user_avatar_url || '';
+                    const dt = new Date(ev.created_at);
+                    const dateStr = dt.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+                    const timeStr = dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <li key={ev.id} className="ml-4 pb-1">
+                        <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white ${meta.dot}`} />
+                        <div className={`border rounded-xl px-4 py-3 ${meta.color}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {avatarSrc ? (
+                                <img src={avatarSrc} alt={displayName} className="w-5 h-5 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center text-[9px] font-bold text-white">
+                                  {displayName.charAt(0)}
+                                </div>
+                              )}
+                              <span className="font-bold text-xs">{displayName}</span>
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${meta.color}`}>{meta.label}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] opacity-60">
+                              <Clock className="w-3 h-3" />
+                              <span>{dateStr} {timeStr}</span>
+                            </div>
+                          </div>
+                          {ev.content && (
+                            <p className="text-xs mt-1 leading-relaxed opacity-80">{ev.content}</p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
