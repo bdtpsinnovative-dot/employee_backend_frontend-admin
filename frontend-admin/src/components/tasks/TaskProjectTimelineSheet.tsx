@@ -166,6 +166,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerStatus, setDrawerStatus] = useState<'in_progress' | 'completed'>('in_progress');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
 
   // Create List Modal State
@@ -689,7 +690,31 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     setDrawerAssignees(list.assignee_ids || []);
     setDrawerAdminComment(list.admin_comment || '');
     setDrawerAttachments(list.attachments || []);
-    
+  };
+
+  const drawerHasUnsavedChanges = (): boolean => {
+    if (!editingList) return false;
+    if (drawerTitle !== editingList.name) return true;
+    if (drawerComment !== (editingList.description || '')) return true;
+    if (drawerAdminComment !== (editingList.admin_comment || '')) return true;
+    if (drawerDueDate !== (editingList.due_date ? editingList.due_date.split('T')[0] : '')) return true;
+    if (drawerPriority !== (editingList.priority || 'medium')) return true;
+    if (drawerStatus !== (editingList.status || 'in_progress')) return true;
+    const origAssignees = (editingList.assignee_ids || []).slice().sort().join(',');
+    const currAssignees = drawerAssignees.slice().sort().join(',');
+    if (origAssignees !== currAssignees) return true;
+    const origAtt = JSON.stringify(editingList.attachments || []);
+    const currAtt = JSON.stringify(drawerAttachments);
+    if (origAtt !== currAtt) return true;
+    return false;
+  };
+
+  const handleCloseDrawer = () => {
+    if (drawerHasUnsavedChanges()) {
+      setShowUnsavedModal(true);
+    } else {
+      setEditingList(null);
+    }
   };
 
   const brand = brandMap[task.brand_id || ''];
@@ -1121,7 +1146,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditingList(null)}
+                    onClick={handleCloseDrawer}
                     className="p-1 text-slate-500 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-6 h-6" />
@@ -1682,7 +1707,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 <>
                   <button
                     type="button"
-                    onClick={() => setEditingList(null)}
+                    onClick={handleCloseDrawer}
                     className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
                   >
                     ยกเลิก
@@ -2185,6 +2210,44 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Unsaved Changes Guard Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">มีข้อมูลที่ยังไม่ได้บันทึก</h3>
+                <p className="text-xs text-slate-500 mt-0.5">คุณได้แก้ไขข้อมูลในฟอร์มนี้ แต่ยังไม่ได้กดบันทึก</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mb-6">หากปิดเดี๋ยวนี้ การเปลี่ยนแปลงทั้งหมดจะหายไป ต้องการดำเนินการต่อหรือไม่?</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowUnsavedModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                กลับไปแก้ไข
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsavedModal(false);
+                  setEditingList(null);
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all cursor-pointer shadow"
+              >
+                ปิดโดยไม่บันทึก
+              </button>
             </div>
           </div>
         </div>
