@@ -282,10 +282,15 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	}
 
 	if existingTask != nil {
-		if req.Title != existingTask.Title {
-			h.audit(c, nil, "task_updated", "เปลี่ยนชื่องานจาก \""+existingTask.Title+"\" เป็น \""+req.Title+"\"", &id)
+		reqTitleTrimmed := strings.TrimSpace(req.Title)
+		existTitleTrimmed := strings.TrimSpace(existingTask.Title)
+		reqDescTrimmed := strings.TrimSpace(req.Description)
+		existDescTrimmed := strings.TrimSpace(existingTask.Description)
+
+		if reqTitleTrimmed != existTitleTrimmed {
+			h.audit(c, nil, "task_updated", "เปลี่ยนชื่องานจาก \""+existTitleTrimmed+"\" เป็น \""+reqTitleTrimmed+"\"", &id)
 		}
-		if req.Description != existingTask.Description {
+		if reqDescTrimmed != existDescTrimmed {
 			h.audit(c, nil, "task_updated", "แก้ไขรายละเอียดงาน", &id)
 		}
 		if req.DueDate != "" {
