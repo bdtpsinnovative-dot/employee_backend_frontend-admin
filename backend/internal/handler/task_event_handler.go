@@ -51,22 +51,27 @@ func recordTaskEvent(
 		return fmt.Errorf("task event repository is not configured")
 	}
 
+	var uID uuid.UUID
+	if ptr := contextUserID(c); ptr != nil {
+		uID = *ptr
+	}
+
 	event := &domain.TaskEvent{
 		ID:        uuid.New(),
-		UserID:    contextUserID(c),
+		UserID:    uID,
 		EventType: "system",
 		Action:    action,
 		Content:   eventContentPointer(content),
 		CreatedAt: time.Now(),
 	}
 	if scope != nil {
-		event.TaskID = &scope.TaskID
+		event.TaskID = scope.TaskID
 		event.ListID = scope.ListID
 		event.CardID = scope.CardID
 		event.SubItemID = scope.SubItemID
 	}
 	if forcedTaskID != nil {
-		event.TaskID = forcedTaskID
+		event.TaskID = *forcedTaskID
 	}
 
 	return repo.Create(c.Request.Context(), event)
@@ -126,10 +131,15 @@ func (h *TaskEventHandler) AddComment(c *gin.Context) {
 		return
 	}
 
+	var uID uuid.UUID
+	if ptr := contextUserID(c); ptr != nil {
+		uID = *ptr
+	}
+
 	event := &domain.TaskEvent{
 		ID:        uuid.New(),
-		TaskID:    &taskID,
-		UserID:    contextUserID(c),
+		TaskID:    taskID,
+		UserID:    uID,
 		EventType: "comment",
 		Action:    "comment_added",
 		Content:   eventContentPointer(strings.TrimSpace(req.Content)),

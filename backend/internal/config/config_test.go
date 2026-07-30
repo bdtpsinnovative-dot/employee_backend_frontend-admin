@@ -12,6 +12,7 @@ func TestLoadUsesDatabaseURLFallback(t *testing.T) {
 	os.Unsetenv("SUPABASE_DATABASE_URL")
 	os.Setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/app")
 	os.Setenv("SUPABASE_JWT_SECRET", "secret")
+	os.Setenv("PORT", "8080")
 
 	cfg, err := Load()
 	if err != nil {

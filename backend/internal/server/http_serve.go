@@ -46,6 +46,8 @@ func New(cfg *config.Config) (*Server, error) {
 	cardRepo := repository.NewTaskCardRepo(db)
 	attachmentRepo := repository.NewCardAttachmentRepo(db)
 	taskEventRepo := repository.NewTaskEventRepo(db)
+	commentRepo := repository.NewCardCommentRepo(db)
+	assigneeRepo := repository.NewCardAssigneeRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
 	settingRepo := repository.NewSettingRepo(db)
 
@@ -81,8 +83,8 @@ func New(cfg *config.Config) (*Server, error) {
 	offsiteH := handler.NewOffsiteHandler(offsiteSvc, userSvc, notifSvc)
 	holidayH := handler.NewHolidayHandler(holidaySvc)
 	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc, firebaseSvc, notifSvc)
-	taskH := handler.NewTaskHandler(taskSvc, subItemRepo, taskEventRepo)
-	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, taskEventRepo, userRepo)
+	taskH := handler.NewTaskHandler(taskSvc, subItemRepo, taskEventRepo, listRepo, cardRepo)
+	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, commentRepo, assigneeRepo, notifSvc)
 	taskEventH := handler.NewTaskEventHandler(taskEventRepo)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
@@ -203,6 +205,7 @@ func registerRoutes(
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                                       // ดูงานที่ได้รับมอบหมายของตนเอง
 		api.PUT("/tasks/:id", taskH.UpdateTask)                                    // อัปเดตรายละเอียดงาน (แอดมินแก้ไขรายละเอียดงานหลัก)
+		api.PATCH("/tasks/:id", taskH.UpdateTask)                                  // แก้ไขรายละเอียดและผู้รับผิดชอบงาน
 		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)                     // อัปเดตสถานะงาน (พนักงาน)
 		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
 		api.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems)           // ดึงรายการย่อยของงาน (พนักงาน + แอดมิน)
@@ -223,6 +226,18 @@ func registerRoutes(
 		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)            // เพิ่มไฟล์แนบในการ์ด
 		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)              // ดึงไฟล์แนบทั้งหมดของการ์ด
 		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment)          // ลบไฟล์แนบ
+		// Card Comments (rich text, @mention)
+		api.GET("/tasks/cards/:id/comments", brandCategoryH.GetCardComments)                 // ดึงคอมเมนต์ของการ์ด
+		api.POST("/tasks/cards/:id/comments", brandCategoryH.CreateCardComment)              // เพิ่มคอมเมนต์
+		api.PATCH("/tasks/cards/:id/comments/:commentId", brandCategoryH.UpdateCardComment)  // แก้ไขคอมเมนต์
+		api.DELETE("/tasks/cards/:id/comments/:commentId", brandCategoryH.DeleteCardComment) // ลบคอมเมนต์
+
+		// Card Assignees
+		api.GET("/tasks/cards/:id/assignees", brandCategoryH.GetCardAssignees)    // ดึงผู้รับผิดชอบการ์ด
+		api.PUT("/tasks/cards/:id/assignees", brandCategoryH.UpdateCardAssignees) // ตั้งผู้รับผิดชอบการ์ด
+
+		// Task Members (สมาชิก project/task สำหรับ picker)
+		api.GET("/tasks/:id/members", brandCategoryH.GetTaskMembers) // ดึงสมาชิกทั้งหมดของงาน
 
 		// การแจ้งเตือน (Notifications)
 		api.GET("/notifications", notifH.GetMyNotifications)     // ดึงรายการแจ้งเตือน
@@ -276,8 +291,8 @@ func registerRoutes(
 		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
 
 		// จัดการงาน (Tasks)
-		admin.POST("/tasks", taskH.CreateTask)  // มอบหมายงานใหม่
-		admin.GET("/tasks", taskH.ListAllTasks) // ดึงงานของทุกคน
+		admin.POST("/tasks", taskH.CreateTask)                             // มอบหมายงานใหม่
+		admin.GET("/tasks", taskH.ListAllTasks)                            // ดึงงานของทุกคน
 		admin.GET("/tasks/events", taskEventH.ListAll)
 		admin.DELETE("/tasks/:id", taskH.DeleteTask)                       // ลบงาน
 		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
