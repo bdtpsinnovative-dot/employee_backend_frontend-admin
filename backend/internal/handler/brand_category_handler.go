@@ -60,6 +60,29 @@ func NewBrandCategoryHandler(
 	}
 }
 
+func parseOptionalDate(s *string) (*time.Time, bool) {
+	if s == nil {
+		return nil, true
+	}
+	if *s == "" {
+		return nil, true
+	}
+	// Try RFC3339
+	if t, err := time.Parse(time.RFC3339, *s); err == nil {
+		return &t, true
+	}
+	// Try ISO 8601 / RFC3339 without timezone (local)
+	if t, err := time.Parse("2006-01-02T15:04:05", *s); err == nil {
+		return &t, true
+	}
+	// Try YYYY-MM-DD
+	if t, err := time.Parse("2006-01-02", *s); err == nil {
+		return &t, true
+	}
+	return nil, false
+}
+
+
 func (h *BrandCategoryHandler) audit(c *gin.Context, scope *repository.TaskEventScope, action, content string, taskID *uuid.UUID) {
 	if err := recordTaskEvent(c, h.eventRepo, scope, action, content, taskID); err != nil {
 		log.Printf("task audit write failed (%s): %v", action, err)
@@ -795,8 +818,8 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		Name         *string          `json:"name"`
 		Description  *string          `json:"description"`
 		SortOrder    *int             `json:"sort_order"`
-		StartDate    *time.Time       `json:"start_date"`
-		DueDate      *time.Time       `json:"due_date"`
+		StartDate    *string          `json:"start_date"`
+		DueDate      *string          `json:"due_date"`
 		Priority     *string          `json:"priority"`
 		Status       *string          `json:"status"`
 		AdminComment *string          `json:"admin_comment"`
@@ -808,14 +831,38 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		return
 	}
 
-	if req.Name != nil || req.Description != nil || req.StartDate != nil || req.DueDate != nil {
+	var startDate *time.Time
+	var hasStartDate bool
+	if req.StartDate != nil {
+		if parsed, ok := parseOptionalDate(req.StartDate); ok {
+			startDate = parsed
+			hasStartDate = true
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่เริ่มไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	var dueDate *time.Time
+	var hasDueDate bool
+	if req.DueDate != nil {
+		if parsed, ok := parseOptionalDate(req.DueDate); ok {
+			dueDate = parsed
+			hasDueDate = true
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันครบกำหนดไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	if req.Name != nil || req.Description != nil || hasStartDate || hasDueDate {
 		if err := h.listRepo.UpdateDetail(
 			c.Request.Context(),
 			listID,
 			req.Name,
 			req.Description,
-			req.StartDate,
-			req.DueDate,
+			startDate,
+			dueDate,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตรายการล้มเหลว"})
 			return
@@ -849,16 +896,36 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 	assignerID := assignerIDRaw.(uuid.UUID)
 
 	var req struct {
-		Title       string     `json:"title"`
-		Description string     `json:"description"`
-		StartDate   *time.Time `json:"start_date"`
-		DueDate     *time.Time `json:"due_date"`
-		Priority    string     `json:"priority"`
-		AssigneeIDs []string   `json:"assignee_ids"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		StartDate   *string  `json:"start_date"`
+		DueDate     *string  `json:"due_date"`
+		Priority    string   `json:"priority"`
+		AssigneeIDs []string `json:"assignee_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณากรอกชื่อการ์ด"})
 		return
+	}
+
+	var startDate *time.Time
+	if req.StartDate != nil {
+		if parsed, ok := parseOptionalDate(req.StartDate); ok {
+			startDate = parsed
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่เริ่มไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	var dueDate *time.Time
+	if req.DueDate != nil {
+		if parsed, ok := parseOptionalDate(req.DueDate); ok {
+			dueDate = parsed
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันครบกำหนดไม่ถูกต้อง"})
+			return
+		}
 	}
 
 	card := domain.TaskCard{
@@ -869,8 +936,8 @@ func (h *BrandCategoryHandler) CreateTaskCard(c *gin.Context) {
 		Status:      "pending",
 		SortOrder:   99,
 		CreatedAt:   time.Now(),
-		StartDate:   req.StartDate,
-		DueDate:     req.DueDate,
+		StartDate:   startDate,
+		DueDate:     dueDate,
 		Priority:    req.Priority,
 		Assignees:   []domain.UserSummary{},
 	}
@@ -939,14 +1006,38 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		Status       *string    `json:"status"`
 		ListID       *uuid.UUID `json:"list_id"`
 		SortOrder    *int       `json:"sort_order"`
-		StartDate    *time.Time `json:"start_date"`
-		DueDate      *time.Time `json:"due_date"`
+		StartDate    *string    `json:"start_date"`
+		DueDate      *string    `json:"due_date"`
 		AdminComment *string    `json:"admin_comment"`
 		Priority     *string    `json:"priority"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
+	}
+
+	var startDate *time.Time
+	var hasStartDate bool
+	if req.StartDate != nil {
+		if parsed, ok := parseOptionalDate(req.StartDate); ok {
+			startDate = parsed
+			hasStartDate = true
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่เริ่มไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	var dueDate *time.Time
+	var hasDueDate bool
+	if req.DueDate != nil {
+		if parsed, ok := parseOptionalDate(req.DueDate); ok {
+			dueDate = parsed
+			hasDueDate = true
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันครบกำหนดไม่ถูกต้อง"})
+			return
+		}
 	}
 
 	if req.Status != nil {
@@ -979,6 +1070,16 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		}
 	}
 
+	// We pass startDate/dueDate directly if they were provided, otherwise nil
+	var updateStartDate *time.Time
+	if hasStartDate {
+		updateStartDate = startDate
+	}
+	var updateDueDate *time.Time
+	if hasDueDate {
+		updateDueDate = dueDate
+	}
+
 	err = h.cardRepo.Update(
 		c.Request.Context(),
 		cardID,
@@ -987,8 +1088,8 @@ func (h *BrandCategoryHandler) UpdateTaskCard(c *gin.Context) {
 		req.SortOrder,
 		req.Title,
 		req.Description,
-		req.StartDate,
-		req.DueDate,
+		updateStartDate,
+		updateDueDate,
 		req.AdminComment,
 		req.Priority,
 	)
@@ -1039,12 +1140,22 @@ func (h *BrandCategoryHandler) CreateCardSubItem(c *gin.Context) {
 	}
 
 	var req struct {
-		Title   string     `json:"title"`
-		DueDate *time.Time `json:"due_date"`
+		Title   string  `json:"title"`
+		DueDate *string `json:"due_date"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
+	}
+
+	var dueDate *time.Time
+	if req.DueDate != nil {
+		if parsed, ok := parseOptionalDate(req.DueDate); ok {
+			dueDate = parsed
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันครบกำหนดไม่ถูกต้อง"})
+			return
+		}
 	}
 
 	item := domain.TaskSubItem{
@@ -1052,7 +1163,7 @@ func (h *BrandCategoryHandler) CreateCardSubItem(c *gin.Context) {
 		TaskID:    taskID,
 		CardID:    &cardID,
 		Title:     req.Title,
-		DueDate:   req.DueDate,
+		DueDate:   dueDate,
 		IsDone:    false,
 		Status:    "pending",
 		SortOrder: 99,
@@ -1087,17 +1198,37 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 	}
 
 	var req struct {
-		Title             string     `json:"title"`
-		StartDate         *time.Time `json:"start_date"`
-		DueDate           *time.Time `json:"due_date"`
-		LinkURL           *string    `json:"link_url"`
-		AttachmentURL     *string    `json:"attachment_url"`
-		VerificationNotes *string    `json:"verification_notes"`
-		AdminComment      *string    `json:"admin_comment"`
+		Title             string  `json:"title"`
+		StartDate         *string `json:"start_date"`
+		DueDate           *string `json:"due_date"`
+		LinkURL           *string `json:"link_url"`
+		AttachmentURL     *string `json:"attachment_url"`
+		VerificationNotes *string `json:"verification_notes"`
+		AdminComment      *string `json:"admin_comment"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
+	}
+
+	var startDate *time.Time
+	if req.StartDate != nil {
+		if parsed, ok := parseOptionalDate(req.StartDate); ok {
+			startDate = parsed
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันที่เริ่มไม่ถูกต้อง"})
+			return
+		}
+	}
+
+	var dueDate *time.Time
+	if req.DueDate != nil {
+		if parsed, ok := parseOptionalDate(req.DueDate); ok {
+			dueDate = parsed
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบวันครบกำหนดไม่ถูกต้อง"})
+			return
+		}
 	}
 
 	scope, _ := h.eventRepo.ScopeForSubItem(c.Request.Context(), subItemID)
@@ -1105,8 +1236,8 @@ func (h *BrandCategoryHandler) UpdateCardSubItemDetail(c *gin.Context) {
 		c.Request.Context(),
 		subItemID,
 		req.Title,
-		req.StartDate,
-		req.DueDate,
+		startDate,
+		dueDate,
 		req.LinkURL,
 		req.AttachmentURL,
 		req.VerificationNotes,
