@@ -32,6 +32,7 @@ interface TaskDetailDrawerProps {
   onDeleteTask: (id: string) => void;
   onEditTask?: (task: AdminTask) => void;
   onRefresh?: () => void;
+  currentUser: User | null;
 }
 
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -49,10 +50,15 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onDeleteTask,
   onEditTask,
   onRefresh,
+  currentUser,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const isCompleted = (task?.status ?? '') === 'completed';
+  const isCreator = task?.assigned_by === currentUser?.id;
+  const isAdmin = currentUser?.role === 'admin';
+  const canDelete = isAdmin || isCreator;
+  const canEdit = isAdmin || isCreator;
   const brand = task?.brand_id ? brandMap[task.brand_id] : null;
   const category = task?.category_id ? categoryMap[task.category_id] : null;
   const dueInfo = formatRelativeDueDate(task?.due_date ?? '', isCompleted);
@@ -133,7 +139,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
               </button>
 
-              {onEditTask && (
+              {onEditTask && canEdit && (
                 <button
                   onClick={() => onEditTask(task)}
                   className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -143,13 +149,15 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </button>
               )}
 
-              <button
-                onClick={() => onDeleteTask(task.id)}
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="ลบงานนี้"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {canDelete && (
+                <button
+                  onClick={() => onDeleteTask(task.id)}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="ลบงานนี้ (ย้ายไปถังขยะ)"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
 
               <div className="w-px h-5 bg-slate-200 mx-1" />
 

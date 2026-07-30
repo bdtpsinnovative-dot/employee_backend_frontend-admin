@@ -19,25 +19,37 @@ import { fetchMe } from './services/adminApi';
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [hasProfile, setHasProfile] = useState(false);
 
   useEffect(() => {
     async function checkUser() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setAuthenticated(false);
-        setIsAdmin(false);
+        setHasProfile(false);
         setChecking(false);
         return;
       }
       setAuthenticated(true);
       
       try {
-        const user = await fetchMe();
-        setIsAdmin(user.role === 'admin');
-      } catch (err) {
-        console.error('สิทธิ์แอดมินไม่ถูกต้อง:', err);
-        setIsAdmin(false);
+        await fetchMe();
+        setHasProfile(true);
+      } catch (err: any) {
+        console.error('ไม่พบข้อมูลโปรไฟล์พนักงาน:', err);
+        // หากเกิดข้อผิดพลาดจากเครือข่าย หรือ Server Offline (เช่น 502, Network Error)
+        // เราจะไม่ดีดผู้ใช้ออกจากระบบ (เพื่อป้องกันไม่ให้ต้องล็อกอินใหม่ตอนรีสตาร์ท API)
+        const isOfflineOrServerError = 
+          err.message?.includes('Network Error') || 
+          err.message?.includes('status code 5') ||
+          err.message?.includes('Request failed') ||
+          (err.response && err.response.status >= 500);
+
+        if (isOfflineOrServerError) {
+          setHasProfile(true); // อนุญาตให้มีโปรไฟล์ไปก่อน ป้องกันการดีดไปหน้า Login
+        } else {
+          setHasProfile(false);
+        }
       }
       setChecking(false);
     }
@@ -47,7 +59,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setAuthenticated(false);
-        setIsAdmin(false);
+        setHasProfile(false);
         setChecking(false);
       } else {
         checkUser();
@@ -60,12 +72,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-gray)' }}>
-        กำลังตรวจสอบสิทธิ์แอดมิน...
+        กำลังตรวจสอบสิทธิ์เข้าใช้งาน...
       </div>
     );
   }
 
-  if (!authenticated || !isAdmin) {
+  if (!authenticated || !hasProfile) {
     return <Navigate to="/login" replace />;
   }
 

@@ -22,8 +22,16 @@ import type {
 
 export async function fetchUsers(ids?: string[]): Promise<User[]> {
   const params = ids && ids.length > 0 ? { ids: ids.join(',') } : undefined;
-  const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
-  return data.data;
+  try {
+    const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
+    return data.data;
+  } catch (err: any) {
+    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
+      const { data } = await api.get<ApiResponse<User[]>>('/api/users', { params });
+      return data.data;
+    }
+    throw err;
+  }
 }
 
 export async function fetchActiveUsers(): Promise<User[]> {
@@ -191,7 +199,7 @@ export async function updateCheckInMode(mode: 'face' | 'selfie'): Promise<void> 
 // ────────────────── Brands (Admin) ──────────────────
 
 export async function fetchBrands(): Promise<Brand[]> {
-  const { data } = await api.get<ApiResponse<Brand[]>>('/admin/brands');
+  const { data } = await api.get<ApiResponse<Brand[]>>('/api/brands');
   return data.data ?? [];
 }
 
@@ -207,7 +215,7 @@ export async function deleteBrand(id: string): Promise<void> {
 // ────────────────── Task Categories (Admin) ──────────────────
 
 export async function fetchTaskCategories(): Promise<TaskCategory[]> {
-  const { data } = await api.get<ApiResponse<TaskCategory[]>>('/admin/task-categories');
+  const { data } = await api.get<ApiResponse<TaskCategory[]>>('/api/task-categories');
   return data.data ?? [];
 }
 
@@ -223,8 +231,16 @@ export async function deleteTaskCategory(id: string): Promise<void> {
 // ────────────────── Admin Tasks ──────────────────
 
 export async function fetchAdminTasks(): Promise<AdminTask[]> {
-  const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
-  return data.data ?? [];
+  try {
+    const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
+    return data.data ?? [];
+  } catch (err: any) {
+    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
+      const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
+      return data.data ?? [];
+    }
+    throw err;
+  }
 }
 
 export async function createAdminTask(body: {
@@ -237,13 +253,29 @@ export async function createAdminTask(body: {
   category_id?: string;
   sub_items?: string[];
 }): Promise<AdminTask> {
-  const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
-  return data.data;
+  try {
+    const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
+    return data.data;
+  } catch (err: any) {
+    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
+      const { data } = await api.post<ApiResponse<AdminTask>>('/api/tasks', body);
+      return data.data;
+    }
+    throw err;
+  }
 }
 
 export async function fetchTaskSubItems(taskId: string): Promise<TaskSubItem[]> {
-  const { data } = await api.get<ApiResponse<TaskSubItem[]>>(`/admin/tasks/${taskId}/sub-items`);
-  return data.data ?? [];
+  try {
+    const { data } = await api.get<ApiResponse<TaskSubItem[]>>(`/admin/tasks/${taskId}/sub-items`);
+    return data.data ?? [];
+  } catch (err: any) {
+    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
+      const { data } = await api.get<ApiResponse<TaskSubItem[]>>(`/api/tasks/${taskId}/sub-items`);
+      return data.data ?? [];
+    }
+    throw err;
+  }
 }
 
 export async function updateAdminTask(id: string, body: {
@@ -428,4 +460,22 @@ export async function uploadFile(file: File): Promise<{ ok: boolean; url: string
     },
   });
   return data;
+}
+
+export async function fetchTrashTasks(): Promise<AdminTask[]> {
+  const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks/trash');
+  return data.data ?? [];
+}
+
+export async function restoreTask(id: string): Promise<void> {
+  await api.post(`/api/tasks/${id}/restore`);
+}
+
+export async function fetchTrashTaskLists(taskId: string): Promise<TaskList[]> {
+  const { data } = await api.get<ApiResponse<TaskList[]>>(`/api/tasks/${taskId}/trello/trash`);
+  return data.data ?? [];
+}
+
+export async function restoreTaskList(listId: string): Promise<void> {
+  await api.post(`/api/tasks/lists/${listId}/restore`);
 }

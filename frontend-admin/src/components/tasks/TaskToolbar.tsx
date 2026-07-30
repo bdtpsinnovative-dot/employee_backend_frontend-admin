@@ -6,6 +6,7 @@ import {
   Plus,
   Settings,
   X,
+  Trash2,
 } from 'lucide-react';
 import type { User, Brand, TaskCategory } from '../../types';
 
@@ -29,6 +30,7 @@ interface TaskToolbarProps {
   users: User[];
   onOpenCreateModal: () => void;
   onOpenSettingsModal: () => void;
+  onOpenTrashModal: () => void;
   activeFilterCount: number;
   onClearFilters: () => void;
 }
@@ -53,6 +55,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   users,
   onOpenCreateModal,
   onOpenSettingsModal,
+  onOpenTrashModal,
   activeFilterCount,
   onClearFilters,
 }) => {
@@ -72,6 +75,15 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
 
         {/* Right Header Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenTrashModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
+            title="ดูงานที่ถูกลบไปแล้ว"
+          >
+            <Trash2 className="w-4 h-4 text-slate-500" />
+            <span>ถังขยะ</span>
+          </button>
+
           <button
             onClick={onOpenSettingsModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"

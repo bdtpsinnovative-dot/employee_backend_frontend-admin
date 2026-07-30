@@ -1,10 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory, fetchCheckInMode, updateCheckInMode } from '../services/adminApi';
 import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
 
 export default function Dashboard() {
-  const { selectedUser, setSelectedUser } = useOutletContext<{ selectedUser: User | null; setSelectedUser: (u: User | null) => void }>();
+  const { selectedUser, setSelectedUser, currentUser } = useOutletContext<{
+    selectedUser: User | null;
+    setSelectedUser: (u: User | null) => void;
+    currentUser: User | null;
+  }>();
+  const navigate = useNavigate();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -26,14 +31,20 @@ export default function Dashboard() {
   } | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentUser) {
+      if (currentUser.role === 'admin') {
+        loadData();
+      } else {
+        navigate('/daily-record', { replace: true });
+      }
+    }
+  }, [currentUser, navigate]);
 
   useEffect(() => {
-    if (!selectedUser) {
+    if (currentUser && currentUser.role === 'admin' && !selectedUser) {
       loadAttendance();
     }
-  }, [date, selectedUser]);
+  }, [date, selectedUser, currentUser]);
 
   async function loadData() {
     setLoading(true);

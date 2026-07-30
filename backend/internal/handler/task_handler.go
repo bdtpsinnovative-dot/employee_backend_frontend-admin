@@ -280,3 +280,39 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
+
+// ListTrashTasks GET /api/tasks/trash
+func (h *TaskHandler) ListTrashTasks(c *gin.Context) {
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	role := roleRaw.(string)
+	isAdmin := role == "admin"
+
+	tasks, err := h.taskSvc.ListTrashTasks(c.Request.Context(), userID, isAdmin)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานในถังขยะล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
+}
+
+// RestoreTask POST /api/tasks/:id/restore
+func (h *TaskHandler) RestoreTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	err = h.taskSvc.RestoreTask(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "กู้คืนงานล้มเหลว"})
+		return
+	}
+	h.audit(c, nil, "task_restored", "กู้คืนงานจากถังขยะ", &id)
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "กู้คืนงานสำเร็จ"})
+}

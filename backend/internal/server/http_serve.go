@@ -170,6 +170,7 @@ func registerRoutes(
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
 	{
 		// ข้อมูลผู้ใช้
+		api.GET("/users", adminH.ListUsers)                        // ดึงรายชื่อพนักงานทั้งหมด (สำหรับมอบหมายงาน)
 		api.PUT("/users/me/device", userH.BindDevice)              // ผูกเครื่องมือถือ
 		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken)       // บันทึก FCM Token
 		api.PUT("/users/me/profile/info", userH.UpdateProfileInfo) // อัปเดตชื่อและรูปโปรไฟล์
@@ -202,6 +203,9 @@ func registerRoutes(
 
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                                       // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.GET("/tasks/trash", taskH.ListTrashTasks)                              // ดูงานในถังขยะ
+		api.POST("/tasks", taskH.CreateTask)                                       // เพิ่มงานใหม่
+		api.POST("/tasks/:id/restore", taskH.RestoreTask)                          // กู้คืนงานจากถังขยะ
 		api.PUT("/tasks/:id", taskH.UpdateTask)                                    // อัปเดตรายละเอียดงาน (แอดมินแก้ไขรายละเอียดงานหลัก)
 		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)                     // อัปเดตสถานะงาน (พนักงาน)
 		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
@@ -212,6 +216,8 @@ func registerRoutes(
 		api.POST("/tasks/:id/events", taskEventH.AddComment)
 		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)                              // เพิ่ม List/รายการ
 		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)                            // ลบ List/รายการ
+		api.GET("/tasks/:id/trello/trash", brandCategoryH.GetTaskTrelloBoardTrash)                // ดึงรายการที่ถูกลบ (ถังขยะ)
+		api.POST("/tasks/lists/:id/restore", brandCategoryH.RestoreTaskList)                     // กู้คืน List/รายการ
 		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)                             // อัปเดต List/รายการ (ลำดับ)
 		api.POST("/tasks/lists/:id/cards", brandCategoryH.CreateTaskCard)                        // เพิ่ม Card/การ์ด
 		api.PATCH("/tasks/cards/:id", brandCategoryH.UpdateTaskCard)                             // อัปเดต Card (ชื่อ/รายละเอียด/สถานะ)

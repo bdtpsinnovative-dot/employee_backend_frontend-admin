@@ -57,6 +57,7 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 		       COALESCE((SELECT COUNT(*) FROM task_cards tc JOIN task_lists tl ON tc.list_id = tl.id WHERE tl.task_id = t.id AND tc.status = 'completed'), 0) AS card_done
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
+		WHERE t.deleted_at IS NULL
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
@@ -76,7 +77,7 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		FROM tasks t
 		LEFT JOIN task_assignees ta ON t.id = ta.task_id
 		LEFT JOIN users u ON t.assigned_to = u.id
-		WHERE t.assigned_to = $1 OR ta.user_id = $1
+		WHERE (t.assigned_to = $1 OR ta.user_id = $1 OR t.assigned_by = $1) AND t.deleted_at IS NULL
 		ORDER BY t.created_at DESC
 	`, userID)
 	if err != nil {
@@ -93,7 +94,7 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
-		WHERE t.id = $1
+		WHERE t.id = $1 AND t.deleted_at IS NULL
 	`, id)
 	if err != nil {
 		return nil, err
@@ -182,7 +183,45 @@ func (r *TaskRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string
 
 func (r *TaskRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `
-		DELETE FROM tasks WHERE id = $1
+		UPDATE tasks SET deleted_at = NOW() WHERE id = $1
+	`, id)
+	return err
+}
+
+func (r *TaskRepo) ListTrash(ctx context.Context, userID uuid.UUID, isAdmin bool) ([]domain.Task, error) {
+	var tasks []domain.Task
+	var err error
+	if isAdmin {
+		err = r.db.SelectContext(ctx, &tasks, `
+			SELECT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
+			       t.brand_id, t.category_id, t.created_at, t.deleted_at,
+			       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
+			FROM tasks t
+			LEFT JOIN users u ON t.assigned_to = u.id
+			WHERE t.deleted_at IS NOT NULL
+			ORDER BY t.deleted_at DESC
+		`)
+	} else {
+		err = r.db.SelectContext(ctx, &tasks, `
+			SELECT DISTINCT t.id, t.assigned_to, t.title, t.description, t.due_date, t.status, t.assigned_by,
+			       t.brand_id, t.category_id, t.created_at, t.deleted_at,
+			       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name
+			FROM tasks t
+			LEFT JOIN task_assignees ta ON t.id = ta.task_id
+			LEFT JOIN users u ON t.assigned_to = u.id
+			WHERE (t.assigned_to = $1 OR ta.user_id = $1 OR t.assigned_by = $1) AND t.deleted_at IS NOT NULL
+			ORDER BY t.deleted_at DESC
+		`, userID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.populateAssigneeIDs(ctx, tasks)
+}
+
+func (r *TaskRepo) Restore(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE tasks SET deleted_at = NULL WHERE id = $1
 	`, id)
 	return err
 }

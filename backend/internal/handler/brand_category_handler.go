@@ -481,6 +481,68 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": lists})
 }
 
+// GetTaskTrelloBoardTrash GET /api/tasks/:id/trello/trash
+func (h *BrandCategoryHandler) GetTaskTrelloBoardTrash(c *gin.Context) {
+	taskID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	lists, err := h.listRepo.ListTrashByTask(c.Request.Context(), taskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงรายการถังขยะล้มเหลว"})
+		return
+	}
+
+	for i := range lists {
+		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
+		if err != nil {
+			continue
+		}
+		for j := range cards {
+			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cards[j].ID)
+			if err == nil {
+				cards[j].SubItems = subItems
+			} else {
+				cards[j].SubItems = []domain.TaskSubItem{}
+			}
+			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cards[j].ID)
+			if err == nil {
+				cards[j].Attachments = attachments
+			} else {
+				cards[j].Attachments = []domain.CardAttachment{}
+			}
+		}
+		lists[i].Cards = cards
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": lists})
+}
+
+// RestoreTaskList POST /api/tasks/lists/:id/restore
+func (h *BrandCategoryHandler) RestoreTaskList(c *gin.Context) {
+	listID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID รายการไม่ถูกต้อง"})
+		return
+	}
+
+	if err := h.listRepo.Restore(c.Request.Context(), listID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "กู้คืนรายการล้มเหลว"})
+		return
+	}
+
+	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
+	name := listID.String()
+	if scope != nil && scope.Name != "" {
+		name = scope.Name
+	}
+	h.audit(c, scope, "board_restored", "กู้คืนบอร์ด: "+name, nil)
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "กู้คืนรายการสำเร็จ"})
+}
+
 // CreateTaskList POST /api/tasks/:id/lists
 func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	taskID, err := uuid.Parse(c.Param("id"))

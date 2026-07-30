@@ -150,6 +150,7 @@ type Task struct {
 	BrandID       *uuid.UUID `db:"brand_id" json:"brand_id,omitempty"`
 	CategoryID    *uuid.UUID `db:"category_id" json:"category_id,omitempty"`
 	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	DeletedAt     *time.Time `db:"deleted_at" json:"deleted_at,omitempty"`
 	LinkURL       *string    `db:"link_url" json:"link_url,omitempty"`
 	AttachmentURL *string    `db:"attachment_url" json:"attachment_url,omitempty"`
 	// Joined fields (not stored in tasks table)
@@ -239,6 +240,7 @@ type TaskList struct {
 	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
 	StartDate    *time.Time      `db:"start_date" json:"start_date,omitempty"`
 	DueDate      *time.Time      `db:"due_date" json:"due_date,omitempty"`
+	DeletedAt    *time.Time      `db:"deleted_at" json:"deleted_at,omitempty"`
 	Priority     string          `db:"priority" json:"priority"`
 	Status       string          `db:"status" json:"status"`
 	AdminComment string          `db:"admin_comment" json:"admin_comment"`

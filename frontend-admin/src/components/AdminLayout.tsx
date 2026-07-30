@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import type { User } from '../types';
+import { fetchMe } from '../services/adminApi';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
+const ADMIN_ONLY_ROUTES = [
+  '/dashboard',
+  '/requests',
+  '/employees',
+  '/holidays',
+  '/history',
+  '/task-logs'
+];
 
 function getInitialSidebarOpen(): boolean {
   try {
@@ -36,12 +45,36 @@ function saveSidebarPref(open: boolean) {
     };
   } catch {}
 }
-
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+
+  useEffect(() => {
+    async function loadCurrentUser() {
+      try {
+        const user = await fetchMe();
+        setCurrentUser(user);
+      } catch (err) {
+        console.error('ไม่สามารถโหลดข้อมูลผู้ใช้:', err);
+      }
+    }
+    loadCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin') {
+      const isAdminRoute = ADMIN_ONLY_ROUTES.some(route => 
+        location.pathname === route || location.pathname.startsWith(route + '/')
+      );
+      if (isAdminRoute) {
+        navigate('/daily-record', { replace: true });
+      }
+    }
+  }, [currentUser, location.pathname, navigate]);
 
   useEffect(() => {
     try {
@@ -96,7 +129,7 @@ export default function AdminLayout() {
         onClick={toggleSidebar}
       ></div>
 
-      <Sidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
+      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       {/* Collapsed Left Rail for Desktop (Enterprise SaaS style like VS Code, Slack, Jira) */}
       {!sidebarOpen && (
@@ -127,14 +160,18 @@ export default function AdminLayout() {
                 background: 'var(--primary-gradient)',
                 color: 'white',
                 border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold'
               }}
             >
-              A
+              {currentUser?.first_name ? currentUser.first_name[0].toUpperCase() : 'U'}
             </div>
           </div>
 
           {/* Child Routes Render Here */}
-          <Outlet context={{ selectedUser, setSelectedUser }} />
+          <Outlet context={{ selectedUser, setSelectedUser, currentUser }} />
         </div>
 
         {isDashboard && <RightPanel selectedUser={selectedUser} />}

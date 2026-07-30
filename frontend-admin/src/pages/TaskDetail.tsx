@@ -410,6 +410,7 @@ export default function TaskDetail() {
         initialData={editingTask || undefined}
         onSubmit={handleUpdateTask}
       />
+
     </div>
   );
 }

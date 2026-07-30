@@ -2,6 +2,8 @@ package repository
 
 import (
 	"fmt"
+	"time"
+	"log"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -45,6 +47,8 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS attachment_url TEXT;
 		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS link_url TEXT;
 		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+		ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 		ALTER TABLE task_sub_items ADD COLUMN IF NOT EXISTS admin_comment TEXT;
 		ALTER TABLE card_attachments ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
 
@@ -62,6 +66,29 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 			PRIMARY KEY (list_id, user_id)
 		);
 	`)
+
+	// ลบงานและคอร์สงานในถังขยะที่อายุเกิน 30 วันทันทีตอนสตาร์ทระบบ
+	_, err = db.Exec(`
+		DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';
+		DELETE FROM task_lists WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';
+	`)
+	if err != nil {
+		fmt.Printf("[DB Init] ล้างถังขยะงานและคอร์สงานล้มเหลว: %v\n", err)
+	}
+
+	// เริ่ม background worker คอยเคลียร์ทุกๆ 24 ชั่วโมง
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		for range ticker.C {
+			_, err := db.Exec(`
+				DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';
+				DELETE FROM task_lists WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';
+			`)
+			if err != nil {
+				log.Printf("[Cleanup Worker] ล้างงานและคอร์สงานเก่าล้มเหลว: %v", err)
+			}
+		}
+	}()
 
 	return db, nil
 }

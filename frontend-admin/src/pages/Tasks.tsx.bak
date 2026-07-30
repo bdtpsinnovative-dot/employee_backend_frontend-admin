@@ -580,8 +580,8 @@ export default function Tasks() {
               ) : trashTasks.length === 0 ? (
                 <div className="text-center py-12 text-slate-450 text-xs font-medium">ไม่มีงานในถังขยะ</div>
               ) : (
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs min-w-[550px]">
+                <div className="overflow-hidden border border-slate-100 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
                         <th className="px-4 py-2 border-b border-slate-100">ชื่องาน</th>
@@ -594,7 +594,7 @@ export default function Tasks() {
                       {trashTasks.map((t) => {
                         const deletedAt = t.deleted_at ? new Date(t.deleted_at) : new Date();
                         const diffTime = new Date().getTime() - deletedAt.getTime();
-                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         const daysLeft = 30 - diffDays;
                         const remainingDays = daysLeft > 0 ? daysLeft : 0;
 

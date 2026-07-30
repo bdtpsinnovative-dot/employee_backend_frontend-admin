@@ -1,14 +1,14 @@
 import React from 'react';
 import {
   Flame,
-
   Tag,
   Layers,
   CheckSquare,
   Link as LinkIcon,
   CheckCircle2,
   AlertCircle,
-  Edit3
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory } from '../../types';
 import { formatRelativeDueDate, getTaskPriority, type TaskStatus, STATUS_CONFIG, avatarUrl } from './taskUtils';
@@ -25,6 +25,8 @@ interface TaskListViewProps {
   onOpenCreateModal: (defaultStatus?: TaskStatus) => void;
   onApproveSubmission?: (task: AdminTask) => void;
   onRequestRevision?: (task: AdminTask) => void;
+  onDeleteTask?: (id: string) => void;
+  currentUser: User | null;
 }
 
 export const TaskListView: React.FC<TaskListViewProps> = ({
@@ -39,21 +41,22 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   // onOpenCreateModal,
   onApproveSubmission,
   onRequestRevision,
+  onDeleteTask,
+  currentUser,
 }) => {
-  // Flatten and sort all tasks (no grouping)
+  // Flatten and sort all tasks chronologically by due date ascending
   const sortedTasks = [...tasks].sort((a, b) => {
-    // 1. Completed goes to bottom
-    if (a.status === 'completed' && b.status !== 'completed') return 1;
-    if (b.status === 'completed' && a.status !== 'completed') return -1;
-    if (a.status === 'completed' && b.status === 'completed') {
-      const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0;
-      const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
-      return bTime - aTime;
-    }
-    // 2. Overdue > Today > Upcoming > No Date
     const aDue = a.due_date && !a.due_date.startsWith('0001-01-01') ? new Date(a.due_date).getTime() : Infinity;
     const bDue = b.due_date && !b.due_date.startsWith('0001-01-01') ? new Date(b.due_date).getTime() : Infinity;
-    return aDue - bDue;
+    
+    if (aDue !== bDue) {
+      return aDue - bDue;
+    }
+    
+    // Default fallback: sort by created_at descending (latest first)
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
   });
 
   return (
@@ -82,6 +85,10 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               const isDone = task.status === 'completed';
               const dueInfo = formatRelativeDueDate(task.due_date, isDone);
               const priority = getTaskPriority(task);
+              const isCreator = task.assigned_by === currentUser?.id;
+              const isAdmin = currentUser?.role === 'admin';
+              const canDelete = isAdmin || isCreator;
+              const canEdit = isAdmin || isCreator;
 
               // Assignees
               const assigneeIds =
@@ -299,14 +306,28 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   >
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
                       {/* ปุ่มเปิดหน้าต่างโมดูลแก้ไข (Edit Modal) */}
-                      <button
-                        onClick={() => onEditTask ? onEditTask(task) : onSelectTask(task)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 border border-slate-200 rounded-lg shadow-2xs transition-all cursor-pointer"
-                        title="คลิกเพื่อแก้ไขรายละเอียดงาน"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                        <span>แก้ไข</span>
-                      </button>
+                      {onEditTask && canEdit && (
+                        <button
+                          onClick={() => onEditTask(task)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 border border-slate-200 rounded-lg shadow-2xs transition-all cursor-pointer"
+                          title="คลิกเพื่อแก้ไขรายละเอียดงาน"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                          <span>แก้ไข</span>
+                        </button>
+                      )}
+
+                      {/* ปุ่มลบงาน (ย้ายไปถังขยะ) */}
+                      {onDeleteTask && canDelete && (
+                        <button
+                          onClick={() => onDeleteTask(task.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 hover:text-red-800 active:scale-95 border border-red-200 rounded-lg shadow-2xs transition-all cursor-pointer"
+                          title="คลิกเพื่อลบงานนี้ (ย้ายไปถังขยะ)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                          <span>ลบ</span>
+                        </button>
+                      )}
 
                       {/* ถ้าเป็นสถานะ in_review ให้แสดงปุ่ม อนุมัติ / ขอแก้ไข เพิ่มเติมด้านล่าง */}
                       {task.status === 'in_review' && (

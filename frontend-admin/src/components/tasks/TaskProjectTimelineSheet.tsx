@@ -34,6 +34,8 @@ import {
   createSubItemVerification,
   uploadFile,
   fetchTaskEvents,
+  fetchTrashTaskLists,
+  restoreTaskList,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -169,20 +171,50 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [createListFirstCardName, setCreateListFirstCardName] = useState('');
   const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
+
   const [createListDescription, setCreateListDescription] = useState('');
   const [showInvitePopover, setShowInvitePopover] = useState(false);
   const [isCreatingList, setIsCreatingList] = useState(false);
 
   // Filter Toolbar State
-  type FilterMode = 'all' | 'pending' | 'overdue' | 'high_priority' | 'completed';
+  type FilterMode = 'all' | 'pending' | 'overdue' | 'high_priority' | 'completed' | 'trash';
   const [activeFilter, setActiveFilter] = useState<FilterMode>('all');
+  const [trashLists, setTrashLists] = useState<TaskList[]>([]);
+
+  // Reusable Confirmation Modal
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  const getRemainingDays = (deletedAtStr?: string) => {
+    if (!deletedAtStr) return 30;
+    const deletedAt = new Date(deletedAtStr);
+    const diffTime = Math.abs(new Date().getTime() - deletedAt.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const remaining = 30 - diffDays;
+    return remaining < 0 ? 0 : remaining;
+  };
+
   const loadSubItems = async () => {
     try {
-      const lists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(lists);
+      if (activeFilter === 'trash') {
+        const lists = await fetchTrashTaskLists(task.id).catch(() => []);
+        setTrashLists(lists);
+      } else {
+        const lists = await fetchTaskTrello(task.id).catch(() => []);
+        setTrelloLists(lists);
+      }
     } catch (err) {
       console.error('Failed to load trello lists', err);
     } finally {
@@ -192,7 +224,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   useEffect(() => {
     loadSubItems();
-  }, [task.id]);
+  }, [task.id, activeFilter]);
 
   const handleToggleListStatus = async (list: TaskList, currentStatus?: string) => {
     const newStatus = currentStatus === 'completed' ? 'in_progress' : 'completed';
@@ -287,21 +319,28 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   };
 
   const handleDeleteCardSubItem = async (itemId: string) => {
-    if (!confirm('ต้องการลบรายการย่อยนี้ใช่หรือไม่?')) return;
-    try {
-      await deleteTaskSubItem(itemId);
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      const updatedList = updatedLists.find(l => l.id === editingList?.id);
-      if (updatedList) {
-        setEditingList(updatedList);
-        const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
-        if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
+    setConfirmModal({
+      isOpen: true,
+      title: 'ลบรายการย่อย?',
+      description: 'คุณต้องการลบรายการย่อยนี้ใช่หรือไม่? ข้อมูลนี้จะถูกลบอย่างถาวรและไม่สามารถกู้คืนกลับมาได้อีก',
+      confirmText: 'ลบรายการย่อย',
+      onConfirm: async () => {
+        try {
+          await deleteTaskSubItem(itemId);
+          const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+          setTrelloLists(updatedLists);
+          const updatedList = updatedLists.find(l => l.id === editingList?.id);
+          if (updatedList) {
+            setEditingList(updatedList);
+            const updatedCard = updatedList.cards?.find(c => c.id === editingCardSubView.id);
+            if (updatedCard) setCardSubItemsInput(updatedCard.sub_items || []);
+          }
+          onRefreshTask(true);
+        } catch (err) {
+          console.error('Failed to delete sub item', err);
+        }
       }
-      onRefreshTask(true);
-    } catch (err) {
-      console.error('Failed to delete sub item', err);
-    }
+    });
   };
 
   const handleVerifySubItem = (itemId: string) => {
@@ -407,19 +446,26 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   };
 
   const handleDeleteCard = async (cardId: string) => {
-    if (!window.confirm('คุณต้องการลบการ์ดงานนี้ใช่หรือไม่?')) return;
-    try {
-      await deleteTaskCard(cardId);
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
-      setTrelloLists(updatedLists);
-      if (editingList) {
-        const updatedList = updatedLists.find(l => l.id === editingList.id);
-        if (updatedList) setEditingList(updatedList);
+    setConfirmModal({
+      isOpen: true,
+      title: 'ลบการ์ดงานหลัก?',
+      description: 'คุณต้องการลบการ์ดงานหลักนี้ใช่หรือไม่? รายการย่อย ไฟล์หลักฐานทั้งหมดในการ์ดนี้จะถูกลบออกอย่างถาวรทันที',
+      confirmText: 'ลบการ์ดงาน',
+      onConfirm: async () => {
+        try {
+          await deleteTaskCard(cardId);
+          const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+          setTrelloLists(updatedLists);
+          if (editingList) {
+            const updatedList = updatedLists.find(l => l.id === editingList.id);
+            if (updatedList) setEditingList(updatedList);
+          }
+          onRefreshTask(true);
+        } catch (err) {
+          console.error('Failed to delete card', err);
+        }
       }
-      onRefreshTask(true);
-    } catch (err) {
-      console.error('Failed to delete card', err);
-    }
+    });
   };
 
     const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -555,14 +601,21 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       setTrelloLists(trelloLists.filter(l => l.id !== listId));
       return;
     }
-    if (!window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) return;
-    try {
-      await deleteTaskList(listId);
-      await loadSubItems();
-      onRefreshTask(true);
-    } catch (err) {
-      console.error('Failed to delete list', err);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'ย้ายงานย่อยไปถังขยะ?',
+      description: 'คุณต้องการย้ายงานย่อยนี้ไปยังถังขยะใช่หรือไม่? การ์ดงานและรายการย่อยทั้งหมดในงานย่อยนี้จะถูกย้ายไปด้วย โดยระบบจะทำการลบออกอย่างถาวรโดยอัตโนมัติเมื่อครบ 30 วัน',
+      confirmText: 'ย้ายไปถังขยะ',
+      onConfirm: async () => {
+        try {
+          await deleteTaskList(listId);
+          await loadSubItems();
+          onRefreshTask(true);
+        } catch (err) {
+          console.error('Failed to delete list', err);
+        }
+      }
+    });
   };
 
   const handleOpenExternalUrl = (url: string) => {
@@ -604,7 +657,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const effectiveLists = displayLists.length > 0 ? displayLists : fallbackLists;
 
-  const filteredLists = effectiveLists.filter((list) => {
+  const filteredLists = activeFilter === 'trash' ? trashLists : effectiveLists.filter((list) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'completed') return list.status === 'completed';
     if (activeFilter === 'pending') return list.status !== 'completed';
@@ -623,7 +676,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     const listNote = list.admin_comment || '';
 
     return (
-      <tr key={list.id} onClick={() => openDrawerForList(list)} className="hover:bg-blue-50/50 hover:border-blue-300 transition-colors border-b border-slate-200 cursor-pointer">
+      <tr 
+        key={list.id} 
+        onClick={() => { if (activeFilter === 'trash') return; openDrawerForList(list); }} 
+        className={`hover:bg-blue-50/50 hover:border-blue-300 transition-colors border-b border-slate-200 ${activeFilter === 'trash' ? 'cursor-default' : 'cursor-pointer'}`}
+      >
         {/* 1. DUE DATE */}
         <td className="px-3 py-3 border-r border-slate-200 text-center align-middle text-slate-700 font-mono text-[11px] font-bold bg-slate-50/70">
           {list.due_date ? new Date(list.due_date).toLocaleDateString('th-TH') : '-'}
@@ -681,21 +738,46 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
         {/* 6. STATUS */}
         <td className="px-3 py-2 border-r border-slate-200 text-center align-middle">
-          <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
-            listStatus === 'completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'
-          }`}>
-            {listStatus === 'completed' ? 'Done' : 'Doing'}
-          </span>
+          {activeFilter === 'trash' ? (
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-750 border border-red-200">
+              เหลือ {getRemainingDays(list.deleted_at)} วัน
+            </span>
+          ) : (
+            <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+              listStatus === 'completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'
+            }`}>
+              {listStatus === 'completed' ? 'Done' : 'Doing'}
+            </span>
+          )}
         </td>
 
         {/* 7. LIST */}
         <td className="px-3 py-2 border-r border-slate-200 text-center align-middle" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={listStatus === 'completed'}
-            onChange={() => handleToggleListStatus(list, listStatus)}
-            className="w-3.5 h-3.5 text-blue-600 rounded cursor-pointer border-slate-300 focus:ring-blue-500/20"
-          />
+          {activeFilter === 'trash' ? (
+            <button
+              onClick={async () => {
+                try {
+                  await restoreTaskList(list.id);
+                  showCustomAlert('กู้คืนงานย่อยสำเร็จ', 'success');
+                  loadSubItems();
+                  onRefreshTask(true);
+                } catch (err) {
+                  console.error('Failed to restore list', err);
+                  showCustomAlert('กู้คืนงานย่อยล้มเหลว', 'error');
+                }
+              }}
+              className="px-2.5 py-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-all cursor-pointer"
+            >
+              กู้คืน
+            </button>
+          ) : (
+            <input
+              type="checkbox"
+              checked={listStatus === 'completed'}
+              onChange={() => handleToggleListStatus(list, listStatus)}
+              className="w-3.5 h-3.5 text-blue-600 rounded cursor-pointer border-slate-300 focus:ring-blue-500/20"
+            />
+          )}
         </td>
 
         {/* 8. NOTE / REMARK */}
@@ -785,7 +867,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>เพิ่มคอร์สงาน</span>
+                  <span>เพิ่มงานย่อย</span>
                 </button>
               </div>
             </div>
@@ -851,6 +933,18 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               >
                 เสร็จสิ้นแล้ว
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter('trash')}
+                className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  activeFilter === 'trash'
+                    ? 'bg-red-600 text-white border-red-700 shadow-xs'
+                    : 'bg-white text-red-650 hover:bg-red-50/50 border-red-200'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ถังขยะงานย่อย (30 วัน)</span>
+              </button>
             </div>
           </div>
 
@@ -864,8 +958,12 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   <th className="px-3 py-3 w-24 text-center border-r border-slate-200">PRIORITY</th>
                   <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">DETAILS</th>
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">ASSIGNMENT</th>
-                  <th className="px-3 py-3 w-24 text-center border-r border-slate-200">STATUS</th>
-                  <th className="px-2 py-3 w-16 text-center border-r border-slate-200">LIST</th>
+                  <th className="px-3 py-3 w-24 text-center border-r border-slate-200">
+                    {activeFilter === 'trash' ? 'REMAINING' : 'STATUS'}
+                  </th>
+                  <th className="px-2 py-3 w-16 text-center border-r border-slate-200">
+                    {activeFilter === 'trash' ? 'RESTORE' : 'LIST'}
+                  </th>
                   <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">NOTE / REMARK</th>
                   <th className="px-2 py-3 w-[80px] text-center">LINK / FILES</th>
                 </tr>
@@ -900,7 +998,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               <div className="bg-slate-50 text-slate-800 p-5 flex items-center justify-between border-b border-slate-200">
                 <div className="flex items-center gap-2.5">
                   <FileText className="w-5 h-5 text-indigo-600" />
-                  <span className="text-sm font-extrabold tracking-wide uppercase text-slate-800">แก้ไขข้อมูลคอร์สงาน</span>
+                  <span className="text-sm font-extrabold tracking-wide uppercase text-slate-800">แก้ไขข้อมูลงานย่อย</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -921,7 +1019,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       }
                     }}
                     className="p-1 text-slate-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                    title="ลบรายการคอร์สงานนี้"
+                    title="ลบงานย่อยนี้"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -1501,7 +1599,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
             <div className="bg-slate-50 text-slate-800 px-6 py-4 flex items-center justify-between border-b border-slate-200">
               <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-800">
                 <PlusCircle className="w-5 h-5 text-blue-600" />
-                <span>เพิ่มบอร์ดงานใหม่</span>
+                <span>เพิ่มงานย่อยใหม่</span>
               </h3>
               <button
                 type="button"
@@ -1518,9 +1616,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
             {/* Form */}
             <form onSubmit={handleCreateList}>
               <div className="p-6 space-y-4">
-                {/* 1. ชื่อบอร์ดงาน */}
+                {/* 1. ชื่องานย่อย */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">ชื่อบอร์ดงาน (Project Name) <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-slate-700">ชื่องานย่อย <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={createListName}
@@ -1531,14 +1629,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   />
                 </div>
 
-                {/* 2. รายละเอียดบอร์ดงาน */}
+                {/* 2. รายละเอียดงานย่อย */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">รายละเอียดบอร์ดงาน (Board Details/Description)</label>
+                  <label className="text-xs font-bold text-slate-700">รายละเอียดงานย่อย</label>
                   <textarea
                     rows={3}
                     value={createListDescription}
                     onChange={(e) => setCreateListDescription(e.target.value)}
-                    placeholder="รายละเอียดเพิ่มเติมของบอร์ดงาน..."
+                    placeholder="รายละเอียดเพิ่มเติมของงานย่อย..."
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-normal text-slate-800"
                   />
                 </div>
@@ -1555,15 +1653,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">ความสำคัญ (Priority)</label>
+                    <label className="text-xs font-bold text-slate-700">ความสำคัญ</label>
                     <select
                       value={createListPriority}
                       onChange={(e) => setCreateListPriority(e.target.value as any)}
                       className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="low">Low (ต่ำ)</option>
-                      <option value="medium">Medium (ปานกลาง)</option>
-                      <option value="high">High (สูง)</option>
+                      <option value="low">ต่ำ</option>
+                      <option value="medium">ปานกลาง</option>
+                      <option value="high">สูง</option>
                     </select>
                   </div>
                 </div>
@@ -1947,6 +2045,45 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable Beautiful Confirm Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-red-650" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{confirmModal.title}</h3>
+                <p className="text-xs text-slate-500">กรุณายืนยันการทำรายการลบข้อมูล</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-xs text-slate-600 leading-relaxed mb-6 font-semibold">
+              {confirmModal.description}
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal({ ...confirmModal, isOpen: false });
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {confirmModal.confirmText || 'ยืนยันการลบ'}
+              </button>
             </div>
           </div>
         </div>

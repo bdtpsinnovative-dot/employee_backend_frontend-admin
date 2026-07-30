@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { fetchMe } from '../services/adminApi';
@@ -9,6 +9,28 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    async function checkExistingSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setLoading(true);
+        try {
+          const user = await fetchMe();
+          if (user.role === 'admin') {
+            navigate('/dashboard');
+          } else {
+            navigate('/daily-record');
+          }
+        } catch (err) {
+          console.log('ตรวจพบเซสชัน Supabase แต่เรียกข้อมูลโปรไฟล์ไม่สำเร็จ (อาจเพราะ API ออฟไลน์ หรือไม่มีสิทธิ์):', err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    checkExistingSession();
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,20 +49,18 @@ export default function Login() {
         return;
       }
 
-      // เช็คว่าเป็น admin หรือไม่
+      // ตรวจสอบสิทธิ์ผู้ใช้งาน
       try {
         const user = await fetchMe();
-        if (user.role !== 'admin') {
-          setError('คุณไม่มีสิทธิ์เข้าถึงหน้า Admin กรุณาใช้แอปพนักงาน');
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
+        // ล็อกอินสำเร็จ
+        if (user.role === 'admin') {
+          navigate('/dashboard');
+        } else {
+          navigate('/daily-record');
         }
-        // ล็อกอินสำเร็จและเป็น Admin
-        navigate('/dashboard');
       } catch (err) {
         console.error('ไม่สามารถตรวจสอบสิทธิ์ได้:', err);
-        setError('ไม่สามารถเข้าสู่ระบบได้ (ไม่พบข้อมูลพนักงานในระบบ หรือคุณไม่มีสิทธิ์ของแอดมิน)');
+        setError('ไม่สามารถเข้าสู่ระบบได้ (ไม่พบข้อมูลพนักงานในระบบ)');
         await supabase.auth.signOut();
         setLoading(false);
       }
