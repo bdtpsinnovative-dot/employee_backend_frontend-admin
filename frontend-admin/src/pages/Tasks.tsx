@@ -509,6 +509,7 @@ export default function Tasks() {
           // For now, loadAll() is okay if the user reopens the drawer or the drawer re-renders based on updated tasks array.
           // Let's also update selectedTask manually from the fetched list later if needed.
         }}
+        currentUser={currentUser}
       />
 
       {/* Task Create Modal */}

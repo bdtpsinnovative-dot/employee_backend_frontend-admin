@@ -108,7 +108,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerActiveTab, setDrawerActiveTab] = useState<'info' | 'attachments'>('info');
 
   // Custom premium modal states
-  const [activeModal, setActiveModal] = useState<'add_card' | 'attach_file' | 'attach_link' | 'verify_subitem' | null>(null);
+  const [activeModal, setActiveModal] = useState<'add_card' | 'attach_file' | 'attach_link' | 'edit_link' | 'verify_subitem' | null>(null);
   const [modalTitle, setModalTitle] = useState('');
   const [modalInputVal1, setModalInputVal1] = useState('');
   const [modalInputVal2, setModalInputVal2] = useState('');

@@ -175,6 +175,15 @@ export interface TaskList {
   sort_order: number;
   created_at: string;
   description?: string;
+}
+
+export interface TaskList {
+  id: string;
+  task_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  description?: string;
   start_date?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high';
@@ -183,6 +192,7 @@ export interface TaskList {
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];
   assignee_ids?: string[];
+  deleted_at?: string;
 }
 
 export interface TaskSubmission {
@@ -227,6 +237,7 @@ export interface AdminTask {
   completed_at?: string;
   submission_count?: number;
   latest_submission?: TaskSubmission;
+  deleted_at?: string;
 }
 
 export interface TaskEvent {

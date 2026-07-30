@@ -404,6 +404,7 @@ export default function TaskDetail() {
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
         onRefresh={() => loadAll(true)}
+        currentUser={currentUser}
       />
 
       {/* ═══════════ Edit Modal ═══════════ */}
