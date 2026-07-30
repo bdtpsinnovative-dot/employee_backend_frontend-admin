@@ -257,6 +257,7 @@ func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 
 func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
 	var lists []domain.TaskList
+	err := r.db.SelectContext(ctx, &lists, `
 		SELECT id, task_id, name, description, sort_order, created_at,
 		       start_date, due_date, priority, status, admin_comment, attachments, deleted_at
 		FROM task_lists
