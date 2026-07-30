@@ -257,11 +257,10 @@ func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 
 func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
 	var lists []domain.TaskList
-	err := r.db.SelectContext(ctx, &lists, `
 		SELECT id, task_id, name, description, sort_order, created_at,
-		       start_date, due_date, priority, status, admin_comment, attachments
+		       start_date, due_date, priority, status, admin_comment, attachments, deleted_at
 		FROM task_lists
-		WHERE task_id = $1
+		WHERE task_id = $1 AND deleted_at IS NULL
 		ORDER BY sort_order ASC, created_at ASC
 	`, taskID)
 	if err != nil {
@@ -341,7 +340,43 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 }
 
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM task_lists WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE task_lists SET deleted_at = NOW() WHERE id = $1`, id)
+	return err
+}
+
+func (r *TaskListRepo) ListTrashByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
+	var lists []domain.TaskList
+	err := r.db.SelectContext(ctx, &lists, `
+		SELECT * FROM task_lists WHERE task_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
+	`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if len(lists) > 0 {
+		var listAssignees []struct {
+			ListID uuid.UUID `db:"list_id"`
+			UserID uuid.UUID `db:"user_id"`
+		}
+		err = r.db.SelectContext(ctx, &listAssignees, `SELECT list_id, user_id FROM list_assignees`)
+		if err == nil {
+			listMap := make(map[uuid.UUID][]uuid.UUID)
+			for _, la := range listAssignees {
+				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
+			}
+			for i, l := range lists {
+				ids := listMap[l.ID]
+				if ids == nil {
+					ids = []uuid.UUID{}
+				}
+				lists[i].AssigneeIDs = ids
+			}
+		}
+	}
+	return lists, nil
+}
+
+func (r *TaskListRepo) Restore(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE task_lists SET deleted_at = NULL WHERE id = $1`, id)
 	return err
 }
 

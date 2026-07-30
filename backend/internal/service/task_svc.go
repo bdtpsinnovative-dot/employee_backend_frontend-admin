@@ -276,6 +276,14 @@ func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	return s.taskRepo.Delete(ctx, id)
 }
 
+func (s *TaskService) ListTrashTasks(ctx context.Context, userID uuid.UUID, isAdmin bool) ([]domain.Task, error) {
+	return s.taskRepo.ListTrash(ctx, userID, isAdmin)
+}
+
+func (s *TaskService) RestoreTask(ctx context.Context, id uuid.UUID) error {
+	return s.taskRepo.Restore(ctx, id)
+}
+
 func (s *TaskService) ListTaskEvents(ctx context.Context, taskID uuid.UUID) ([]domain.TaskEvent, error) {
 	return s.taskRepo.ListTaskEvents(ctx, taskID)
 }
