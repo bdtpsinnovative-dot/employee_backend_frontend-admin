@@ -379,11 +379,32 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                           <span>งานที่สร้าง</span>
                         </span>
                       )}
-                      {isAssignee && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md shadow-2xs" title="คุณเป็นผู้รับผิดชอบงานนี้">
-                          <Users className="w-2.5 h-2.5 text-emerald-600" />
-                          <span>งานที่เข้าร่วม</span>
-                        </span>
+                      {isAssignee && !isCreator && (
+                        <div className="flex flex-col items-center justify-center select-none">
+                          {task.assigned_by && userMap[task.assigned_by] ? (
+                            <div 
+                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full shadow-3xs" 
+                              title={`งานนี้มอบหมายโดย ${userMap[task.assigned_by].nickname || userMap[task.assigned_by].first_name}`}
+                            >
+                              <div className="relative w-5 h-5 flex-shrink-0">
+                                <img
+                                  src={avatarUrl(userMap[task.assigned_by].avatar_url) || undefined}
+                                  alt={userMap[task.assigned_by].nickname || userMap[task.assigned_by].first_name}
+                                  className="w-5 h-5 rounded-full object-cover border border-white"
+                                />
+                                <Crown className="absolute -top-1.5 -right-1 w-2.5 h-2.5 text-yellow-600 fill-yellow-400 drop-shadow-xs" />
+                              </div>
+                              <span className="font-extrabold text-emerald-800 truncate max-w-[65px]">
+                                {userMap[task.assigned_by].nickname || userMap[task.assigned_by].first_name}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md shadow-2xs">
+                              <Users className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>งานที่เข้าร่วม</span>
+                            </span>
+                          )}
+                        </div>
                       )}
                       {!isCreator && !isAssignee && (
                         <span className="text-[10px] text-slate-450 italic">-</span>

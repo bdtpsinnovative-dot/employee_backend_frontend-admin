@@ -400,10 +400,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                   onChange={e => setPriority(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
                 >
-                  <option value="low">🌱 งานไม่รีบ (Low)</option>
-                  <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
-                  <option value="high">🟠 งานด่วน (High)</option>
                   <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                  <option value="high">🟠 งานด่วน (High)</option>
+                  <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                  <option value="low">🌱 งานไม่รีบ (Low)</option>
                 </select>
               </div>
 
@@ -477,10 +477,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                               onChange={e => handleUpdateBoard(idx, 'priority', e.target.value as any)}
                               className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 text-[11px]"
                             >
-                              <option value="low">🌱 งานไม่รีบ (Low)</option>
-                              <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
-                              <option value="high">🟠 งานด่วน (High)</option>
                               <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                              <option value="high">🟠 งานด่วน (High)</option>
+                              <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                              <option value="low">🌱 งานไม่รีบ (Low)</option>
                             </select>
                           </div>
                         </div>

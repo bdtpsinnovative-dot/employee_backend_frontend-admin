@@ -1448,10 +1448,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         onChange={(e) => setDrawerPriority(e.target.value as any)}
                         className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                       >
-                        <option value="low">🌱 งานไม่รีบ (Low)</option>
-                        <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
-                        <option value="high">🟠 งานด่วน (High)</option>
                         <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                        <option value="high">🟠 งานด่วน (High)</option>
+                        <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                        <option value="low">🌱 งานไม่รีบ (Low)</option>
                       </select>
                     </div>
                   </div>
@@ -1800,10 +1800,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       onChange={(e) => setCreateListPriority(e.target.value as any)}
                       className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="low">🌱 งานไม่รีบ (Low)</option>
-                      <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
-                      <option value="high">🟠 งานด่วน (High)</option>
                       <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                      <option value="high">🟠 งานด่วน (High)</option>
+                      <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                      <option value="low">🌱 งานไม่รีบ (Low)</option>
                     </select>
                   </div>
                 </div>
