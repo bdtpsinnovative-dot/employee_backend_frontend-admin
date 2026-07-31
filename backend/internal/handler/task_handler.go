@@ -59,6 +59,8 @@ type createTaskReq struct {
 	CategoryID  string   `json:"category_id"`
 	SubItems    []string `json:"sub_items"` // list of sub-item titles
 	ListNames   []string `json:"list_names"`
+	Priority    string   `json:"priority"`
+	Status      string   `json:"status"`
 }
 
 // CreateTask POST /admin/tasks (Admin only)
@@ -136,7 +138,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames, req.Priority, req.Status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -188,7 +190,7 @@ func (h *TaskHandler) ListAllTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
-// DeleteTask DELETE /admin/tasks/:id (Admin only)
+// DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id (Admin or Creator)
 func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -196,7 +198,25 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 		return
 	}
 
-	task, _ := h.taskSvc.GetTask(c.Request.Context(), id)
+	task, err := h.taskSvc.GetTask(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบงานที่ต้องการลบ"})
+		return
+	}
+
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	isAdmin := roleRaw.(string) == "admin"
+
+	if !isAdmin {
+		isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
+		if !isCreator {
+			c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์ลบงานนี้ (ต้องเป็นแอดมินหรือผู้สร้างงานเท่านั้น)"})
+			return
+		}
+	}
+
 	err = h.taskSvc.DeleteTask(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบงานล้มเหลว"})
@@ -290,6 +310,8 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		isAdmin,
 		brandID,
 		categoryID,
+		req.Priority,
+		req.Status,
 	)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -498,4 +520,31 @@ func (h *TaskHandler) RestoreTask(c *gin.Context) {
 	h.audit(c, nil, "task_restored", "กู้คืนงานจากถังขยะ", &id)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "กู้คืนงานสำเร็จ"})
+}
+
+type toggleStarReq struct {
+	IsStarred bool `json:"is_starred"`
+}
+
+// ToggleStarTask POST /api/tasks/:id/star
+func (h *TaskHandler) ToggleStarTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var req toggleStarReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	err = h.taskSvc.ToggleStar(c.Request.Context(), id, req.IsStarred)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถสลับสถานะการติดดาวได้"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะการติดดาวสำเร็จ"})
 }

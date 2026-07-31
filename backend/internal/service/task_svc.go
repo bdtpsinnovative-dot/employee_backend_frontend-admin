@@ -43,7 +43,7 @@ func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, 
 	return s.taskRepo.FindByID(ctx, id)
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string) (*domain.Task, error) {
+func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string, priority string, status string) (*domain.Task, error) {
 	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, projectID); err != nil {
 		return nil, fmt.Errorf("invalid assignees: %w", err)
 	}
@@ -52,13 +52,20 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	if len(assigneeIDs) > 0 {
 		primaryAssignee = &assigneeIDs[0]
 	}
+	if priority == "" {
+		priority = "low"
+	}
+	if status == "" {
+		status = "pending"
+	}
 	t := &domain.Task{
 		ID:          uuid.New(),
 		AssignedTo:  primaryAssignee,
 		Title:       title,
 		Description: description,
 		DueDate:     dueDate,
-		Status:      "pending",
+		Status:      status,
+		Priority:    priority,
 		AssignedBy:  &assignedBy,
 		BrandID:     brandID,
 		CategoryID:  categoryID,
@@ -101,7 +108,7 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	return t, nil
 }
 
-func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID) (*domain.Task, error) {
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID, priority string, status string) (*domain.Task, error) {
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -134,6 +141,12 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	task.CategoryID = categoryID
 	task.AssigneeIDs = assigneeIDs
 	task.AssignedTo = primaryAssignee
+	if priority != "" {
+		task.Priority = priority
+	}
+	if status != "" {
+		task.Status = status
+	}
 
 	err = s.taskRepo.Update(ctx, task)
 	if err != nil {
@@ -171,6 +184,38 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 					map[string]string{"task_id": task.ID.String()},
 				)
 			}
+		}
+	}
+
+	// Trigger in-app notifications for task updates (excluding the editor)
+	if s.notifSvc != nil {
+		actorName := "ใครบางคน"
+		if actor, err := s.userRepo.FindByID(ctx, userID); err == nil && actor != nil {
+			if actor.Nickname != "" {
+				actorName = actor.Nickname
+			} else {
+				actorName = actor.FirstName
+			}
+		}
+
+		recipients := make(map[uuid.UUID]bool)
+		if task.AssignedBy != nil {
+			recipients[*task.AssignedBy] = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			recipients[aid] = true
+		}
+		delete(recipients, userID)
+
+		for recipientID := range recipients {
+			s.notifSvc.Notify(
+				ctx,
+				recipientID,
+				"อัปเดตงานหลัก",
+				actorName+" ได้แก้ไขรายละเอียดงานหลัก: "+task.Title,
+				"system",
+				map[string]string{"task_id": task.ID.String()},
+			)
 		}
 	}
 
@@ -252,6 +297,47 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 					}
 				}
 			}
+		}
+	}
+
+	// Trigger in-app notifications for status change (excluding the editor)
+	if s.notifSvc != nil {
+		actorName := "ใครบางคน"
+		if employee, userErr := s.userRepo.FindByID(ctx, userID); userErr == nil && employee != nil {
+			if employee.Nickname != "" {
+				actorName = employee.Nickname
+			} else {
+				actorName = employee.FirstName
+			}
+		}
+
+		statusThai := "รอทำ"
+		if status == "in_progress" {
+			statusThai = "กำลังทำ"
+		} else if status == "in_review" {
+			statusThai = "รอตรวจ"
+		} else if status == "completed" {
+			statusThai = "เสร็จสิ้น"
+		}
+
+		recipients := make(map[uuid.UUID]bool)
+		if task.AssignedBy != nil {
+			recipients[*task.AssignedBy] = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			recipients[aid] = true
+		}
+		delete(recipients, userID)
+
+		for recipientID := range recipients {
+			s.notifSvc.Notify(
+				ctx,
+				recipientID,
+				"อัปเดตสถานะงานหลัก",
+				actorName+" ได้เปลี่ยนสถานะงานหลัก \""+task.Title+"\" เป็น ["+statusThai+"]",
+				"system",
+				map[string]string{"task_id": task.ID.String()},
+			)
 		}
 	}
 
@@ -418,4 +504,8 @@ func (s *TaskService) RequestRevision(ctx context.Context, submissionID, taskID,
 		Content:   &content,
 	})
 	return nil
+}
+
+func (s *TaskService) ToggleStar(ctx context.Context, id uuid.UUID, isStarred bool) error {
+	return s.taskRepo.UpdateStarStatus(ctx, id, isStarred)
 }

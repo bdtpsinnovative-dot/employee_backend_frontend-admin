@@ -201,6 +201,7 @@ type Task struct {
 	AttachmentURL *string    `db:"attachment_url" json:"attachment_url,omitempty"`
 	NeedsRevision bool       `db:"needs_revision" json:"needs_revision"`
 	CompletedAt   *time.Time `db:"completed_at" json:"completed_at,omitempty"`
+	IsStarred     bool       `db:"is_starred" json:"is_starred"`
 	// Joined fields (not stored in tasks table)
 	SubItems         []TaskSubItem   `db:"-" json:"sub_items,omitempty"`
 	AssigneeIDs      []uuid.UUID     `db:"-" json:"assignee_ids,omitempty"`

@@ -142,7 +142,7 @@ export interface TaskSubItem {
   admin_comment?: string;
   verification_notes?: string;
   phase?: string;
-  priority?: 'high' | 'medium' | 'low';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   notes?: string;
   link_url?: string;
   attachment_url?: string;
@@ -186,8 +186,8 @@ export interface TaskList {
   description?: string;
   start_date?: string;
   due_date?: string;
-  priority?: 'low' | 'medium' | 'high';
-  status?: 'in_progress' | 'completed';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];
@@ -216,6 +216,7 @@ export interface AdminTask {
   description: string;
   due_date: string;
   status: 'pending' | 'in_progress' | 'in_review' | 'completed';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   assigned_by?: string;
   brand_id?: string;
   category_id?: string;
@@ -238,6 +239,7 @@ export interface AdminTask {
   submission_count?: number;
   latest_submission?: TaskSubmission;
   deleted_at?: string;
+  is_starred?: boolean;
 }
 
 export interface TaskEvent {

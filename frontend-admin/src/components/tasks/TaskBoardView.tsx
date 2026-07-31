@@ -54,7 +54,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   // New card addition in column state
   const [addingCardToListId, setAddingCardToListId] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [newCardPriority, setNewCardPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
 
   // Right Sidebar Edit Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -62,7 +62,7 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
   const [editingList, setEditingList] = useState<TaskList | null>(null);
   const [drawerTitle, setDrawerTitle] = useState('');
   const [drawerDueDate, setDrawerDueDate] = useState('');
-  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [drawerStatus, setDrawerStatus] = useState<'pending' | 'in_progress' | 'completed'>('in_progress');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
@@ -502,9 +502,10 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                       onChange={(e) => setNewCardPriority(e.target.value as any)}
                       className="text-[10px] p-1.5 border border-slate-200 rounded bg-white text-slate-700 font-bold focus:outline-none"
                     >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
+                      <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                      <option value="high">🟠 งานด่วน (High)</option>
+                      <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                      <option value="low">🌱 งานไม่รีบ (Low)</option>
                     </select>
                     <div className="flex gap-1.5">
                       <button
@@ -1244,9 +1245,10 @@ export const TaskBoardView: React.FC<TaskBoardViewProps> = ({
                           onChange={(e) => setDrawerPriority(e.target.value as any)}
                           className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-700"
                         >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
+                          <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                          <option value="high">🟠 งานด่วน (High)</option>
+                          <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                          <option value="low">🌱 งานไม่รีบ (Low)</option>
                         </select>
                       </div>
                     </div>

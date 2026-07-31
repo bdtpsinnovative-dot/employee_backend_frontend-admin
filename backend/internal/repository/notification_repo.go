@@ -19,9 +19,9 @@ func NewNotificationRepo(db *sqlx.DB) *NotificationRepo {
 // Create บันทึก notification ใหม่ลงฐานข้อมูล
 func (r *NotificationRepo) Create(ctx context.Context, n *domain.Notification) error {
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO notifications (id, user_id, title, body, type, is_read, created_at)
-		VALUES ($1, $2, $3, $4, $5, false, NOW())
-	`, n.ID, n.UserID, n.Title, n.Body, n.Type)
+		INSERT INTO notifications (id, user_id, title, body, type, is_read, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, false, $6, NOW())
+	`, n.ID, n.UserID, n.Title, n.Body, n.Type, n.Metadata)
 	return err
 }
 
@@ -29,7 +29,7 @@ func (r *NotificationRepo) Create(ctx context.Context, n *domain.Notification) e
 func (r *NotificationRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Notification, error) {
 	var notifications []domain.Notification
 	err := r.db.SelectContext(ctx, &notifications, `
-		SELECT id, user_id, title, body, type, is_read, created_at
+		SELECT id, user_id, title, body, type, is_read, metadata, created_at
 		FROM notifications
 		WHERE user_id = $1
 		ORDER BY created_at DESC

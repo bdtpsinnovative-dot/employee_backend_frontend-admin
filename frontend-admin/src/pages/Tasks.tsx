@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Trash2, X } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { Trash2, X, Bell } from 'lucide-react';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -22,6 +22,8 @@ import {
   createTaskList,
   fetchTrashTasks,
   restoreTask,
+  markNotificationRead,
+  toggleStarTask,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
@@ -39,6 +41,66 @@ import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils'
 
 export default function Tasks() {
   const navigate = useNavigate();
+  const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
+
+  const hasUnreadMainNotif = notifications.some(n => {
+    if (n.is_read) return false;
+    let tId: string | null = null;
+    let lId: string | null = null;
+    if (n.metadata) {
+      let meta = n.metadata;
+      if (typeof meta === 'string') {
+        try {
+          meta = JSON.parse(meta);
+        } catch {}
+      }
+      if (meta && typeof meta === 'object') {
+        tId = meta.task_id || null;
+        lId = meta.list_id || null;
+      }
+    }
+    return tId !== null && lId === null;
+  });
+
+  const [showMainNotifModal, setShowMainNotifModal] = useState(false);
+
+  const handleOpenMainNotif = async () => {
+    setShowMainNotifModal(true);
+    // Find all unread main task notifications (tId !== null && lId === null)
+    const unreadMain = notifications.filter(n => {
+      if (n.is_read) return false;
+      let tId: string | null = null;
+      let lId: string | null = null;
+      if (n.metadata) {
+        let meta = n.metadata;
+        if (typeof meta === 'string') {
+          try {
+            meta = JSON.parse(meta);
+          } catch {}
+        }
+        if (meta && typeof meta === 'object') {
+          tId = meta.task_id || null;
+          lId = meta.list_id || null;
+        }
+      }
+      return tId !== null && lId === null;
+    });
+
+    if (unreadMain.length > 0 && setNotifications) {
+      // Mark them as read locally in state immediately
+      setNotifications(prev =>
+        prev.map(n => unreadMain.some(m => m.id === n.id) ? { ...n, is_read: true } : n)
+      );
+
+      // Call API in background to mark them as read in DB
+      for (const n of unreadMain) {
+        try {
+          await markNotificationRead(n.id);
+        } catch {}
+      }
+    }
+  };
+
 
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
@@ -49,9 +111,6 @@ export default function Tasks() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
 
-  // ─── UI & View State ───
-  // [NOTE]: Default viewMode changed from 'overview' to 'list' as per USER request.
-  const [viewMode, setViewMode]          = useState<'overview' | 'list'>('list');
 
   // ─── Search & Filter State ───
   const [searchQuery, setSearchQuery]           = useState('');
@@ -60,6 +119,7 @@ export default function Tasks() {
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
   const [ownershipMode, setOwnershipMode]       = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
+  const [tabFilter, setTabFilter]               = useState<'all' | 'completed' | 'starred'>('all');
 
   // ─── Modals & Drawers ───
   const [showCreateModal, setShowCreateModal]       = useState(false);
@@ -184,6 +244,16 @@ export default function Tasks() {
     }
   }, [showTrashModal, loadTrash]);
 
+  const handleToggleStar = async (taskId: string, isStarred: boolean) => {
+    try {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_starred: isStarred } : t));
+      await toggleStarTask(taskId, isStarred);
+    } catch (e: any) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_starred: !isStarred } : t));
+      alert(e.message || 'สลับสถานะการติดดาวล้มเหลว');
+    }
+  };
+
   const handleDeleteTask = async (id: string) => {
     setTaskToDelete(id);
   };
@@ -219,7 +289,9 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
-    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high'; description?: string }[];
+    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high' | 'urgent'; description?: string }[];
+    priority?: string;
+    status?: string;
   }) => {
     const newTask = await createAdminTask({
       title: data.title,
@@ -228,6 +300,8 @@ export default function Tasks() {
       assignee_ids: data.assignee_ids,
       brand_id: data.brand_id,
       category_id: data.category_id,
+      priority: data.priority,
+      status: data.status,
     });
 
     if (data.boards && data.boards.length > 0) {
@@ -251,6 +325,8 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
+    priority?: string;
+    status?: string;
   }) => {
     if (!editingTask) return;
     await updateAdminTask(editingTask.id, {
@@ -260,6 +336,8 @@ export default function Tasks() {
       assignee_ids: data.assignee_ids,
       brand_id: data.brand_id,
       category_id: data.category_id,
+      priority: data.priority,
+      status: data.status,
     });
     setEditingTask(null);
     await loadAll(true);
@@ -330,6 +408,15 @@ export default function Tasks() {
     const isAssignee = taskAssignees.includes(currentUser?.id || '');
 
     if (!isOwner && !isAssignee) return false;
+
+    // Apply tabFilter
+    if (tabFilter === 'all') {
+      if (task.status === 'completed') return false;
+    } else if (tabFilter === 'completed') {
+      if (task.status !== 'completed') return false;
+    } else if (tabFilter === 'starred') {
+      if (!task.is_starred) return false;
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -407,8 +494,8 @@ export default function Tasks() {
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* Asana Style Toolbar */}
       <TaskToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        tabFilter={tabFilter}
+        onTabFilterChange={setTabFilter}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         selectedBrand={selectedBrand}
@@ -432,6 +519,8 @@ export default function Tasks() {
         onOpenTrashModal={() => setShowTrashModal(true)}
         activeFilterCount={activeFilterCount}
         onClearFilters={handleClearFilters}
+        hasUnreadMainNotif={hasUnreadMainNotif}
+        onOpenMainNotif={handleOpenMainNotif}
       />
 
       {/* Loading & Error States */}
@@ -468,6 +557,8 @@ export default function Tasks() {
               userMap={userMap}
               brandMap={brandMap}
               categoryMap={categoryMap}
+              notifications={notifications}
+              setNotifications={setNotifications}
               onSelectTask={setSelectedTask}
               onEditTask={setEditingTask}
               onSelectProjectSheet={(task) => {
@@ -482,6 +573,7 @@ export default function Tasks() {
               onRequestRevision={handleRequestRevision}
               onDeleteTask={handleDeleteTask}
               currentUser={currentUser}
+              onToggleStar={handleToggleStar}
             />
           {/* )} */}
         </div>
@@ -655,6 +747,83 @@ export default function Tasks() {
               <button
                 onClick={() => setShowTrashModal(false)}
                 className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Main Task Notifications Modal */}
+      {showMainNotifModal && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 text-left">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-indigo-650" />
+                <span className="font-extrabold text-sm text-slate-800">การแจ้งเตือนงานหลัก</span>
+              </div>
+              <button
+                onClick={() => setShowMainNotifModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {(() => {
+                const listNotifs = notifications.filter(n => {
+                  let tId: string | null = null;
+                  let lId: string | null = null;
+                  if (n.metadata) {
+                    let meta = n.metadata;
+                    if (typeof meta === 'string') {
+                      try {
+                        meta = JSON.parse(meta);
+                      } catch {}
+                    }
+                    if (meta && typeof meta === 'object') {
+                      tId = meta.task_id || null;
+                      lId = meta.list_id || null;
+                    }
+                  }
+                  return tId !== null && lId === null;
+                });
+
+                if (listNotifs.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-slate-400 text-xs font-semibold">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-30 text-slate-350" />
+                      ยังไม่มีประวัติการแจ้งเตือนของงานหลัก
+                    </div>
+                  );
+                }
+
+                return listNotifs.map(n => (
+                  <div key={n.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <p className="text-xs font-bold text-slate-850 leading-snug">{n.title}</p>
+                      <span className="text-[9px] text-slate-450 font-semibold shrink-0">
+                        {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-605 leading-snug">{n.body}</p>
+                    <p className="text-[9px] text-slate-405 font-medium pt-0.5">
+                      {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                    </p>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end rounded-b-2xl">
+              <button
+                onClick={() => setShowMainNotifModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-xl transition-all cursor-pointer"
               >
                 ปิดหน้าต่าง
               </button>

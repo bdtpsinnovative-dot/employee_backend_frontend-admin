@@ -341,7 +341,13 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 }
 
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE task_lists SET deleted_at = NOW() WHERE id = $1`, id)
+	// Deliverables are soft-deleted so legacy cards and sub-items remain
+	// recoverable if this hidden hierarchy is restored in the future.
+	_, err := r.db.ExecContext(
+		ctx,
+		`UPDATE task_lists SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+		id,
+	)
 	return err
 }
 
@@ -422,18 +428,15 @@ func (r *TaskListRepo) UpdateDetail(
 	}
 
 	if assigneeIDs != nil {
-		_, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id)
-		if err != nil {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM list_assignees WHERE list_id = $1`, id); err != nil {
 			return err
 		}
-
 		for _, userID := range *assigneeIDs {
-			_, err = tx.ExecContext(ctx, `
+			if _, err = tx.ExecContext(ctx, `
 				INSERT INTO list_assignees (list_id, user_id)
 				VALUES ($1, $2)
 				ON CONFLICT DO NOTHING
-			`, id, userID)
-			if err != nil {
+			`, id, userID); err != nil {
 				return err
 			}
 		}
@@ -612,4 +615,3 @@ func (r *TaskCardRepo) Get(ctx context.Context, id uuid.UUID) (*domain.TaskCard,
 	}
 	return &card, nil
 }
-

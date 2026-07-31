@@ -252,6 +252,8 @@ export async function createAdminTask(body: {
   brand_id?: string;
   category_id?: string;
   sub_items?: string[];
+  priority?: string;
+  status?: string;
 }): Promise<AdminTask> {
   try {
     const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
@@ -286,6 +288,8 @@ export async function updateAdminTask(id: string, body: {
   due_date: string;
   brand_id?: string;
   category_id?: string;
+  priority?: string;
+  status?: string;
 }): Promise<AdminTask> {
   const { data } = await api.put<ApiResponse<AdminTask>>(`/api/tasks/${id}`, body);
   return data.data;
@@ -328,8 +332,8 @@ export async function createTaskList(taskId: string, body: {
   name: string;
   description?: string;
   due_date?: string;
-  priority?: 'low' | 'medium' | 'high';
-  status?: 'in_progress' | 'completed';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   assignee_ids?: string[];
@@ -346,8 +350,8 @@ export async function updateTaskList(listId: string, body: {
   name?: string;
   description?: string;
   due_date?: string;
-  priority?: 'low' | 'medium' | 'high';
-  status?: 'in_progress' | 'completed';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   assignee_ids?: string[];
@@ -393,7 +397,7 @@ export async function updateTaskSubItemDetail(
 }
 
 export async function deleteAdminTask(id: string): Promise<void> {
-  await api.delete(`/admin/tasks/${id}`);
+  await api.delete(`/api/tasks/${id}`);
 }
 
 export async function fetchTaskEvents(
@@ -483,4 +487,35 @@ export async function fetchTrashTaskLists(taskId: string): Promise<TaskList[]> {
 
 export async function restoreTaskList(listId: string): Promise<void> {
   await api.post(`/api/tasks/lists/${listId}/restore`);
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  metadata?: any;
+}
+
+export async function fetchNotifications(): Promise<AppNotification[]> {
+  const { data } = await api.get<ApiResponse<AppNotification[]>>('/api/notifications');
+  return data.data ?? [];
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await api.patch(`/api/notifications/${id}/read`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await api.patch('/api/notifications/read-all');
+}
+
+export async function toggleStarTask(taskId: string, isStarred: boolean): Promise<any> {
+  const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/star`, { is_starred: isStarred });
+  return data;
 }

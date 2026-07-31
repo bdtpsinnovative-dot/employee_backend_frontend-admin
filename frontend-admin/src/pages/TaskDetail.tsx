@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -31,6 +31,7 @@ import {
 export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
 
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
@@ -367,6 +368,8 @@ export default function TaskDetail() {
             userMap={userMap}
             brandMap={brandMap}
             categoryMap={categoryMap}
+            notifications={notifications}
+            setNotifications={setNotifications}
             onRefreshTask={(silent) => loadAll(silent)}
             currentUser={currentUser}
           />

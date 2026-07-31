@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  Bell,
   ArrowLeft,
   Tag,
   Layers,
@@ -38,6 +39,7 @@ import {
   fetchTaskEvents,
   fetchTrashTaskLists,
   restoreTaskList,
+  markNotificationRead,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -82,6 +84,42 @@ const getBoardActivityLabel = (action?: string): string => {
   return BOARD_ACTIVITY_LABELS[action] || 'กิจกรรมบอร์ด';
 };
 
+const SUB_TASK_STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  waiting: {
+    label: 'รอรับ',
+    bg: 'bg-sky-50',
+    text: 'text-sky-700',
+    border: 'border-sky-200'
+  },
+  pending: {
+    label: 'รอทำ',
+    bg: 'bg-slate-100',
+    text: 'text-slate-700',
+    border: 'border-slate-300'
+  },
+  in_progress: {
+    label: 'กำลังทำ',
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    border: 'border-amber-200'
+  },
+  in_review: {
+    label: 'รอตรวจ',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200'
+  },
+  completed: {
+    label: 'เสร็จสิ้น',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200'
+  }
+};
+
+
+import type { AppNotification } from '../../services/adminApi';
+
 interface TaskProjectTimelineSheetProps {
   task: AdminTask;
   userMap: Record<string, User>;
@@ -89,6 +127,8 @@ interface TaskProjectTimelineSheetProps {
   categoryMap: Record<string, TaskCategory>;
   onRefreshTask: (silent?: boolean) => void;
   currentUser: User | null;
+  notifications?: AppNotification[];
+  setNotifications?: React.Dispatch<React.SetStateAction<AppNotification[]>>;
 }
 
 export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> = ({
@@ -98,9 +138,27 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   categoryMap,
   onRefreshTask,
   currentUser: _currentUser,
+  notifications = [],
+  setNotifications,
 }) => {
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
   const users = Object.values(userMap);
+  const hasUnreadMainTaskNotif = notifications.some(n => {
+    if (n.is_read) return false;
+    let tId: string | null = null;
+    if (n.metadata) {
+      let meta = n.metadata;
+      if (typeof meta === 'string') {
+        try {
+          meta = JSON.parse(meta);
+        } catch {}
+      }
+      if (meta && typeof meta === 'object') {
+        tId = meta.task_id || null;
+      }
+    }
+    return tId === task.id;
+  });
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
@@ -121,6 +179,43 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [activityList, setActivityList] = useState<TaskList | null>(null);
   const [activityEvents, setActivityEvents] = useState<TaskEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [mainTaskNotifModalOpen, setMainTaskNotifModalOpen] = useState(false);
+
+  const handleOpenMainTaskNotif = async () => {
+    setMainTaskNotifModalOpen(true);
+    // Find all unread notifications matching this main task ID
+    const unreadMatching = notifications.filter(n => {
+      if (n.is_read) return false;
+      let tId: string | null = null;
+      if (n.metadata) {
+        let meta = n.metadata;
+        if (typeof meta === 'string') {
+          try {
+            meta = JSON.parse(meta);
+          } catch {}
+        }
+        if (meta && typeof meta === 'object') {
+          tId = meta.task_id || null;
+        }
+      }
+      return tId === task.id;
+    });
+
+    if (unreadMatching.length > 0 && setNotifications) {
+      // Mark them as read locally in state immediately
+      setNotifications(prev =>
+        prev.map(n => unreadMatching.some(m => m.id === n.id) ? { ...n, is_read: true } : n)
+      );
+
+      // Call API in background to mark them as read in DB
+      for (const n of unreadMatching) {
+        try {
+          await markNotificationRead(n.id);
+        } catch {}
+      }
+    }
+  };
+
 
   const showCustomAlert = (message: string, type: 'success' | 'error' = 'success') => {
     setCustomAlert({ message, type });
@@ -162,8 +257,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerAdminComment, setDrawerAdminComment] = useState('');
   const [drawerAttachments, setDrawerAttachments] = useState<{ name: string; url: string; type: 'file' | 'link' }[]>([]);
   const [drawerDueDate, setDrawerDueDate] = useState('');
-  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [drawerStatus, setDrawerStatus] = useState<'in_progress' | 'completed'>('in_progress');
+  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed'>('waiting');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -172,7 +267,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   // Create List Modal State
   const [createListName, setCreateListName] = useState('');
   const [createListDueDate, setCreateListDueDate] = useState('');
-  const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [createListStatus, setCreateListStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed'>('waiting');
   const [createListFirstCardName, setCreateListFirstCardName] = useState('');
   const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
 
@@ -616,7 +712,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         name: createListName.trim(),
         due_date: createListDueDate || undefined,
         priority: createListPriority,
-        status: 'in_progress',
+        status: createListStatus,
         description: createListDescription.trim() || undefined,
         assignee_ids: createListAssigneeIds,
       });
@@ -632,6 +728,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       setCreateListName('');
       setCreateListDueDate('');
       setCreateListPriority('medium');
+      setCreateListStatus('waiting');
       setCreateListFirstCardName('');
       setCreateListAssigneeIds([]);
       setCreateListDescription('');
@@ -722,12 +819,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const displayLists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
 
-  const fallbackLists: TaskList[] = [
-    { id: 'phase-1', name: 'Phase 1', task_id: task.id, sort_order: 1, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-2', name: 'Phase 2', task_id: task.id, sort_order: 2, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-3', name: 'Phase 3', task_id: task.id, sort_order: 3, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-4', name: 'Phase 4', task_id: task.id, sort_order: 4, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-  ];
+  const fallbackLists: TaskList[] = [];
 
   const effectiveLists = displayLists.length > 0 ? displayLists : fallbackLists;
 
@@ -743,7 +835,24 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     return true;
   });
 
-  const renderedRows = filteredLists.map((list: TaskList) => {
+  const sortedLists = [...filteredLists].sort((a, b) => {
+    const aDue = a.due_date && !a.due_date.startsWith('0001-01-01') ? new Date(a.due_date).getTime() : Infinity;
+    const bDue = b.due_date && !b.due_date.startsWith('0001-01-01') ? new Date(b.due_date).getTime() : Infinity;
+
+    if (aDue !== bDue) {
+      return aDue - bDue;
+    }
+
+    if (a.sort_order !== b.sort_order) {
+      return a.sort_order - b.sort_order;
+    }
+
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  const renderedRows = sortedLists.map((list: TaskList) => {
     const listPriority = list.priority || 'medium';
     const listStatus = list.status || 'in_progress';
     const listDetails = list.description || '';
@@ -795,6 +904,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     } else {
       dueBadge = <span className="text-slate-400 font-medium text-[11px]">-</span>;
     }
+
 
     return (
       <tr 
@@ -864,11 +974,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               เหลือ {getRemainingDays(list.deleted_at)} วัน
             </span>
           ) : (
-            <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
-              listStatus === 'completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'
-            }`}>
-              {listStatus === 'completed' ? 'Done' : 'Doing'}
-            </span>
+            (() => {
+              const statusCfg = SUB_TASK_STATUS_CONFIG[listStatus] || SUB_TASK_STATUS_CONFIG.in_progress;
+              return (
+                <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                  {statusCfg.label}
+                </span>
+              );
+            })()
           )}
         </td>
 
@@ -1056,6 +1169,26 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               </button>
               <button
                 type="button"
+                onClick={() => handleOpenMainTaskNotif()}
+                style={{ display: 'none' }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  hasUnreadMainTaskNotif
+                    ? 'bg-rose-50 text-rose-700 border-rose-250 hover:bg-rose-100/70 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+                title="ดูการแจ้งเตือนและการเปลี่ยนแปลงของงานหลักทั้งหมด"
+              >
+                <Bell className={`w-3.5 h-3.5 ${hasUnreadMainTaskNotif ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`} />
+                <span>แจ้งเตือน</span>
+                {hasUnreadMainTaskNotif && (
+                  <span className="w-1.5 h-1.5 bg-rose-600 rounded-full flex relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-450 opacity-75"></span>
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveFilter('trash')}
                 className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                   activeFilter === 'trash'
@@ -1090,7 +1223,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </tr>
               </thead>
               <tbody className="divide-y-0 bg-white font-medium">
-                {renderedRows}
+                {renderedRows.length > 0 ? (
+                  renderedRows
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
+                      ยังไม่ได้เพิ่มงานย่อย
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1445,9 +1586,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         onChange={(e) => setDrawerPriority(e.target.value as any)}
                         className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                       >
-                        <option value="low">Low (ต่ำ)</option>
-                        <option value="medium">Medium (ปานกลาง)</option>
-                        <option value="high">High (สูง)</option>
+                        <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                        <option value="high">🟠 งานด่วน (High)</option>
+                        <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                        <option value="low">🌱 งานไม่รีบ (Low)</option>
                       </select>
                     </div>
                   </div>
@@ -1459,8 +1601,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       onChange={(e) => setDrawerStatus(e.target.value as any)}
                       className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="in_progress">Doing (กำลังทำ)</option>
-                      <option value="completed">Completed (เสร็จสิ้น)</option>
+                      <option value="waiting">รอรับ</option>
+                      <option value="pending">รอทำ</option>
+                      <option value="in_progress">กำลังทำ</option>
+                      <option value="in_review">รอตรวจ</option>
+                      <option value="completed">เสร็จสิ้น</option>
                     </select>
                   </div>
 
@@ -1778,8 +1923,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   />
                 </div>
 
-                {/* 3. กำหนดส่ง & ความสำคัญ */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* 3. กำหนดส่ง & ความสำคัญ & สถานะ */}
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700">วันที่กำหนดส่ง</label>
                     <input
@@ -1796,9 +1941,24 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       onChange={(e) => setCreateListPriority(e.target.value as any)}
                       className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="low">ต่ำ</option>
-                      <option value="medium">ปานกลาง</option>
-                      <option value="high">สูง</option>
+                      <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                      <option value="high">🟠 งานด่วน (High)</option>
+                      <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                      <option value="low">🌱 งานไม่รีบ (Low)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">สถานะ</label>
+                    <select
+                      value={createListStatus}
+                      onChange={(e) => setCreateListStatus(e.target.value as any)}
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                    >
+                      <option value="waiting">รอรับ</option>
+                      <option value="pending">รอทำ</option>
+                      <option value="in_progress">กำลังทำ</option>
+                      <option value="in_review">รอตรวจ</option>
+                      <option value="completed">เสร็จสิ้น</option>
                     </select>
                   </div>
                 </div>
@@ -2286,6 +2446,91 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 {confirmModal.confirmText || 'ยืนยันการลบ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Task Notifications Modal */}
+      {mainTaskNotifModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 text-left">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">การแจ้งเตือนโครงการ</h3>
+                  <p className="text-[10px] text-slate-500 font-semibold truncate max-w-[280px]">
+                    โครงการ: {task.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMainTaskNotifModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1">
+              {(() => {
+                const listNotifs = notifications.filter(n => {
+                  let tId: string | null = null;
+                  if (n.metadata) {
+                    let meta = n.metadata;
+                    if (typeof meta === 'string') {
+                      try {
+                        meta = JSON.parse(meta);
+                      } catch {}
+                    }
+                    if (meta && typeof meta === 'object') {
+                      tId = meta.task_id || null;
+                    }
+                  }
+                  return tId === task.id;
+                });
+
+                if (listNotifs.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-slate-400 text-xs font-semibold">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-30 text-slate-350" />
+                      ยังไม่มีประวัติการแจ้งเตือนของโครงการนี้
+                    </div>
+                  );
+                }
+
+                return listNotifs.map(n => (
+                  <div key={n.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <p className="text-xs font-bold text-slate-850 leading-snug">{n.title}</p>
+                      <span className="text-[9px] text-slate-450 font-semibold shrink-0">
+                        {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-605 leading-snug">{n.body}</p>
+                    <p className="text-[9px] text-slate-405 font-medium pt-0.5">
+                      {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                    </p>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMainTaskNotifModalOpen(false)}
+                className="w-full sm:w-auto px-5 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-xl transition-all cursor-pointer text-center"
+              >
+                ปิดหน้าต่าง
               </button>
             </div>
           </div>

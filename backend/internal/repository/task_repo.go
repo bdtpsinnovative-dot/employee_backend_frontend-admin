@@ -176,7 +176,7 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
@@ -211,7 +211,7 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
@@ -244,7 +244,7 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
@@ -284,7 +284,7 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 	err := r.db.GetContext(ctx, &task, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at,
+		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
@@ -323,8 +323,8 @@ func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listName
 	}
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, created_at)
-		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, NOW())
+		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, created_at)
+		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, :priority, NOW())
 	`, t)
 	if err != nil {
 		return err
@@ -405,9 +405,11 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		    due_date = $3, 
 		    brand_id = $4, 
 		    category_id = $5,
-		    assigned_to = $6
-		WHERE id = $7
-	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.ID)
+		    assigned_to = $6,
+		    priority = $7,
+		    status = $8
+		WHERE id = $9
+	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.ID)
 	if err != nil {
 		return err
 	}
@@ -642,4 +644,9 @@ func (r *TaskRepo) GetUserNames(ctx context.Context, ids []uuid.UUID) (map[uuid.
 		names[row.ID] = row.Name
 	}
 	return names, nil
+}
+
+func (r *TaskRepo) UpdateStarStatus(ctx context.Context, id uuid.UUID, isStarred bool) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE tasks SET is_starred = $1 WHERE id = $2", isStarred, id)
+	return err
 }
