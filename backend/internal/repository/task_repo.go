@@ -323,8 +323,8 @@ func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listName
 	}
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, created_at)
-		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, NOW())
+		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, created_at)
+		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, :priority, NOW())
 	`, t)
 	if err != nil {
 		return err
@@ -405,9 +405,11 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		    due_date = $3, 
 		    brand_id = $4, 
 		    category_id = $5,
-		    assigned_to = $6
-		WHERE id = $7
-	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.ID)
+		    assigned_to = $6,
+		    priority = $7,
+		    status = $8
+		WHERE id = $9
+	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.ID)
 	if err != nil {
 		return err
 	}
