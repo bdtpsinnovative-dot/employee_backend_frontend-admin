@@ -252,6 +252,8 @@ export async function createAdminTask(body: {
   brand_id?: string;
   category_id?: string;
   sub_items?: string[];
+  priority?: string;
+  status?: string;
 }): Promise<AdminTask> {
   try {
     const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
@@ -286,6 +288,8 @@ export async function updateAdminTask(id: string, body: {
   due_date: string;
   brand_id?: string;
   category_id?: string;
+  priority?: string;
+  status?: string;
 }): Promise<AdminTask> {
   const { data } = await api.put<ApiResponse<AdminTask>>(`/api/tasks/${id}`, body);
   return data.data;
@@ -328,7 +332,7 @@ export async function createTaskList(taskId: string, body: {
   name: string;
   description?: string;
   due_date?: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   status?: 'in_progress' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
@@ -346,7 +350,7 @@ export async function updateTaskList(listId: string, body: {
   name?: string;
   description?: string;
   due_date?: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   status?: 'in_progress' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
@@ -393,7 +397,7 @@ export async function updateTaskSubItemDetail(
 }
 
 export async function deleteAdminTask(id: string): Promise<void> {
-  await api.delete(`/admin/tasks/${id}`);
+  await api.delete(`/api/tasks/${id}`);
 }
 
 export async function fetchTaskEvents(

@@ -100,7 +100,11 @@ export const TaskBrandSettingsModal: React.FC<TaskBrandSettingsModalProps> = ({
                   <div key={b.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-md">
                     <span className="font-medium text-slate-700">{b.name}</span>
                     <button
-                      onClick={() => onDeleteBrand(b.id)}
+                      onClick={() => {
+                        if (window.confirm(`คุณต้องการลบแบรนด์ "${b.name}" ใช่หรือไม่?`)) {
+                          onDeleteBrand(b.id);
+                        }
+                      }}
                       className="text-slate-400 hover:text-red-600"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -140,7 +144,11 @@ export const TaskBrandSettingsModal: React.FC<TaskBrandSettingsModalProps> = ({
                   <div key={c.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-md">
                     <span className="font-medium text-slate-700">{c.name}</span>
                     <button
-                      onClick={() => onDeleteCategory(c.id)}
+                      onClick={() => {
+                        if (window.confirm(`คุณต้องการลบหมวดหมู่ "${c.name}" ใช่หรือไม่?`)) {
+                          onDeleteCategory(c.id);
+                        }
+                      }}
                       className="text-slate-400 hover:text-red-600"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

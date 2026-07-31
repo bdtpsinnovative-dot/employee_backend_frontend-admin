@@ -9,7 +9,7 @@ export function avatarUrl(url?: string | null): string | null {
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'completed';
-export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export const STATUS_CONFIG: Record<TaskStatus, {
   label: string;
@@ -90,10 +90,14 @@ export function formatRelativeDueDate(dueIso: string, isCompleted: boolean = fal
 }
 
 export function getTaskPriority(task: AdminTask): TaskPriority {
+  if (task.priority) {
+    return task.priority as TaskPriority;
+  }
   if (task.due_date && task.status !== 'completed' && !task.due_date.startsWith('0001-01-01')) {
     const due = new Date(task.due_date);
     const now = new Date();
     const diffHours = (due.getTime() - now.getTime()) / (1000 * 3600);
+    if (diffHours < 12) return 'urgent';
     if (diffHours < 24) return 'high';
     if (diffHours < 72) return 'medium';
   }

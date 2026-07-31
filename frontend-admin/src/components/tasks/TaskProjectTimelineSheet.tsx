@@ -162,7 +162,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerAdminComment, setDrawerAdminComment] = useState('');
   const [drawerAttachments, setDrawerAttachments] = useState<{ name: string; url: string; type: 'file' | 'link' }[]>([]);
   const [drawerDueDate, setDrawerDueDate] = useState('');
-  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [drawerStatus, setDrawerStatus] = useState<'in_progress' | 'completed'>('in_progress');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
@@ -172,7 +172,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   // Create List Modal State
   const [createListName, setCreateListName] = useState('');
   const [createListDueDate, setCreateListDueDate] = useState('');
-  const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [createListFirstCardName, setCreateListFirstCardName] = useState('');
   const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
 
@@ -722,12 +722,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const displayLists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
 
-  const fallbackLists: TaskList[] = [
-    { id: 'phase-1', name: 'Phase 1', task_id: task.id, sort_order: 1, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-2', name: 'Phase 2', task_id: task.id, sort_order: 2, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-3', name: 'Phase 3', task_id: task.id, sort_order: 3, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-    { id: 'phase-4', name: 'Phase 4', task_id: task.id, sort_order: 4, created_at: new Date().toISOString(), priority: 'medium', status: 'in_progress' },
-  ];
+  const fallbackLists: TaskList[] = [];
 
   const effectiveLists = displayLists.length > 0 ? displayLists : fallbackLists;
 
@@ -1090,7 +1085,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </tr>
               </thead>
               <tbody className="divide-y-0 bg-white font-medium">
-                {renderedRows}
+                {renderedRows.length > 0 ? (
+                  renderedRows
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
+                      ยังไม่ได้เพิ่มงานย่อย
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1445,9 +1448,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         onChange={(e) => setDrawerPriority(e.target.value as any)}
                         className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                       >
-                        <option value="low">Low (ต่ำ)</option>
-                        <option value="medium">Medium (ปานกลาง)</option>
-                        <option value="high">High (สูง)</option>
+                        <option value="low">🌱 งานไม่รีบ (Low)</option>
+                        <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                        <option value="high">🟠 งานด่วน (High)</option>
+                        <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
                       </select>
                     </div>
                   </div>
@@ -1796,9 +1800,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       onChange={(e) => setCreateListPriority(e.target.value as any)}
                       className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
                     >
-                      <option value="low">ต่ำ</option>
-                      <option value="medium">ปานกลาง</option>
-                      <option value="high">สูง</option>
+                      <option value="low">🌱 งานไม่รีบ (Low)</option>
+                      <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                      <option value="high">🟠 งานด่วน (High)</option>
+                      <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
                     </select>
                   </div>
                 </div>

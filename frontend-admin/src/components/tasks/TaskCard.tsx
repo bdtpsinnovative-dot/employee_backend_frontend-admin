@@ -87,15 +87,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
 
         {/* Priority Badge */}
+        {priority === 'urgent' && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 rounded-md animate-pulse">
+            <Flame className="w-3 h-3 text-rose-600 fill-rose-100" />
+            <span>🔥 งานด่วนมาก</span>
+          </span>
+        )}
         {priority === 'high' && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 rounded-md">
-            <Flame className="w-3 h-3 text-red-600" />
-            <span>High</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 rounded-md">
+            <span>🟠 งานด่วน</span>
           </span>
         )}
         {priority === 'medium' && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 rounded-md">
-            <span>Medium</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
+            <span>⚡ งานด่วนปานกลาง</span>
+          </span>
+        )}
+        {priority === 'low' && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-200 rounded-md">
+            <span>🌱 งานไม่รีบ</span>
           </span>
         )}
       </div>

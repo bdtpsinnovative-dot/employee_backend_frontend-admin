@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity } from 'lucide-react';
+import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
@@ -23,6 +23,8 @@ interface TaskCreateModalProps {
     brand_id?: string;
     category_id?: string;
     boards?: { name: string; description?: string }[];
+    priority?: string;
+    status?: string;
   }) => Promise<void>;
 }
 
@@ -41,11 +43,11 @@ const getTodayStr = () => {
 export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   isOpen,
   onClose,
+  defaultStatus,
   users,
   brands,
   categories,
   initialData,
-  currentUser,
   taskEvents = [],
   eventsLoading = false,
   onSubmit,
@@ -63,6 +65,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(initialAssignees);
   const [brandId, setBrandId] = useState(initialData?.brand_id || '');
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
+  const [priority, setPriority] = useState<string>(initialData?.priority || 'low');
+  const [status, setStatus] = useState<string>(initialData?.status || defaultStatus || 'pending');
   
   // Replace subItems with boards
   const [boards, setBoards] = useState<BoardInput[]>([]);
@@ -86,6 +90,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setSelectedAssignees(initAssignees);
       setBrandId(initialData?.brand_id || '');
       setCategoryId(initialData?.category_id || '');
+      setPriority(initialData?.priority || 'low');
+      setStatus(initialData?.status || defaultStatus || 'pending');
       setModalAlert(null);
       setActiveTab('form');
       
@@ -95,7 +101,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
         setBoards([]); 
       }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, defaultStatus]);
 
   if (!isOpen) return null;
 
@@ -139,11 +145,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
         brand_id: brandId || undefined,
         category_id: categoryId || undefined,
         boards: validBoards.length > 0 ? validBoards : undefined,
+        priority: priority,
+        status: status,
       });
 
       // Reset form
       setTitle(''); setDesc(''); setDueDate('');
       setSelectedAssignees([]); setBrandId(''); setCategoryId('');
+      setPriority('low'); setStatus('pending');
       setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
       onClose();
     } catch (e: any) {
@@ -153,9 +162,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     }
   };
 
-  // Exclude current user from candidate list since they are the owner automatically
+  // Candidates are all users that are not already selected
   const candidates = users
-    .filter(u => u.id !== currentUser?.id)
     .filter(u => !selectedAssignees.includes(u.id));
 
   return (
@@ -292,7 +300,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               {showInvitePopover && (
                 <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 max-h-40 overflow-y-auto">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    เลือกมอบหมายผู้รับผิดชอบเพิ่มเติม (ไม่รวมตัวคุณเอง):
+                    เลือกมอบหมายผู้รับผิดชอบงาน:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {candidates.length > 0 ? (
@@ -322,9 +330,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 </div>
               )}
               
-              <p className="mt-1.5 text-[10px] text-slate-400 italic">
-                ⓘ เจ้าของงานจะไม่สามารถเชิญตัวเองได้ และระบบจะตั้งคุณเป็นเจ้าของงานโดยอัตโนมัติ
-              </p>
+
             </div>
 
             {/* Grid Row: Due Date, Brand, Category */}
@@ -381,6 +387,45 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               </div>
             </div>
 
+            {/* Grid Row 2: Priority, Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {/* Priority */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-slate-400" />
+                  <span>ความสำคัญ (Priority)</span>
+                </label>
+                <select
+                  value={priority}
+                  onChange={e => setPriority(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                >
+                  <option value="low">🌱 งานไม่รีบ (Low)</option>
+                  <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                  <option value="high">🟠 งานด่วน (High)</option>
+                  <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
+                  <span>สถานะ (Status)</span>
+                </label>
+                <select
+                  value={status}
+                  onChange={e => setStatus(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                >
+                  <option value="pending">รอทำ (Pending)</option>
+                  <option value="in_progress">กำลังทำ (In Progress)</option>
+                  <option value="in_review">รอตรวจ (In Review)</option>
+                  <option value="completed">เสร็จสิ้น (Completed)</option>
+                </select>
+              </div>
+            </div>
+
             {/* Board Items (บอร์ดงาน) - Only show in create mode */}
             {!initialData && (
               <div className="space-y-3 pt-3 border-t border-slate-100">
@@ -432,9 +477,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                               onChange={e => handleUpdateBoard(idx, 'priority', e.target.value as any)}
                               className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 text-[11px]"
                             >
-                              <option value="low">ความสำคัญ: ต่ำ</option>
-                              <option value="medium">ความสำคัญ: ปานกลาง</option>
-                              <option value="high">ความสำคัญ: สูง</option>
+                              <option value="low">🌱 งานไม่รีบ (Low)</option>
+                              <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                              <option value="high">🟠 งานด่วน (High)</option>
+                              <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
                             </select>
                           </div>
                         </div>

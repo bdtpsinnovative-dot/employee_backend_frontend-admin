@@ -8,7 +8,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Edit3,
-  Trash2
+  Trash2,
+  Crown,
+  Users
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory } from '../../types';
 import { formatRelativeDueDate, getTaskPriority, type TaskStatus, STATUS_CONFIG, avatarUrl } from './taskUtils';
@@ -74,7 +76,8 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               <th className="px-2 py-2 w-24 border-r border-slate-200 text-center">Priority</th>
               <th className="px-3 py-2 w-32 border-r border-slate-200 text-center">Progress</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Submission</th>
-              <th className="px-2 py-2 w-52 text-center">จัดการงาน (Actions)</th>
+              <th className="px-2 py-2 w-44 border-r border-slate-200 text-center">จัดการงาน (Actions)</th>
+              <th className="px-2 py-2 w-32 text-center">บทบาทของคุณ</th>
             </tr>
           </thead>
 
@@ -97,6 +100,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   : task.assigned_to
                     ? [task.assigned_to]
                     : [];
+              const isAssignee = assigneeIds.includes(currentUser?.id || '');
               const assignees = assigneeIds.map((id) => userMap[id]).filter(Boolean);
               const firstAssignee = assignees[0];
 
@@ -236,22 +240,27 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
 
                   {/* 6. Priority Column */}
                   <td data-label="Priority" className="px-2 py-2 border-r border-slate-200/80 text-center align-middle">
-                    {priority === 'high' && (
-                      <div className="mx-auto inline-flex items-center justify-between w-full max-w-[65px] px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 font-bold rounded-full text-[10px]">
+                    {priority === 'urgent' && (
+                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[95px] px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-extrabold rounded-full text-[10px] animate-pulse">
                         <span className="flex items-center gap-0.5">
-                          <Flame className="w-2.5 h-2.5 text-red-600 fill-red-100" />
-                          <span>High</span>
+                          <Flame className="w-2.5 h-2.5 text-rose-600 fill-rose-100" />
+                          <span>🔥 งานด่วนมาก</span>
                         </span>
                       </div>
                     )}
+                    {priority === 'high' && (
+                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[95px] px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 font-bold rounded-full text-[10px]">
+                        <span>🟠 งานด่วน</span>
+                      </div>
+                    )}
                     {priority === 'medium' && (
-                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[65px] px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-full text-[10px]">
-                        <span>Medium</span>
+                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[95px] px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 font-semibold rounded-full text-[10px]">
+                        <span>⚡ งานด่วนปานกลาง</span>
                       </div>
                     )}
                     {priority === 'low' && (
-                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[65px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-medium rounded-full text-[10px]">
-                        <span>Low</span>
+                      <div className="mx-auto inline-flex items-center justify-center w-full max-w-[95px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-medium rounded-full text-[10px]">
+                        <span>🌱 งานไม่รีบ</span>
                       </div>
                     )}
                   </td>
@@ -307,7 +316,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   {/* 9. Review Action / Actions Column */}
                   <td
                     data-label="จัดการงาน"
-                    className="px-2 py-2 text-center align-middle"
+                    className="px-2 py-2 border-r border-slate-200 text-center align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -353,6 +362,31 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                             <span>ขอแก้ไข</span>
                           </button>
                         </div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* 10. Role / Involvement Column */}
+                  <td
+                    data-label="บทบาทของคุณ"
+                    className="px-2 py-2 text-center align-middle"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1 select-none">
+                      {isCreator && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold bg-yellow-50 text-yellow-800 border border-yellow-350 rounded-md shadow-2xs" title="คุณคือผู้สร้างงานนี้">
+                          <Crown className="w-2.5 h-2.5 text-yellow-600 fill-yellow-400" />
+                          <span>งานที่สร้าง</span>
+                        </span>
+                      )}
+                      {isAssignee && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md shadow-2xs" title="คุณเป็นผู้รับผิดชอบงานนี้">
+                          <Users className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>งานที่เข้าร่วม</span>
+                        </span>
+                      )}
+                      {!isCreator && !isAssignee && (
+                        <span className="text-[10px] text-slate-450 italic">-</span>
                       )}
                     </div>
                   </td>

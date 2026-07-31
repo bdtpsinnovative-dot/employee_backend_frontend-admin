@@ -204,9 +204,10 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
           >
             <option value="">ทุก Priority</option>
-            <option value="high">🔥 ด่วนมาก (High)</option>
-            <option value="medium">⚡ ปกติ (Medium)</option>
-            <option value="low">🌱 ทั่วไป (Low)</option>
+            <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+            <option value="high">🟠 งานด่วน (High)</option>
+            <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+            <option value="low">🌱 งานไม่รีบ (Low)</option>
           </select>
 
           {/* Assignee Filter */}

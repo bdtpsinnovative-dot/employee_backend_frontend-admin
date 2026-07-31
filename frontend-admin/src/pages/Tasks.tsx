@@ -219,7 +219,9 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
-    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high'; description?: string }[];
+    boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high' | 'urgent'; description?: string }[];
+    priority?: string;
+    status?: string;
   }) => {
     const newTask = await createAdminTask({
       title: data.title,
@@ -228,6 +230,8 @@ export default function Tasks() {
       assignee_ids: data.assignee_ids,
       brand_id: data.brand_id,
       category_id: data.category_id,
+      priority: data.priority,
+      status: data.status,
     });
 
     if (data.boards && data.boards.length > 0) {
@@ -251,6 +255,8 @@ export default function Tasks() {
     assignee_ids: string[];
     brand_id?: string;
     category_id?: string;
+    priority?: string;
+    status?: string;
   }) => {
     if (!editingTask) return;
     await updateAdminTask(editingTask.id, {
@@ -260,6 +266,8 @@ export default function Tasks() {
       assignee_ids: data.assignee_ids,
       brand_id: data.brand_id,
       category_id: data.category_id,
+      priority: data.priority,
+      status: data.status,
     });
     setEditingTask(null);
     await loadAll(true);
