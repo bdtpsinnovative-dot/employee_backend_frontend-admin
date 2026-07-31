@@ -3,6 +3,10 @@ import { X, Plus, Trash2, Calendar, User, UsersRound, Check, Tag, Folder, AlignL
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
+import {
+  getActiveBrandResponsibilityGroups,
+  getAutoBrandAssigneeIDs,
+} from './brandResponsibility';
 
 interface TaskCreateModalProps {
   isOpen: boolean;
@@ -128,26 +132,12 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       return;
     }
     const nextBrand = brands.find(brand => brand.id === nextBrandId);
-    const hasTypedResponsibilities = Array.isArray(nextBrand?.responsibilities);
-    const mappedBDIds = (
-      hasTypedResponsibilities
-        ? nextBrand.responsibilities
-        ?.filter(item => item.responsibility_type === 'bd')
-        .map(item => item.user_id)
-        : nextBrand?.responsible_user_ids
-    ) ?? [];
-    const activeMappedBDIds = mappedBDIds
-      .filter(id => id !== currentUser?.id)
-      .filter(id => {
-        const user = users.find(candidate => candidate.id === id);
-        return user?.status === 'active'
-          && (hasTypedResponsibilities || user.position?.trim().toLowerCase() === 'bd');
-      });
+    const activeMappedAssigneeIds = getAutoBrandAssigneeIDs(nextBrand, users);
 
     const manualAssigneeIds = selectedAssignees.filter(
       id => !autoBrandAssigneeIds.includes(id),
     );
-    const newlyAutoAddedIds = activeMappedBDIds.filter(
+    const newlyAutoAddedIds = activeMappedAssigneeIds.filter(
       id => !manualAssigneeIds.includes(id),
     );
     setSelectedAssignees(Array.from(new Set([
@@ -208,6 +198,9 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   // Candidates are all users that are not already selected
   const candidates = users
     .filter(u => !selectedAssignees.includes(u.id));
+
+  const selectedBrand = brands.find(brand => brand.id === brandId);
+  const brandResponsibilityGroups = getActiveBrandResponsibilityGroups(selectedBrand, users);
 
   const teamGroups = Array.from(
     users
@@ -478,7 +471,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 </select>
                 {!initialData && autoBrandAssigneeIds.length > 0 && (
                   <p className="mt-1 text-[9px] font-medium text-emerald-600">
-                    เพิ่ม BD ผู้ดูแลแบรนด์แล้ว {autoBrandAssigneeIds.length} คน
+                    เพิ่มผู้เกี่ยวข้องกับแบรนด์แล้ว {autoBrandAssigneeIds.length} คน
                   </p>
                 )}
               </div>
@@ -501,6 +494,79 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 </select>
               </div>
             </div>
+
+            {!initialData && brandId && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="m-0 text-[11px] font-bold text-slate-700">ผู้เกี่ยวข้องกับแบรนด์</p>
+                    <p className="m-0 mt-0.5 text-[9px] text-slate-400">ระบบเลือกผู้เกี่ยวข้องทุกฝ่ายให้อัตโนมัติ และกดยกเลิกเป็นรายคนได้</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
+                    เฉพาะบัญชีที่ใช้งานอยู่
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {brandResponsibilityGroups.map(group => (
+                    <div key={group.type} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-extrabold ${
+                          group.type === 'bd'
+                            ? 'bg-blue-50 text-blue-700'
+                            : group.type === 'mkt'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-violet-50 text-violet-700'
+                        }`}>
+                          {group.label}
+                        </span>
+                        <span className="text-[9px] font-medium text-slate-400">{group.users.length} คน</span>
+                      </div>
+                      {group.users.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {group.users.map(user => {
+                            const imageURL = avatarUrl(user.avatar_url);
+                            const isSelected = selectedAssignees.includes(user.id);
+                            return (
+                              <button
+                                key={user.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAssignees(current => current.includes(user.id)
+                                    ? current.filter(id => id !== user.id)
+                                    : [...current, user.id]);
+                                  if (isSelected) {
+                                    setAutoBrandAssigneeIds(current => current.filter(id => id !== user.id));
+                                  }
+                                }}
+                                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border py-1 pl-1 pr-2 text-[9px] font-semibold transition-colors ${
+                                  isSelected
+                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60'
+                                }`}
+                                aria-pressed={isSelected}
+                                title={isSelected ? `ยกเลิก ${user.nickname || user.first_name}` : `เลือก ${user.nickname || user.first_name}`}
+                              >
+                                {imageURL ? (
+                                  <img src={imageURL} alt="" className="h-4 w-4 rounded-full object-cover" />
+                                ) : (
+                                  <span className="grid h-4 w-4 place-items-center rounded-full bg-slate-200 text-[8px] font-bold text-slate-600">
+                                    {(user.nickname || user.first_name || '?').charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                                {user.nickname || user.first_name}
+                                {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-[9px] text-slate-400">ยังไม่มีผู้รับผิดชอบในระบบ</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Grid Row 2: Priority, Status */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
