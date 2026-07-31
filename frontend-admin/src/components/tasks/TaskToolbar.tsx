@@ -30,6 +30,7 @@ interface TaskToolbarProps {
   users: User[];
   onOpenCreateModal: () => void;
   onOpenSettingsModal: () => void;
+  canManageSettings: boolean;
   onOpenTrashModal: () => void;
   activeFilterCount: number;
   onClearFilters: () => void;
@@ -57,6 +58,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   users,
   onOpenCreateModal,
   onOpenSettingsModal,
+  canManageSettings,
   onOpenTrashModal,
   activeFilterCount,
   onClearFilters,
@@ -106,13 +108,15 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             <span>ถังขยะ</span>
           </button>
 
-          <button
-            onClick={onOpenSettingsModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
-          >
-            <Settings className="w-4 h-4 text-slate-500" />
-            <span>จัดการ แบรนด์ & หมวดหมู่</span>
-          </button>
+          {canManageSettings && (
+            <button
+              onClick={onOpenSettingsModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
+            >
+              <Settings className="w-4 h-4 text-slate-500" />
+              <span>จัดการ แบรนด์ & หมวดหมู่</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenCreateModal}

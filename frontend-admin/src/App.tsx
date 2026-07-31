@@ -13,6 +13,9 @@ const History = lazy(() => import('./pages/History'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const TaskDetail = lazy(() => import('./pages/TaskDetail'));
 const Notifications = lazy(() => import('./pages/Notifications'));
+const TaskLogs = lazy(() => import('./pages/TaskLogs'));
+const BackupCenter = lazy(() => import('./pages/BackupCenter'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 import { fetchMe } from './services/adminApi';
 
@@ -110,10 +113,13 @@ export default function App() {
             <Route path="requests" element={<Requests />} />
             <Route path="employees" element={<Employees />} />
             <Route path="holidays" element={<Holidays />} />
+            <Route path="backups" element={<BackupCenter />} />
+            <Route path="profile" element={<Profile />} />
             <Route path="daily-record" element={<DailyRecord />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="tasks/:taskId" element={<TaskDetail />} />
+            <Route path="task-logs" element={<TaskLogs />} />
             <Route path="notifications" element={<Notifications />} />
           </Route>
         </Routes>

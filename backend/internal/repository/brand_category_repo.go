@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 // ─────────────────────────── Brand ───────────────────────────
@@ -16,6 +18,12 @@ import (
 type BrandRepo struct {
 	db *sqlx.DB
 }
+
+var (
+	ErrBrandNotFound                   = errors.New("brand not found")
+	ErrInvalidBrandResponsibilityUsers = errors.New("brand responsibility users must be active")
+	ErrInvalidBrandResponsibilityType  = errors.New("brand responsibility type must be bd, mkt, or graphic")
+)
 
 func NewBrandRepo(db *sqlx.DB) *BrandRepo {
 	return &BrandRepo{db: db}
@@ -27,6 +35,46 @@ func (r *BrandRepo) ListAll(ctx context.Context) ([]domain.Brand, error) {
 	err := r.db.SelectContext(ctx, &brands, `SELECT * FROM brands ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
+	}
+	if len(brands) == 0 {
+		return brands, nil
+	}
+
+	var responsibilities []struct {
+		BrandID            uuid.UUID `db:"brand_id"`
+		UserID             uuid.UUID `db:"user_id"`
+		ResponsibilityType string    `db:"responsibility_type"`
+	}
+	if err := r.db.SelectContext(ctx, &responsibilities, `
+		SELECT br.brand_id, br.user_id, br.responsibility_type
+		FROM brand_responsibilities br
+		JOIN users u ON u.id = br.user_id
+		WHERE u.status = 'active'
+		ORDER BY br.responsibility_type ASC, br.created_at ASC, br.user_id ASC
+	`); err != nil {
+		return nil, err
+	}
+
+	brandIndex := make(map[uuid.UUID]int, len(brands))
+	for i := range brands {
+		brands[i].ResponsibleUserIDs = []uuid.UUID{}
+		brands[i].Responsibilities = []domain.BrandResponsibility{}
+		brandIndex[brands[i].ID] = i
+	}
+	for _, responsibility := range responsibilities {
+		if i, ok := brandIndex[responsibility.BrandID]; ok {
+			brands[i].ResponsibleUserIDs = append(
+				brands[i].ResponsibleUserIDs,
+				responsibility.UserID,
+			)
+			brands[i].Responsibilities = append(
+				brands[i].Responsibilities,
+				domain.BrandResponsibility{
+					UserID:             responsibility.UserID,
+					ResponsibilityType: responsibility.ResponsibilityType,
+				},
+			)
+		}
 	}
 	return brands, nil
 }
@@ -44,6 +92,81 @@ func (r *BrandRepo) Create(ctx context.Context, b *domain.Brand) error {
 func (r *BrandRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM brands WHERE id = $1`, id)
 	return err
+}
+
+// ReplaceResponsibilities atomically replaces a brand's responsible users.
+// Only active users may be mapped.
+func (r *BrandRepo) ReplaceResponsibilities(
+	ctx context.Context,
+	brandID uuid.UUID,
+	responsibilities []domain.BrandResponsibility,
+) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var brandExists bool
+	if err := tx.GetContext(
+		ctx,
+		&brandExists,
+		`SELECT EXISTS(SELECT 1 FROM brands WHERE id = $1)`,
+		brandID,
+	); err != nil {
+		return err
+	}
+	if !brandExists {
+		return ErrBrandNotFound
+	}
+
+	idValues := make([]string, 0, len(responsibilities))
+	seenUserIDs := make(map[uuid.UUID]struct{}, len(responsibilities))
+	for _, responsibility := range responsibilities {
+		switch responsibility.ResponsibilityType {
+		case "bd", "mkt", "graphic":
+		default:
+			return ErrInvalidBrandResponsibilityType
+		}
+		if _, exists := seenUserIDs[responsibility.UserID]; exists {
+			continue
+		}
+		seenUserIDs[responsibility.UserID] = struct{}{}
+		idValues = append(idValues, responsibility.UserID.String())
+	}
+	if len(idValues) > 0 {
+		var activeCount int
+		if err := tx.GetContext(ctx, &activeCount, `
+			SELECT COUNT(*)
+			FROM users
+			WHERE id = ANY($1::uuid[]) AND status = 'active'
+		`, pq.Array(idValues)); err != nil {
+			return err
+		}
+		if activeCount != len(idValues) {
+			return ErrInvalidBrandResponsibilityUsers
+		}
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM brand_responsibilities WHERE brand_id = $1`,
+		brandID,
+	); err != nil {
+		return err
+	}
+	for _, responsibility := range responsibilities {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO brand_responsibilities (brand_id, user_id, responsibility_type)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (brand_id, user_id)
+			DO UPDATE SET responsibility_type = EXCLUDED.responsibility_type
+		`, brandID, responsibility.UserID, responsibility.ResponsibilityType); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ─────────────────────────── TaskCategory ───────────────────────────
@@ -251,6 +374,16 @@ type TaskListRepo struct {
 	db *sqlx.DB
 }
 
+// jsonbTextValue keeps lib/pq from treating JSON text as PostgreSQL's binary
+// jsonb representation. Passing json.RawMessage directly is encoded as []byte
+// and makes PostgreSQL interpret the first byte ('[' is 91) as a jsonb version.
+func jsonbTextValue(value *json.RawMessage) any {
+	if value == nil {
+		return nil
+	}
+	return string(*value)
+}
+
 func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 	return &TaskListRepo{db: db}
 }
@@ -321,7 +454,20 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 	_, err = tx.NamedExecContext(ctx, `
 		INSERT INTO task_lists (id, task_id, name, description, sort_order, start_date, due_date, priority, status, admin_comment, attachments, created_at)
 		VALUES (:id, :task_id, :name, :description, :sort_order, :start_date, :due_date, :priority, :status, :admin_comment, :attachments, :created_at)
-	`, list)
+	`, map[string]any{
+		"id":            list.ID,
+		"task_id":       list.TaskID,
+		"name":          list.Name,
+		"description":   list.Description,
+		"sort_order":    list.SortOrder,
+		"start_date":    list.StartDate,
+		"due_date":      list.DueDate,
+		"priority":      list.Priority,
+		"status":        list.Status,
+		"admin_comment": list.AdminComment,
+		"attachments":   jsonbTextValue(&list.Attachments),
+		"created_at":    list.CreatedAt,
+	})
 	if err != nil {
 		return err
 	}
@@ -422,7 +568,8 @@ func (r *TaskListRepo) UpdateDetail(
 		    admin_comment = COALESCE($7, admin_comment),
 		    attachments = COALESCE($8, attachments)
 		WHERE id = $9
-	`, name, description, startDate, dueDate, priority, status, adminComment, attachments, id)
+	`, name, description, startDate, dueDate, priority, status, adminComment,
+		jsonbTextValue(attachments), id)
 	if err != nil {
 		return err
 	}

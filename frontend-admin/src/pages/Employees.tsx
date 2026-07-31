@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
+import { addProfileTeam, fetchProfileTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
 import type { User } from '../types';
 
 export default function Employees() {
@@ -7,6 +7,9 @@ export default function Employees() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
+  const [teams, setTeams] = useState<string[]>(['BD', 'Marketing', 'Graphic']);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [addingTeam, setAddingTeam] = useState(false);
 
   // Search & Filter & Pagination
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,7 +24,17 @@ export default function Employees() {
   useEffect(() => {
     loadUsers();
     loadMe();
+    loadTeams();
   }, []);
+
+  async function loadTeams() {
+    try {
+      const data = await fetchProfileTeams();
+      if (data.length > 0) setTeams(data);
+    } catch (err) {
+      console.error('โหลดรายชื่อทีมล้มเหลว', err);
+    }
+  }
 
   async function loadMe() {
     try {
@@ -96,6 +109,24 @@ export default function Employees() {
     setActionLoading(null);
   }
 
+  async function handleAddTeam() {
+    const name = newTeamName.trim();
+    if (!name) return;
+    setAddingTeam(true);
+    try {
+      const updatedTeams = await addProfileTeam(name);
+      setTeams(updatedTeams);
+      const savedName = updatedTeams.find(team => team.toLowerCase() === name.toLowerCase()) || name;
+      setEditForm(current => ({ ...current, team: savedName }));
+      setNewTeamName('');
+    } catch (err) {
+      console.error('เพิ่มทีมล้มเหลว:', err);
+      alert('เพิ่มทีมไม่สำเร็จ');
+    } finally {
+      setAddingTeam(false);
+    }
+  }
+
   // --- FILTERING & PAGINATION ---
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -149,6 +180,7 @@ export default function Employees() {
             <tr>
               <th>ชื่อ-นามสกุล</th>
               <th>ตำแหน่ง</th>
+              <th>ทีม</th>
               <th>แผนก</th>
               <th>สิทธิ์</th>
               <th>สถานะ</th>
@@ -159,13 +191,13 @@ export default function Employees() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '30px' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '30px' }}>
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             ) : userList.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
                   {emptyMsg}
                 </td>
               </tr>
@@ -179,6 +211,7 @@ export default function Employees() {
                     <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{user.email}</div>
                   </td>
                   <td data-label="ตำแหน่ง">{user.position || '-'}</td>
+                  <td data-label="ทีม">{user.team || '-'}</td>
                   <td data-label="แผนก">{user.department || '-'}</td>
                   <td data-label="สิทธิ์">{roleBadge(user.role)}</td>
                   <td data-label="สถานะ">{statusBadge(user.status)}</td>
@@ -208,6 +241,7 @@ export default function Employees() {
                             nickname: user.nickname || '',
                             department: user.department,
                             position: user.position,
+                            team: user.team || '',
                             role: user.role
                           });
                         }}
@@ -386,6 +420,42 @@ export default function Employees() {
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
               />
+            </div>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ทีม</label>
+              <select
+                value={editForm.team || ''}
+                onChange={e => setEditForm({...editForm, team: e.target.value})}
+                className="form-control"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              >
+                <option value="">ยังไม่ระบุทีม</option>
+                {editForm.team && !teams.some(team => team.toLowerCase() === editForm.team?.toLowerCase()) && (
+                  <option value={editForm.team}>{editForm.team}</option>
+                )}
+                {teams.map(team => <option key={team} value={team}>{team}</option>)}
+              </select>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <input
+                  type="text"
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleAddTeam();
+                    }
+                  }}
+                  placeholder="เพิ่มทีมอื่น..."
+                  maxLength={50}
+                  className="form-control"
+                  style={{ flex: 1, boxSizing: 'border-box' }}
+                />
+                <button className="btn-secondary" type="button" onClick={handleAddTeam} disabled={addingTeam || !newTeamName.trim()}>
+                  {addingTeam ? 'กำลังเพิ่ม...' : 'เพิ่มทีม'}
+                </button>
+              </div>
             </div>
 
             <div style={{ marginBottom: '25px' }}>

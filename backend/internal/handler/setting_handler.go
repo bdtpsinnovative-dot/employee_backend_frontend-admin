@@ -2,9 +2,10 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
 )
 
 type SettingHandler struct {
@@ -48,4 +49,40 @@ func (h *SettingHandler) SetCheckInMode(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตโหมดการลงเวลาสำเร็จ"})
+}
+
+// GetProfileTeams GET /admin/settings/profile-teams
+func (h *SettingHandler) GetProfileTeams(c *gin.Context) {
+	teams, err := h.svc.GetProfileTeams(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงรายชื่อทีมไม่สำเร็จ"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": teams})
+}
+
+type addProfileTeamBody struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// AddProfileTeam POST /admin/settings/profile-teams
+func (h *SettingHandler) AddProfileTeam(c *gin.Context) {
+	var body addProfileTeamBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุชื่อทีม"})
+		return
+	}
+
+	name := strings.TrimSpace(body.Name)
+	if name == "" || len([]rune(name)) > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อทีมต้องมี 1-50 ตัวอักษร"})
+		return
+	}
+
+	teams, err := h.svc.AddProfileTeam(c.Request.Context(), name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มทีมไม่สำเร็จ"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": teams})
 }

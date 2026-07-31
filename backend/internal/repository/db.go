@@ -2,8 +2,10 @@ package repository
 
 import (
 	"fmt"
-	"time"
 	"log"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -11,7 +13,11 @@ import (
 
 // NewDB สร้าง connection pool ไปยัง Supabase PostgreSQL
 func NewDB(databaseURL string) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("postgres", databaseURL)
+	connectionURL, err := databaseURLWithPublicSearchPath(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("เตรียม database URL ไม่สำเร็จ: %w", err)
+	}
+	db, err := sqlx.Connect("postgres", connectionURL)
 	if err != nil {
 		return nil, fmt.Errorf("ไม่สามารถเชื่อมต่อฐานข้อมูลได้: %w", err)
 	}
@@ -52,6 +58,14 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT '';
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS team TEXT NOT NULL DEFAULT '';
+		CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		);
+		INSERT INTO settings (key, value)
+		VALUES ('profile_teams', '["BD","Marketing","Graphic"]')
+		ON CONFLICT (key) DO NOTHING;
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS admin_comment TEXT;
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium';
 		ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS link_url TEXT;
@@ -82,6 +96,42 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			PRIMARY KEY (list_id, user_id)
 		);
+		CREATE TABLE IF NOT EXISTS brand_responsibilities (
+			brand_id UUID NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			responsibility_type TEXT NOT NULL DEFAULT 'bd'
+				CHECK (responsibility_type IN ('bd', 'mkt', 'graphic')),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (brand_id, user_id)
+		);
+		ALTER TABLE brand_responsibilities
+			ALTER COLUMN brand_id SET NOT NULL,
+			ALTER COLUMN user_id SET NOT NULL;
+		ALTER TABLE brand_responsibilities
+			ADD COLUMN IF NOT EXISTS responsibility_type TEXT;
+		UPDATE brand_responsibilities
+			SET responsibility_type = 'bd'
+			WHERE responsibility_type IS NULL;
+		ALTER TABLE brand_responsibilities
+			ALTER COLUMN responsibility_type SET NOT NULL;
+		ALTER TABLE brand_responsibilities
+			DROP CONSTRAINT IF EXISTS brand_responsibilities_responsibility_type_check;
+		ALTER TABLE brand_responsibilities
+			ADD CONSTRAINT brand_responsibilities_responsibility_type_check
+			CHECK (responsibility_type IN ('bd', 'mkt', 'graphic'));
+		CREATE INDEX IF NOT EXISTS idx_brand_responsibilities_user_id
+			ON brand_responsibilities(user_id);
+		ALTER TABLE brand_responsibilities ENABLE ROW LEVEL SECURITY;
+		DO $brand_responsibility_security$
+		BEGIN
+			IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+				REVOKE ALL ON TABLE brand_responsibilities FROM anon;
+			END IF;
+			IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+				REVOKE ALL ON TABLE brand_responsibilities FROM authenticated;
+			END IF;
+		END
+		$brand_responsibility_security$;
 	`)
 
 	// ลบงานและคอร์สงานในถังขยะที่อายุเกิน 30 วันทันทีตอนสตาร์ทระบบ
@@ -108,4 +158,15 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 	}()
 
 	return db, nil
+}
+
+func databaseURLWithPublicSearchPath(databaseURL string) (string, error) {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return "", err
+	}
+	query := parsed.Query()
+	query.Set("options", "-c search_path=public")
+	parsed.RawQuery = strings.ReplaceAll(query.Encode(), "+", "%20")
+	return parsed.String(), nil
 }

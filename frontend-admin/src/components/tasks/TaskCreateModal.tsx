@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Calendar, User, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
+import { X, Plus, Trash2, Calendar, User, UsersRound, Check, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
@@ -48,6 +48,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   brands,
   categories,
   initialData,
+  currentUser,
   taskEvents = [],
   eventsLoading = false,
   onSubmit,
@@ -63,6 +64,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     : initialData?.assigned_to ? [initialData.assigned_to] : [];
     
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(initialAssignees);
+  const [autoBrandAssigneeIds, setAutoBrandAssigneeIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState(initialData?.brand_id || '');
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   const [priority, setPriority] = useState<string>(initialData?.priority || 'low');
@@ -88,6 +90,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
         ? initialData.assignee_ids
         : initialData?.assigned_to ? [initialData.assigned_to] : [];
       setSelectedAssignees(initAssignees);
+      setAutoBrandAssigneeIds([]);
       setBrandId(initialData?.brand_id || '');
       setCategoryId(initialData?.category_id || '');
       setPriority(initialData?.priority || 'low');
@@ -119,10 +122,50 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     setBoards(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleBrandChange = (nextBrandId: string) => {
+    if (initialData) {
+      setBrandId(nextBrandId);
+      return;
+    }
+    const nextBrand = brands.find(brand => brand.id === nextBrandId);
+    const hasTypedResponsibilities = Array.isArray(nextBrand?.responsibilities);
+    const mappedBDIds = (
+      hasTypedResponsibilities
+        ? nextBrand.responsibilities
+        ?.filter(item => item.responsibility_type === 'bd')
+        .map(item => item.user_id)
+        : nextBrand?.responsible_user_ids
+    ) ?? [];
+    const activeMappedBDIds = mappedBDIds
+      .filter(id => id !== currentUser?.id)
+      .filter(id => {
+        const user = users.find(candidate => candidate.id === id);
+        return user?.status === 'active'
+          && (hasTypedResponsibilities || user.position?.trim().toLowerCase() === 'bd');
+      });
+
+    const manualAssigneeIds = selectedAssignees.filter(
+      id => !autoBrandAssigneeIds.includes(id),
+    );
+    const newlyAutoAddedIds = activeMappedBDIds.filter(
+      id => !manualAssigneeIds.includes(id),
+    );
+    setSelectedAssignees(Array.from(new Set([
+      ...manualAssigneeIds,
+      ...newlyAutoAddedIds,
+    ])));
+    setAutoBrandAssigneeIds(newlyAutoAddedIds);
+    setBrandId(nextBrandId);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !dueDate) {
       setModalAlert('กรุณากรอกชื่องานและกำหนดวันส่ง');
+      return;
+    }
+    if (selectedAssignees.length === 0) {
+      setModalAlert('กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 คน หรือเลือกมอบหมายให้ทีม');
       return;
     }
 
@@ -165,6 +208,31 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   // Candidates are all users that are not already selected
   const candidates = users
     .filter(u => !selectedAssignees.includes(u.id));
+
+  const teamGroups = Array.from(
+    users
+      .filter(u => u.id !== currentUser?.id && u.status === 'active' && u.team?.trim())
+      .reduce((groups, user) => {
+        const teamName = user.team.trim();
+        const existing = groups.get(teamName) || [];
+        existing.push(user);
+        groups.set(teamName, existing);
+        return groups;
+      }, new Map<string, UserType[]>())
+      .entries()
+  ).sort(([a], [b]) => a.localeCompare(b));
+
+  const toggleTeam = (members: UserType[]) => {
+    const memberIDs = members.map(member => member.id);
+    const allSelected = memberIDs.every(id => selectedAssignees.includes(id));
+    if (allSelected) {
+      setAutoBrandAssigneeIds(current => current.filter(id => !memberIDs.includes(id)));
+    }
+    setSelectedAssignees(current => allSelected
+      ? current.filter(id => !memberIDs.includes(id))
+      : Array.from(new Set([...current, ...memberIDs]))
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -260,6 +328,44 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 <User className="w-3.5 h-3.5 text-slate-400" />
                 <span>ผู้รับผิดชอบ</span>
               </label>
+
+              {!initialData && (
+                <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-800">
+                      <UsersRound className="h-3.5 w-3.5" /> มอบหมายตามทีม
+                    </span>
+                    <span className="text-[10px] text-indigo-500">กดซ้ำเพื่อยกเลิกทั้งทีม</span>
+                  </div>
+                  {teamGroups.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {teamGroups.map(([teamName, members]) => {
+                        const allSelected = members.every(member => selectedAssignees.includes(member.id));
+                        return (
+                          <button
+                            key={teamName}
+                            type="button"
+                            onClick={() => toggleTeam(members)}
+                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer ${
+                              allSelected
+                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                                : 'border-indigo-200 bg-white text-indigo-700 hover:border-indigo-400 hover:bg-indigo-50'
+                            }`}
+                          >
+                            <span className={`grid h-4 w-4 place-items-center rounded-full ${allSelected ? 'bg-white/20' : 'bg-indigo-100'}`}>
+                              {allSelected ? <Check className="h-3 w-3" /> : <UsersRound className="h-3 w-3" />}
+                            </span>
+                            <span>{teamName}</span>
+                            <span className={allSelected ? 'text-indigo-100' : 'text-indigo-400'}>{members.length} คน</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="m-0 text-[11px] text-indigo-500">ยังไม่มีพนักงานที่ถูกกำหนดทีม กรุณากำหนดทีมในหน้าพนักงานก่อน</p>
+                  )}
+                </div>
+              )}
               
               <div className="flex flex-wrap items-center gap-2">
                 {/* Selected Avatars */}
@@ -272,11 +378,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                         src={avatarUrl(u.avatar_url) || undefined}
                         alt={u.nickname || u.first_name}
                         className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-xs"
-                        title={`${u.nickname || u.first_name} (${u.department})`}
+                        title={`${u.nickname || u.first_name} (${u.team || u.department || 'ยังไม่ระบุทีม'})`}
                       />
                       <button
                         type="button"
-                        onClick={() => setSelectedAssignees(prev => prev.filter(id => id !== u.id))}
+                        onClick={() => {
+                          setSelectedAssignees(prev => prev.filter(id => id !== u.id));
+                          setAutoBrandAssigneeIds(prev => prev.filter(id => id !== u.id));
+                        }}
                         className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center text-rose-500 hover:text-rose-700 shadow-sm border border-slate-200 cursor-pointer"
                       >
                         <X className="w-2.5 h-2.5" />
@@ -319,6 +428,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                             className="w-4 h-4 rounded-full object-cover border border-white"
                           />
                           <span>{u.nickname || u.first_name}</span>
+                          {u.team && <span className="text-[9px] font-medium text-slate-400">{u.team}</span>}
                         </button>
                       ))
                     ) : (
@@ -358,7 +468,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 </label>
                 <select
                   value={brandId}
-                  onChange={e => setBrandId(e.target.value)}
+                  onChange={e => handleBrandChange(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700"
                 >
                   <option value="">-- เลือกแบรนด์ --</option>
@@ -366,6 +476,11 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
+                {!initialData && autoBrandAssigneeIds.length > 0 && (
+                  <p className="mt-1 text-[9px] font-medium text-emerald-600">
+                    เพิ่ม BD ผู้ดูแลแบรนด์แล้ว {autoBrandAssigneeIds.length} คน
+                  </p>
+                )}
               </div>
 
               {/* Category */}

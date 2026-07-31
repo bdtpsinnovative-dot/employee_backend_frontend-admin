@@ -18,6 +18,7 @@ backend/dev-null
 # Go configuration / Secrets
 backend/.env
 backend/.env.local
+backend/.data/
 
 # Web / Node / Frontend
 node_modules/

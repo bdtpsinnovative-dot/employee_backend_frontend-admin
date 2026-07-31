@@ -11,12 +11,42 @@ import type {
   HistoryRecord,
   LeaveQuota,
   Brand,
+  BrandResponsibility,
   TaskCategory,
   AdminTask,
   TaskEvent,
   TaskSubItem,
   TaskList,
+  BackupJob,
+  BackupConfig,
 } from '../types';
+
+// ────────────────── Backup & Restore ──────────────────
+
+export async function fetchBackupJobs(): Promise<BackupJob[]> {
+  const { data } = await api.get<ApiResponse<BackupJob[]>>('/admin/backups');
+  return data.data ?? [];
+}
+
+export async function fetchBackupConfig(): Promise<BackupConfig> {
+  const { data } = await api.get<BackupConfig & { ok: boolean }>('/admin/backups/config');
+  return data;
+}
+
+export async function createBackup(note: string): Promise<BackupJob> {
+	const { data } = await api.post<ApiResponse<BackupJob>>('/admin/backups', { note });
+  return data.data;
+}
+
+export async function restoreBackup(id: string, tables: string[]): Promise<BackupJob> {
+  const { data } = await api.post<ApiResponse<BackupJob>>(`/admin/backups/${id}/restore`, { tables });
+  return data.data;
+}
+
+export async function fetchBackupJob(id: string): Promise<BackupJob> {
+  const { data } = await api.get<ApiResponse<BackupJob>>(`/admin/backups/${id}`);
+  return data.data;
+}
 
 // ────────────────── Users ──────────────────
 
@@ -45,6 +75,16 @@ export async function approveUser(id: string): Promise<void> {
 
 export async function updateUser(id: string, body: Partial<User>): Promise<void> {
   await api.put(`/admin/users/${id}`, body);
+}
+
+export async function fetchProfileTeams(): Promise<string[]> {
+  const { data } = await api.get<ApiResponse<string[]>>('/admin/settings/profile-teams');
+  return data.data ?? [];
+}
+
+export async function addProfileTeam(name: string): Promise<string[]> {
+  const { data } = await api.post<ApiResponse<string[]>>('/admin/settings/profile-teams', { name });
+  return data.data ?? [];
 }
 
 export async function disableUser(id: string): Promise<void> {
@@ -144,6 +184,16 @@ export async function fetchMe(): Promise<User> {
   return data.data;
 }
 
+export async function updateMyProfile(body: {
+  first_name: string;
+  last_name: string;
+  nickname: string;
+  avatar_url: string;
+  email: string;
+}): Promise<void> {
+  await api.put('/api/users/me/profile/info', body);
+}
+
 // ────────────────── Employee History (Admin) ──────────────────
 
 export async function fetchUserHistory(id: string): Promise<{
@@ -210,6 +260,24 @@ export async function createBrand(name: string): Promise<Brand> {
 
 export async function deleteBrand(id: string): Promise<void> {
   await api.delete(`/admin/brands/${id}`);
+}
+
+export async function updateBrandResponsibilities(
+  id: string,
+  responsibilities: BrandResponsibility[],
+): Promise<{ responsibleUserIds: string[]; responsibilities: BrandResponsibility[] }> {
+  const { data } = await api.put<ApiResponse<{
+    brand_id: string;
+    responsible_user_ids: string[];
+    responsibilities: BrandResponsibility[];
+  }>>(
+    `/admin/brands/${id}/responsibilities`,
+    { responsibilities },
+  );
+  return {
+    responsibleUserIds: data.data?.responsible_user_ids ?? [],
+    responsibilities: data.data?.responsibilities ?? [],
+  };
 }
 
 // ────────────────── Task Categories (Admin) ──────────────────

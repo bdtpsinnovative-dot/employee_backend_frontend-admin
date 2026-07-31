@@ -9,8 +9,19 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+      - APP_ENV=${APP_ENV:-development}
+      - BACKUP_RESTORE_ENABLED=${BACKUP_RESTORE_ENABLED:-false}
+      - BACKUP_RESTORE_TARGET=${BACKUP_RESTORE_TARGET:-}
+      - BACKUP_STORAGE=${BACKUP_STORAGE:-local}
       - SUPABASE_URL=https://your-project.supabase.co
       - SUPABASE_ANON_KEY=your-anon-key
       - SUPABASE_DATABASE_URL=postgresql://postgres:your-password@db.your-project.supabase.co:5432/postgres
       - SUPABASE_JWT_SECRET=your-jwt-secret
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - BACKUP_LOCAL_DIR=${BACKUP_LOCAL_DIR:-.data/backups}
+    volumes:
+      - ./.data/backups:/app/.data/backups
     restart: always

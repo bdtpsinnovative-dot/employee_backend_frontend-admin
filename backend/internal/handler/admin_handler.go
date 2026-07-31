@@ -1,19 +1,19 @@
 package handler
 
 import (
-	"strings"
 	"context"
 	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // AdminHandler รับ HTTP Request สำหรับแอดมิน (จัดการพนักงาน, อนุมัติคำขอ)
@@ -90,6 +90,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		Nickname   string `json:"nickname"`
 		Department string `json:"department"`
 		Position   string `json:"position"`
+		Team       string `json:"team"`
 		Role       string `json:"role"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +99,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// ponytail: minimum needed to update fields.
-	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Nickname, req.Department, req.Position, req.Role)
+	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Nickname, req.Department, req.Position, req.Team, req.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลล้มเหลว"})
 		return
@@ -211,7 +212,7 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "month format must be YYYY-MM"})
 		return
 	}
-	
+
 	yearStr, monthStr := monthParam[:4], monthParam[5:]
 	year, _ := strconv.Atoi(yearStr)
 	month, _ := strconv.Atoi(monthStr)
@@ -246,20 +247,20 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			createdAt = *a.CheckInAt
 		}
 		records = append(records, HistoryRecord{
-				Date:          a.Date.Format("2006-01-02"),
-				UserName:      u.FullName(),
-				Email:         u.Email,
-				Department:    u.Department,
-				Position:      u.Position,
-				Status:        a.Status,
-				Type:          "attendance",
-				Reason:        "",
-				CheckInAt:     a.CheckInAt,
-				CheckOutAt:    a.CheckOutAt,
-				CheckInPhoto:  a.CheckInPhoto,
-				CheckOutPhoto: a.CheckOutPhoto,
-				CreatedAt:     createdAt,
-			})
+			Date:          a.Date.Format("2006-01-02"),
+			UserName:      u.FullName(),
+			Email:         u.Email,
+			Department:    u.Department,
+			Position:      u.Position,
+			Status:        a.Status,
+			Type:          "attendance",
+			Reason:        "",
+			CheckInAt:     a.CheckInAt,
+			CheckOutAt:    a.CheckOutAt,
+			CheckInPhoto:  a.CheckInPhoto,
+			CheckOutPhoto: a.CheckOutPhoto,
+			CreatedAt:     createdAt,
+		})
 	}
 
 	for _, l := range leaves {
@@ -268,17 +269,17 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			continue
 		}
 		records = append(records, HistoryRecord{
-				Date:         l.Date.Format("2006-01-02"),
-				UserName:     u.FullName(),
-				Email:        u.Email,
-				Department:   u.Department,
-				Position:     u.Position,
-				Status:       l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
-				Type:         "leave",
-				Reason:       l.Reason,
-				CheckInPhoto: l.MedicalCertURL,
-				CreatedAt:    l.CreatedAt,
-			})
+			Date:         l.Date.Format("2006-01-02"),
+			UserName:     u.FullName(),
+			Email:        u.Email,
+			Department:   u.Department,
+			Position:     u.Position,
+			Status:       l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
+			Type:         "leave",
+			Reason:       l.Reason,
+			CheckInPhoto: l.MedicalCertURL,
+			CreatedAt:    l.CreatedAt,
+		})
 	}
 
 	for _, o := range offsites {
@@ -287,16 +288,16 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			continue
 		}
 		records = append(records, HistoryRecord{
-				Date:       o.Date.Format("2006-01-02"),
-				UserName:   u.FullName(),
-				Email:      u.Email,
-				Department: u.Department,
-				Position:   u.Position,
-				Status:     "offsite" + " (" + o.Status + ")",
-				Type:       "offsite",
-				Reason:     o.Reason,
-				CreatedAt:  o.CreatedAt,
-			})
+			Date:       o.Date.Format("2006-01-02"),
+			UserName:   u.FullName(),
+			Email:      u.Email,
+			Department: u.Department,
+			Position:   u.Position,
+			Status:     "offsite" + " (" + o.Status + ")",
+			Type:       "offsite",
+			Reason:     o.Reason,
+			CreatedAt:  o.CreatedAt,
+		})
 	}
 
 	// Sort by date DESC

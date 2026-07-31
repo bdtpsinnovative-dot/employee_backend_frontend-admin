@@ -19,6 +19,7 @@ type User struct {
 	Nickname      string    `db:"nickname" json:"nickname"`
 	Department    string    `db:"department" json:"department"`
 	Position      string    `db:"position" json:"position"`
+	Team          string    `db:"team" json:"team"`
 	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
 	Status        string    `db:"status" json:"status"` // "pending" | "active" | "disabled"
 	DeviceID      *string   `db:"device_id" json:"device_id,omitempty"`
@@ -235,9 +236,16 @@ type AppSetting struct {
 // Brand represents a brand/client that tasks can be associated with.
 // Maps to: public.brands table
 type Brand struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID                 uuid.UUID             `db:"id" json:"id"`
+	Name               string                `db:"name" json:"name"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+	ResponsibleUserIDs []uuid.UUID           `db:"-" json:"responsible_user_ids"`
+	Responsibilities   []BrandResponsibility `db:"-" json:"responsibilities"`
+}
+
+type BrandResponsibility struct {
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	ResponsibilityType string    `db:"responsibility_type" json:"responsibility_type"`
 }
 
 // TaskCategory represents a category/type of task.
@@ -364,14 +372,14 @@ type CardAssignee struct {
 
 // CardComment is a rich-text comment on a card.
 type CardComment struct {
-	ID           uuid.UUID          `db:"id" json:"id"`
-	CardID       uuid.UUID          `db:"card_id" json:"card_id"`
-	AuthorID     uuid.UUID          `db:"author_id" json:"author_id"`
-	ContentDelta json.RawMessage    `db:"content_delta" json:"content_delta"`
-	PlainText    string             `db:"plain_text" json:"plain_text"`
-	IsEdited     bool               `db:"is_edited" json:"is_edited"`
-	CreatedAt    time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time          `db:"updated_at" json:"updated_at"`
+	ID           uuid.UUID       `db:"id" json:"id"`
+	CardID       uuid.UUID       `db:"card_id" json:"card_id"`
+	AuthorID     uuid.UUID       `db:"author_id" json:"author_id"`
+	ContentDelta json.RawMessage `db:"content_delta" json:"content_delta"`
+	PlainText    string          `db:"plain_text" json:"plain_text"`
+	IsEdited     bool            `db:"is_edited" json:"is_edited"`
+	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time       `db:"updated_at" json:"updated_at"`
 
 	// Joined fields
 	Author      *UserSummary        `db:"-" json:"author,omitempty"`

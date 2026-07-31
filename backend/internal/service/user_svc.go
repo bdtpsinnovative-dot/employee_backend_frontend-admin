@@ -65,12 +65,12 @@ func (s *UserService) CompleteProfile(
 	)
 }
 
-// UpdateProfileInfo updates a user's first name, last name, nickname, and avatar URL.
-func (s *UserService) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, avatarURL string) error {
+// UpdateProfileInfo updates a user's editable profile fields.
+func (s *UserService) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, avatarURL, email string) error {
 	if _, err := s.userRepo.FindByID(ctx, id); err != nil {
 		return errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
-	return s.userRepo.UpdateProfileInfo(ctx, id, firstName, lastName, nickname, avatarURL)
+	return s.userRepo.UpdateProfileInfo(ctx, id, firstName, lastName, nickname, avatarURL, email)
 }
 
 // GetByAuthID ดึงข้อมูล user จาก Supabase Auth ID
@@ -85,8 +85,8 @@ func (s *UserService) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, 
 
 // UpdateUserProfileAndRole อัปเดตข้อมูลพนักงานและสิทธิ์ (admin)
 // ponytail: wrapper minimal for repo call
-func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, department, position, role string) error {
-	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, nickname, department, position, role)
+func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, department, position, team, role string) error {
+	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, nickname, department, position, team, role)
 }
 
 // BindDevice ผูกเครื่องมือถือกับบัญชี (Device Binding - ADR 0003)

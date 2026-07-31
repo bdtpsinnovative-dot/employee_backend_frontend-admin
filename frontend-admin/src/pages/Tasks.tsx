@@ -16,6 +16,7 @@ import {
   addTaskComment,
   createBrand,
   deleteBrand,
+  updateBrandResponsibilities,
   approveSubmission,
   requestRevision,
   fetchMe,
@@ -25,7 +26,14 @@ import {
   markNotificationRead,
   toggleStarTask,
 } from '../services/adminApi';
-import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
+import type {
+  AdminTask,
+  User,
+  Brand,
+  BrandResponsibility,
+  TaskCategory,
+  TaskEvent,
+} from '../types';
 import { TaskToolbar } from '../components/tasks/TaskToolbar';
 import { TaskListView } from '../components/tasks/TaskListView';
 import { TaskDetailDrawer } from '../components/tasks/TaskDetailDrawer';
@@ -389,6 +397,21 @@ export default function Tasks() {
     await deleteBrand(id);
     setBrands((prev) => prev.filter((b) => b.id !== id));
   };
+  const handleUpdateBrandResponsibilities = async (
+    id: string,
+    responsibilities: BrandResponsibility[],
+  ) => {
+    const updated = await updateBrandResponsibilities(id, responsibilities);
+    setBrands((prev) => prev.map((brand) => (
+      brand.id === id
+        ? {
+            ...brand,
+            responsible_user_ids: updated.responsibleUserIds,
+            responsibilities: updated.responsibilities,
+          }
+        : brand
+    )));
+  };
   const handleCreateCategory = async (name: string) => {
     const c = await createTaskCategory(name);
     setCategories((prev) => [...prev, c]);
@@ -516,6 +539,7 @@ export default function Tasks() {
           setShowCreateModal(true);
         }}
         onOpenSettingsModal={() => setShowSettingsModal(true)}
+        canManageSettings={currentUser?.role === 'admin'}
         onOpenTrashModal={() => setShowTrashModal(true)}
         activeFilterCount={activeFilterCount}
         onClearFilters={handleClearFilters}
@@ -624,12 +648,14 @@ export default function Tasks() {
 
       {/* Task Brand Settings Modal */}
       <TaskBrandSettingsModal
-        isOpen={showSettingsModal}
+        isOpen={showSettingsModal && currentUser?.role === 'admin'}
         onClose={() => setShowSettingsModal(false)}
         brands={brands}
+        users={users}
         categories={categories}
         onCreateBrand={handleCreateBrand}
         onDeleteBrand={handleDeleteBrand}
+        onUpdateBrandResponsibilities={handleUpdateBrandResponsibilities}
         onCreateCategory={handleCreateCategory}
         onDeleteCategory={handleDeleteCategory}
       />

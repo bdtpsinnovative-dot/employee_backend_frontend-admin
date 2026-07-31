@@ -10,6 +10,11 @@ type Config struct {
 	// Server
 	Port string
 
+	// Backup environment guard
+	AppEnv               string
+	BackupRestoreEnabled bool
+	BackupRestoreTarget  string
+
 	// Supabase
 	SupabaseURL         string
 	SupabaseAnonKey     string
@@ -26,6 +31,9 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:                   getEnv("PORT", ""),
+		AppEnv:                 getEnv("APP_ENV", "development"),
+		BackupRestoreEnabled:   getEnv("BACKUP_RESTORE_ENABLED", "false") == "true",
+		BackupRestoreTarget:    getEnv("BACKUP_RESTORE_TARGET", ""),
 		SupabaseURL:            getEnv("SUPABASE_URL", ""),
 		SupabaseAnonKey:        getEnv("SUPABASE_ANON_KEY", ""),
 		SupabaseDatabaseURL:    getEnv("SUPABASE_DATABASE_URL", ""),

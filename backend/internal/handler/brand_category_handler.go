@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -424,9 +425,10 @@ func (h *BrandCategoryHandler) CreateBrand(c *gin.Context) {
 	}
 
 	brand := &domain.Brand{
-		ID:        uuid.New(),
-		Name:      req.Name,
-		CreatedAt: time.Now(),
+		ID:                 uuid.New(),
+		Name:               req.Name,
+		CreatedAt:          time.Now(),
+		ResponsibleUserIDs: []uuid.UUID{},
 	}
 	if err := h.brandRepo.Create(c.Request.Context(), brand); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่ม Brand ล้มเหลว"})
@@ -449,6 +451,126 @@ func (h *BrandCategoryHandler) DeleteBrand(c *gin.Context) {
 	}
 	h.audit(c, nil, "brand_deleted", "ลบแบรนด์: "+id.String(), nil)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบ Brand สำเร็จ"})
+}
+
+func parseUniqueUUIDs(values []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(values))
+	seen := make(map[uuid.UUID]struct{}, len(values))
+	for _, value := range values {
+		id, err := uuid.Parse(strings.TrimSpace(value))
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+func parseBrandResponsibilities(values []struct {
+	UserID             string `json:"user_id"`
+	ResponsibilityType string `json:"responsibility_type"`
+}) ([]domain.BrandResponsibility, error) {
+	responsibilities := make([]domain.BrandResponsibility, 0, len(values))
+	seen := make(map[uuid.UUID]struct{}, len(values))
+	for _, value := range values {
+		userID, err := uuid.Parse(strings.TrimSpace(value.UserID))
+		if err != nil {
+			return nil, err
+		}
+		responsibilityType := strings.ToLower(strings.TrimSpace(value.ResponsibilityType))
+		if responsibilityType != "bd" && responsibilityType != "mkt" && responsibilityType != "graphic" {
+			return nil, repository.ErrInvalidBrandResponsibilityType
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		responsibilities = append(responsibilities, domain.BrandResponsibility{
+			UserID:             userID,
+			ResponsibilityType: responsibilityType,
+		})
+	}
+	return responsibilities, nil
+}
+
+// UpdateBrandResponsibilities PUT /admin/brands/:id/responsibilities
+func (h *BrandCategoryHandler) UpdateBrandResponsibilities(c *gin.Context) {
+	brandID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID Brand ไม่ถูกต้อง"})
+		return
+	}
+
+	var req struct {
+		UserIDs          *[]string `json:"user_ids"`
+		Responsibilities *[]struct {
+			UserID             string `json:"user_id"`
+			ResponsibilityType string `json:"responsibility_type"`
+		} `json:"responsibilities"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || (req.UserIDs == nil && req.Responsibilities == nil) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาส่งรายชื่อผู้รับผิดชอบ"})
+		return
+	}
+
+	var responsibilities []domain.BrandResponsibility
+	if req.Responsibilities != nil {
+		responsibilities, err = parseBrandResponsibilities(*req.Responsibilities)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลผู้รับผิดชอบไม่ถูกต้อง"})
+			return
+		}
+	} else {
+		userIDs, parseErr := parseUniqueUUIDs(*req.UserIDs)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID พนักงานไม่ถูกต้อง"})
+			return
+		}
+		responsibilities = make([]domain.BrandResponsibility, 0, len(userIDs))
+		for _, userID := range userIDs {
+			responsibilities = append(responsibilities, domain.BrandResponsibility{
+				UserID:             userID,
+				ResponsibilityType: "bd",
+			})
+		}
+	}
+	if err := h.brandRepo.ReplaceResponsibilities(
+		c.Request.Context(),
+		brandID,
+		responsibilities,
+	); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrBrandNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบ Brand"})
+		case errors.Is(err, repository.ErrInvalidBrandResponsibilityUsers):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "เลือกได้เฉพาะพนักงานที่ยังใช้งานอยู่"})
+		case errors.Is(err, repository.ErrInvalidBrandResponsibilityType):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ประเภทผู้รับผิดชอบไม่ถูกต้อง"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกผู้รับผิดชอบ Brand ล้มเหลว"})
+		}
+		return
+	}
+
+	h.audit(c, nil, "brand_responsibilities_updated", "แก้ไขผู้รับผิดชอบแบรนด์: "+brandID.String(), nil)
+	c.JSON(http.StatusOK, gin.H{
+		"ok": true,
+		"data": gin.H{
+			"brand_id": brandID,
+			"responsible_user_ids": func() []uuid.UUID {
+				userIDs := make([]uuid.UUID, 0, len(responsibilities))
+				for _, responsibility := range responsibilities {
+					userIDs = append(userIDs, responsibility.UserID)
+				}
+				return userIDs
+			}(),
+			"responsibilities": responsibilities,
+		},
+	})
 }
 
 // ─────────────────────── TaskCategory Handlers ───────────────────────

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 
@@ -157,9 +158,10 @@ type updateProfileInfoBody struct {
 	LastName  string `json:"last_name" binding:"required"`
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatar_url" binding:"required"`
+	Email     string `json:"email"`
 }
 
-// UpdateProfileInfo updates name, nickname, and avatar only.
+// UpdateProfileInfo updates the current user's editable profile fields.
 func (h *UserHandler) UpdateProfileInfo(c *gin.Context) {
 	var body updateProfileInfoBody
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -171,10 +173,16 @@ func (h *UserHandler) UpdateProfileInfo(c *gin.Context) {
 	lastName := strings.TrimSpace(body.LastName)
 	nickname := strings.TrimSpace(body.Nickname)
 	avatarURL := strings.TrimSpace(body.AvatarURL)
-
+	email := strings.TrimSpace(body.Email)
 	if firstName == "" || lastName == "" || avatarURL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล และรูปโปรไฟล์ห้ามเว้นว่าง"})
 		return
+	}
+	if email != "" {
+		if _, err := mail.ParseAddress(email); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "อีเมลไม่ถูกต้อง"})
+			return
+		}
 	}
 
 	userID, exists := currentUserID(c)
@@ -183,7 +191,7 @@ func (h *UserHandler) UpdateProfileInfo(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.UpdateProfileInfo(c.Request.Context(), userID, firstName, lastName, nickname, avatarURL); err != nil {
+	if err := h.svc.UpdateProfileInfo(c.Request.Context(), userID, firstName, lastName, nickname, avatarURL, email); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกข้อมูลไม่สำเร็จ: " + err.Error()})
 		return
 	}

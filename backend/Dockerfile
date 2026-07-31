@@ -19,7 +19,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install ca-certificates in case we need to make HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata postgresql-client
 
 # Set timezone to Asia/Bangkok
 ENV TZ=Asia/Bangkok

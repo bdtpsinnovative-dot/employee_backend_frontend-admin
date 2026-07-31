@@ -9,6 +9,7 @@ export interface User {
   nickname?: string;
   department: string;
   position: string;
+  team: string;
   role: 'employee' | 'admin';
   status: 'pending' | 'active' | 'disabled';
   device_id?: string;
@@ -97,6 +98,36 @@ export interface WorkLocation {
   created_at: string;
 }
 
+export interface BackupJob {
+  id: string;
+  operation: 'backup' | 'restore';
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  schema_version: string;
+  source_backup_id?: string;
+  triggered_by?: string;
+  file_count: number;
+  database_size_bytes: number;
+  note: string;
+  table_stats?: BackupTableStat[];
+  description: string;
+  error_message?: string;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
+export interface BackupTableStat {
+  name: string;
+  snapshot_rows: number;
+  current_rows: number;
+}
+
+export interface BackupConfig {
+  restore_enabled: boolean;
+  backup_enabled: boolean;
+  tables: string[];
+}
+
 // API response wrapper — backend ส่ง { ok: true, data: ... }
 export interface ApiResponse<T> {
   ok: boolean;
@@ -124,6 +155,15 @@ export interface Brand {
   id: string;
   name: string;
   created_at: string;
+  responsible_user_ids?: string[];
+  responsibilities?: BrandResponsibility[];
+}
+
+export type BrandResponsibilityType = 'bd' | 'mkt' | 'graphic';
+
+export interface BrandResponsibility {
+  user_id: string;
+  responsibility_type: BrandResponsibilityType;
 }
 
 export interface TaskCategory {

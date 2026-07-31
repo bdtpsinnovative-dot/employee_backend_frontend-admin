@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/Nattamon123/employee/backend/internal/config"
 	"github.com/Nattamon123/employee/backend/internal/handler"
@@ -50,6 +52,10 @@ func New(cfg *config.Config) (*Server, error) {
 	assigneeRepo := repository.NewCardAssigneeRepo(db)
 	notifRepo := repository.NewNotificationRepo(db)
 	settingRepo := repository.NewSettingRepo(db)
+	backupRepo := repository.NewBackupRepo(db)
+	if err := backupRepo.EnsureTable(context.Background()); err != nil {
+		return nil, fmt.Errorf("backup table migration failed: %w", err)
+	}
 
 	// Run card_attachments table migration (idempotent)
 	if err := attachmentRepo.EnsureTable(context.Background()); err != nil {
@@ -88,6 +94,44 @@ func New(cfg *config.Config) (*Server, error) {
 	taskEventH := handler.NewTaskEventHandler(taskEventRepo)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
+	maintenanceGate := middleware.NewMaintenanceGate()
+	var backupH *handler.BackupHandler
+	localBackupDir := os.Getenv("BACKUP_LOCAL_DIR")
+	if localBackupDir == "" {
+		localBackupDir = ".data/backups"
+	}
+	isProduction := strings.EqualFold(strings.TrimSpace(cfg.AppEnv), "production")
+	useR2BackupStorage := isProduction || strings.EqualFold(strings.TrimSpace(os.Getenv("BACKUP_STORAGE")), "r2")
+	var backupStorage *service.StorageService
+	var backupErr error
+	if useR2BackupStorage {
+		if storageSvc == nil {
+			backupErr = fmt.Errorf("R2 backup storage ยังไม่พร้อมใช้งาน: กรุณาตั้งค่า R2 credentials")
+		} else {
+			backupStorage = storageSvc
+		}
+	} else {
+		backupStorage, backupErr = service.NewLocalStorageService(localBackupDir)
+	}
+	var backupSvc *service.BackupService
+	if backupErr == nil {
+		backupSvc, backupErr = service.NewBackupService(
+			backupRepo,
+			db,
+			cfg.SupabaseDatabaseURL,
+			backupStorage,
+			maintenanceGate,
+			cfg.AppEnv,
+			cfg.BackupRestoreEnabled,
+			isProduction || cfg.BackupRestoreEnabled,
+			cfg.BackupRestoreTarget,
+		)
+	}
+	if backupErr != nil {
+		fmt.Printf("Warning: Could not initialize BackupService: %v\n", backupErr)
+	} else {
+		backupH = handler.NewBackupHandler(backupSvc)
+	}
 	var uploadH *handler.UploadHandler
 	if storageSvc != nil {
 		uploadH = handler.NewUploadHandler(storageSvc)
@@ -104,7 +148,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, backupH, maintenanceGate)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -135,6 +179,8 @@ func registerRoutes(
 	taskEventH *handler.TaskEventHandler,
 	notifH *handler.NotificationHandler,
 	settingH *handler.SettingHandler,
+	backupH *handler.BackupHandler,
+	maintenanceGate *middleware.MaintenanceGate,
 ) {
 	// ตรวจสอบว่า server ยังทำงานอยู่ (ไม่ต้องล็อกอิน)
 	r.GET("/ping", func(c *gin.Context) {
@@ -157,6 +203,7 @@ func registerRoutes(
 	account := r.Group("/api")
 	account.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager))
 	account.Use(LoadUserMiddleware(userSvc))
+	account.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
 		account.GET("/users/me", userH.GetMe)
 		account.PUT("/users/me/profile", userH.CompleteProfile)
@@ -170,6 +217,7 @@ func registerRoutes(
 	api.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager)) // ตรวจ JWT จาก Supabase
 	api.Use(LoadUserMiddleware(userSvc))                           // ดึงข้อมูล user จาก DB ฝังลง Context
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
+	api.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
 		// ข้อมูลผู้ใช้
 		api.GET("/users", adminH.ListUsers)                        // ดึงรายชื่อพนักงานทั้งหมด (สำหรับมอบหมายงาน)
@@ -221,7 +269,7 @@ func registerRoutes(
 		api.POST("/tasks/:id/events", taskEventH.AddComment)
 		api.POST("/tasks/:id/lists", brandCategoryH.CreateTaskList)                              // เพิ่ม List/รายการ
 		api.DELETE("/tasks/lists/:id", brandCategoryH.DeleteTaskList)                            // ลบ List/รายการ
-		api.GET("/tasks/:id/trello/trash", brandCategoryH.GetTaskTrelloBoardTrash)                // ดึงรายการที่ถูกลบ (ถังขยะ)
+		api.GET("/tasks/:id/trello/trash", brandCategoryH.GetTaskTrelloBoardTrash)               // ดึงรายการที่ถูกลบ (ถังขยะ)
 		api.POST("/tasks/lists/:id/restore", brandCategoryH.RestoreTaskList)                     // กู้คืน List/รายการ
 		api.PATCH("/tasks/lists/:id", brandCategoryH.UpdateTaskList)                             // อัปเดต List/รายการ (ลำดับ)
 		api.POST("/tasks/lists/:id/cards", brandCategoryH.CreateTaskCard)                        // เพิ่ม Card/การ์ด
@@ -234,7 +282,7 @@ func registerRoutes(
 		api.POST("/tasks/cards/:id/attachments", brandCategoryH.CreateCardAttachment)            // เพิ่มไฟล์แนบในการ์ด
 		api.GET("/tasks/cards/:id/attachments", brandCategoryH.ListCardAttachments)              // ดึงไฟล์แนบทั้งหมดของการ์ด
 		api.DELETE("/tasks/cards/attachments/:id", brandCategoryH.DeleteCardAttachment)          // ลบไฟล์แนบ
-		api.PATCH("/tasks/cards/attachments/:id", brandCategoryH.UpdateCardAttachment)            // แก้ไขไฟล์แนบ
+		api.PATCH("/tasks/cards/attachments/:id", brandCategoryH.UpdateCardAttachment)           // แก้ไขไฟล์แนบ
 
 		// Card Comments (rich text, @mention)
 		api.GET("/tasks/cards/:id/comments", brandCategoryH.GetCardComments)                 // ดึงคอมเมนต์ของการ์ด
@@ -268,7 +316,16 @@ func registerRoutes(
 	admin.Use(LoadUserMiddleware(userSvc))
 	admin.Use(middleware.RequireActive())
 	admin.Use(middleware.RequireAdmin())
+	admin.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
+		if backupH != nil {
+			admin.GET("/backups/config", backupH.Config)
+			admin.GET("/backups", backupH.List)
+			admin.POST("/backups", backupH.Create)
+			admin.GET("/backups/:id", backupH.Get)
+			admin.POST("/backups/:id/restore", backupH.Restore)
+		}
+
 		// จัดการพนักงาน
 		admin.GET("/users", adminH.ListUsers)                        // ดูรายชื่อพนักงานทั้งหมด
 		admin.GET("/users/:id/history", adminH.GetUserHistory)       // ดึงประวัติรายคน
@@ -277,6 +334,8 @@ func registerRoutes(
 		admin.PATCH("/users/:id/approve", adminH.ApproveUser)        // อนุมัติบัญชีพนักงาน
 		admin.PATCH("/users/:id/disable", adminH.DisableUser)        // ปิดบัญชีพนักงาน
 		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice) // ปลดล็อคเครื่องมือถือ
+		admin.GET("/settings/profile-teams", settingH.GetProfileTeams)
+		admin.POST("/settings/profile-teams", settingH.AddProfileTeam)
 
 		admin.GET("/users/:id/quota", leaveH.GetUserQuota)    // ดูโควต้าวันลาพนักงาน
 		admin.PUT("/users/:id/quota", leaveH.UpdateUserQuota) // อัปเดตโควต้าวันลาพนักงาน
@@ -301,8 +360,8 @@ func registerRoutes(
 		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
 
 		// จัดการงาน (Tasks)
-		admin.POST("/tasks", taskH.CreateTask)                             // มอบหมายงานใหม่
-		admin.GET("/tasks", taskH.ListAllTasks)                            // ดึงงานของทุกคน
+		admin.POST("/tasks", taskH.CreateTask)  // มอบหมายงานใหม่
+		admin.GET("/tasks", taskH.ListAllTasks) // ดึงงานของทุกคน
 		admin.GET("/tasks/events", taskEventH.ListAll)
 		admin.DELETE("/tasks/:id", taskH.DeleteTask)                       // ลบงาน
 		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
@@ -311,6 +370,7 @@ func registerRoutes(
 		admin.GET("/brands", brandCategoryH.ListBrands)         // ดึง Brand ทั้งหมด
 		admin.POST("/brands", brandCategoryH.CreateBrand)       // เพิ่ม Brand ใหม่
 		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand) // ลบ Brand
+		admin.PUT("/brands/:id/responsibilities", brandCategoryH.UpdateBrandResponsibilities)
 
 		// จัดการหมวดหมู่งาน (Task Categories)
 		admin.GET("/task-categories", brandCategoryH.ListTaskCategories)        // ดึงหมวดหมู่ทั้งหมด

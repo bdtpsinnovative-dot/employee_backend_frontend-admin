@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
 import type { User } from '../types';
+import { avatarUrl } from './tasks/taskUtils';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,6 +15,13 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const isAdmin = currentUser ? currentUser.role === 'admin' : true; // Default to true during initial load
+  const profileAvatar = avatarUrl(currentUser?.avatar_url);
+  const profileName = currentUser
+    ? `${currentUser.first_name} ${currentUser.last_name}${currentUser.nickname ? ` (${currentUser.nickname})` : ''}`.trim()
+    : 'กำลังโหลดข้อมูล...';
+  const positionText = currentUser?.position || (isAdmin ? 'ผู้ดูแลระบบ' : 'พนักงาน');
+  const roleBadgeText = currentUser?.department ? currentUser.department : (isAdmin ? 'ADMIN' : 'STAFF');
+  const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
   useEffect(() => {
     loadPendingCount();
@@ -40,31 +48,47 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
 
   return (
     <div className={`sidebar ${isOpen ? 'active' : 'collapsed'}`} id="sidebar">
-      <div
-        style={{
-          fontSize: '22px',
-          fontWeight: 700,
-          color: 'var(--text-main)',
-          marginBottom: '30px',
-          textAlign: 'center',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        HR System
-        <i
-          className="fa-solid fa-times"
-          style={{
-            fontSize: '20px',
-            color: '#aaa',
-            cursor: 'pointer',
-            display: isOpen ? 'block' : 'none',
-          }}
+      {/* Header: App Brand Logo & Close Action */}
+      <div className="sidebar-header">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-icon">
+            <i className="fa-solid fa-layer-group"></i>
+          </div>
+          <span className="sidebar-brand-title">HR System</span>
+        </div>
+        <button
+          type="button"
+          className="sidebar-close-btn"
           id="sidebar-close"
           onClick={onClose}
-        ></i>
+          aria-label="ปิดเมนูด้านข้าง"
+          style={{ display: isOpen ? 'flex' : 'none' }}
+        >
+          <i className="fa-solid fa-xmark"></i>
+        </button>
       </div>
+
+      {/* Top Profile Card: Avatar, Name, Position & Role Badge */}
+      <NavLink
+        to="/profile"
+        className={({ isActive }) => `sidebar-profile ${isActive ? 'active' : ''}`}
+        aria-label={`เปิดโปรไฟล์ของ ${profileName}`}
+      >
+        <div className="sidebar-profile-avatar-wrapper">
+          <span className="sidebar-profile-avatar" aria-hidden="true">
+            {profileAvatar ? <img src={profileAvatar} alt="" /> : profileInitial}
+          </span>
+          <span className="sidebar-status-dot" title="ออนไลน์" />
+        </div>
+        <div className="sidebar-profile-copy">
+          <strong>{profileName}</strong>
+          <span className="sidebar-position">{positionText}</span>
+          <span className={`sidebar-profile-badge ${isAdmin ? 'admin' : 'staff'}`}>
+            {roleBadgeText}
+          </span>
+        </div>
+        <i className="fa-solid fa-chevron-right sidebar-profile-chevron" aria-hidden="true"></i>
+      </NavLink>
 
       {isAdmin && (
         <NavLink to="/dashboard" className={navLinkClass}>
@@ -103,6 +127,11 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       {isAdmin && (
         <NavLink to="/holidays" className={navLinkClass}>
           <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
+        </NavLink>
+      )}
+      {isAdmin && (
+        <NavLink to="/backups" className={navLinkClass}>
+          <i className="fa-solid fa-database"></i> สำรองและกู้คืนข้อมูล
         </NavLink>
       )}
       <NavLink to="/tasks" className={navLinkClass}>

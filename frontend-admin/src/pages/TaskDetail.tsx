@@ -418,6 +418,7 @@ export default function TaskDetail() {
         brands={brands}
         categories={categories}
         initialData={editingTask || undefined}
+        currentUser={currentUser}
         onSubmit={handleUpdateTask}
       />
 
