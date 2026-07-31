@@ -8,9 +8,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
+  unreadNotifCount?: number;
 }
 
-export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, currentUser, unreadNotifCount = 0 }: SidebarProps) {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const isAdmin = currentUser ? currentUser.role === 'admin' : true; // Default to true during initial load
@@ -118,11 +119,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
           <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
         </NavLink>
       )}
-      {isAdmin && (
-        <NavLink to="/task-logs" className={navLinkClass}>
-          <i className="fa-solid fa-timeline"></i> ประวัติงาน (Activity)
-        </NavLink>
-      )}
+
 
       <div
         className="nav-item logout"

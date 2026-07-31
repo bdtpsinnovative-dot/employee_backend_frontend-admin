@@ -187,6 +187,38 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		}
 	}
 
+	// Trigger in-app notifications for task updates (excluding the editor)
+	if s.notifSvc != nil {
+		actorName := "ใครบางคน"
+		if actor, err := s.userRepo.FindByID(ctx, userID); err == nil && actor != nil {
+			if actor.Nickname != "" {
+				actorName = actor.Nickname
+			} else {
+				actorName = actor.FirstName
+			}
+		}
+
+		recipients := make(map[uuid.UUID]bool)
+		if task.AssignedBy != nil {
+			recipients[*task.AssignedBy] = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			recipients[aid] = true
+		}
+		delete(recipients, userID)
+
+		for recipientID := range recipients {
+			s.notifSvc.Notify(
+				ctx,
+				recipientID,
+				"อัปเดตงานหลัก",
+				actorName+" ได้แก้ไขรายละเอียดงานหลัก: "+task.Title,
+				"system",
+				map[string]string{"task_id": task.ID.String()},
+			)
+		}
+	}
+
 	return task, nil
 }
 
@@ -265,6 +297,47 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 					}
 				}
 			}
+		}
+	}
+
+	// Trigger in-app notifications for status change (excluding the editor)
+	if s.notifSvc != nil {
+		actorName := "ใครบางคน"
+		if employee, userErr := s.userRepo.FindByID(ctx, userID); userErr == nil && employee != nil {
+			if employee.Nickname != "" {
+				actorName = employee.Nickname
+			} else {
+				actorName = employee.FirstName
+			}
+		}
+
+		statusThai := "รอทำ"
+		if status == "in_progress" {
+			statusThai = "กำลังทำ"
+		} else if status == "in_review" {
+			statusThai = "รอตรวจ"
+		} else if status == "completed" {
+			statusThai = "เสร็จสิ้น"
+		}
+
+		recipients := make(map[uuid.UUID]bool)
+		if task.AssignedBy != nil {
+			recipients[*task.AssignedBy] = true
+		}
+		for _, aid := range task.AssigneeIDs {
+			recipients[aid] = true
+		}
+		delete(recipients, userID)
+
+		for recipientID := range recipients {
+			s.notifSvc.Notify(
+				ctx,
+				recipientID,
+				"อัปเดตสถานะงานหลัก",
+				actorName+" ได้เปลี่ยนสถานะงานหลัก \""+task.Title+"\" เป็น ["+statusThai+"]",
+				"system",
+				map[string]string{"task_id": task.ID.String()},
+			)
 		}
 	}
 
@@ -431,4 +504,8 @@ func (s *TaskService) RequestRevision(ctx context.Context, submissionID, taskID,
 		Content:   &content,
 	})
 	return nil
+}
+
+func (s *TaskService) ToggleStar(ctx context.Context, id uuid.UUID, isStarred bool) error {
+	return s.taskRepo.UpdateStarStatus(ctx, id, isStarred)
 }

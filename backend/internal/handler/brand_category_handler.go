@@ -819,6 +819,49 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	scope := &repository.TaskEventScope{TaskID: taskID, ListID: &list.ID, Name: list.Name}
 	h.audit(c, scope, "board_created", "สร้างบอร์ด: "+list.Name, nil)
 
+	// แจ้งเตือนผู้เกี่ยวข้องกับงานหลัก (ผู้สร้างและผู้รับผิดชอบ) เมื่อมีคนเพิ่มงานย่อยใหม่
+	if h.notifSvc != nil {
+		actorIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+		actorID, _ := actorIDRaw.(uuid.UUID)
+		capturedListName := list.Name
+		capturedListID := list.ID
+		go func() {
+			var userIDs []uuid.UUID
+			dbErr := h.cardRepo.GetDB().SelectContext(context.Background(), &userIDs,
+				`SELECT DISTINCT user_id FROM (
+					SELECT assigned_by AS user_id FROM tasks WHERE id = $1
+					UNION
+					SELECT assigned_to AS user_id FROM tasks WHERE id = $1 AND assigned_to IS NOT NULL
+					UNION
+					SELECT user_id FROM task_assignees WHERE task_id = $1
+				) t WHERE user_id IS NOT NULL`, taskID)
+			if dbErr != nil {
+				return
+			}
+			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
+			actorName := "ทีมงาน"
+			if actor != nil {
+				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
+				if name != "" {
+					actorName = name
+				} else if actor.Nickname != "" {
+					actorName = actor.Nickname
+				}
+			}
+			for _, uID := range userIDs {
+				if uID == actorID {
+					continue // ไม่แจ้งเตือนผู้ทำการสร้างเอง
+				}
+				h.notifSvc.Notify(context.Background(), uID,
+					"➕ เพิ่มงานย่อยใหม่",
+					actorName+` เพิ่มงานย่อย "`+capturedListName+`" ในงานของคุณ`,
+					"task_list_update",
+					map[string]string{"task_id": taskID.String(), "list_id": capturedListID.String()},
+				)
+			}
+		}()
+	}
+
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": list})
 }
 
@@ -892,6 +935,7 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		return
 	}
 	if req.Status != nil &&
+		*req.Status != "waiting" &&
 		*req.Status != "pending" &&
 		*req.Status != "in_progress" &&
 		*req.Status != "in_review" &&
@@ -1028,6 +1072,66 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "โหลดรายการหลังอัปเดตล้มเหลว"})
 		return
+	}
+
+	// แจ้งเตือนผู้เกี่ยวข้องกับงานหลัก (ผู้สร้างและผู้รับผิดชอบ) เมื่อมีการอัปเดตงานย่อย
+	if h.notifSvc != nil && (req.Name != nil || req.Status != nil || req.Description != nil || req.AdminComment != nil || req.Attachments != nil || hasDueDate || hasStartDate) {
+		actorIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+		actorID, _ := actorIDRaw.(uuid.UUID)
+		capturedExistingList := existingList
+		capturedReq := req
+		go func() {
+			var userIDs []uuid.UUID
+			dbErr := h.cardRepo.GetDB().SelectContext(context.Background(), &userIDs,
+				`SELECT DISTINCT user_id FROM (
+					SELECT assigned_by AS user_id FROM tasks WHERE id = $1
+					UNION
+					SELECT assigned_to AS user_id FROM tasks WHERE id = $1 AND assigned_to IS NOT NULL
+					UNION
+					SELECT user_id FROM task_assignees WHERE task_id = $1
+				) t WHERE user_id IS NOT NULL`, taskID)
+			if dbErr != nil {
+				return
+			}
+
+			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
+			actorName := "ทีมงาน"
+			if actor != nil {
+				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
+				if name != "" {
+					actorName = name
+				} else if actor.Nickname != "" {
+					actorName = actor.Nickname
+				}
+			}
+
+			listName := capturedExistingList.Name
+			var notifTitle, notifBody string
+			if capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status {
+				newStatusLabel := readableBoardStatus(*capturedReq.Status)
+				notifTitle = "🔄 อัปเดตสถานะงานย่อย"
+				notifBody = actorName + ` เปลี่ยนสถานะ "` + listName + `" เป็น "` + newStatusLabel + `"`
+			} else if capturedReq.Name != nil && *capturedReq.Name != capturedExistingList.Name {
+				notifTitle = "✏️ เปลี่ยนชื่องานย่อย"
+				notifBody = actorName + ` เปลี่ยนชื่อ "` + capturedExistingList.Name + `" เป็น "` + *capturedReq.Name + `"`
+			} else if capturedReq.Attachments != nil {
+				notifTitle = "📎 อัปเดตไฟล์งานย่อย"
+				notifBody = actorName + ` อัปเดตไฟล์แนบใน "` + listName + `"`
+			} else {
+				notifTitle = "📝 แก้ไขงานย่อย"
+				notifBody = actorName + ` แก้ไขข้อมูลงานย่อย "` + listName + `"`
+			}
+
+			for _, uID := range userIDs {
+				if uID == actorID {
+					continue // ไม่แจ้งเตือนผู้ทำการแก้ไขเอง
+				}
+				h.notifSvc.Notify(context.Background(), uID,
+					notifTitle, notifBody, "task_list_update",
+					map[string]string{"task_id": taskID.String(), "list_id": listID.String()},
+				)
+			}
+		}()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": updated})

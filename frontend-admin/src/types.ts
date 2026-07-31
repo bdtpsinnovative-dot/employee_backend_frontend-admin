@@ -187,7 +187,7 @@ export interface TaskList {
   start_date?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'in_progress' | 'completed';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];
@@ -239,6 +239,7 @@ export interface AdminTask {
   submission_count?: number;
   latest_submission?: TaskSubmission;
   deleted_at?: string;
+  is_starred?: boolean;
 }
 
 export interface TaskEvent {

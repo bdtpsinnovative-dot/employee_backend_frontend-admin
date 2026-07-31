@@ -521,3 +521,30 @@ func (h *TaskHandler) RestoreTask(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "กู้คืนงานสำเร็จ"})
 }
+
+type toggleStarReq struct {
+	IsStarred bool `json:"is_starred"`
+}
+
+// ToggleStarTask POST /api/tasks/:id/star
+func (h *TaskHandler) ToggleStarTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+
+	var req toggleStarReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	err = h.taskSvc.ToggleStar(c.Request.Context(), id, req.IsStarred)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถสลับสถานะการติดดาวได้"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะการติดดาวสำเร็จ"})
+}
