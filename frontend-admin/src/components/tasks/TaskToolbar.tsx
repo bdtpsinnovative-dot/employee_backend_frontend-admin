@@ -11,8 +11,6 @@ import {
 import type { User, Brand, TaskCategory } from '../../types';
 
 interface TaskToolbarProps {
-  viewMode: 'overview' | 'list';
-  onViewModeChange: (mode: 'overview' | 'list') => void;
   tabFilter: 'all' | 'completed' | 'starred';
   onTabFilterChange: (tab: 'all' | 'completed' | 'starred') => void;
   searchQuery: string;
@@ -40,8 +38,6 @@ interface TaskToolbarProps {
 }
 
 export const TaskToolbar: React.FC<TaskToolbarProps> = ({
-  viewMode,
-  onViewModeChange,
   tabFilter,
   onTabFilterChange,
   searchQuery,

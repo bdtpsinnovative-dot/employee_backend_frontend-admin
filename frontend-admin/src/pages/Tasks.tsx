@@ -111,9 +111,6 @@ export default function Tasks() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
 
-  // ─── UI & View State ───
-  // [NOTE]: Default viewMode changed from 'overview' to 'list' as per USER request.
-  const [viewMode, setViewMode]          = useState<'overview' | 'list'>('list');
 
   // ─── Search & Filter State ───
   const [searchQuery, setSearchQuery]           = useState('');
@@ -497,8 +494,6 @@ export default function Tasks() {
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* Asana Style Toolbar */}
       <TaskToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         tabFilter={tabFilter}
         onTabFilterChange={setTabFilter}
         searchQuery={searchQuery}

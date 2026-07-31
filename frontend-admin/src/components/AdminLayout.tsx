@@ -56,7 +56,6 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
   const isAdmin = currentUser ? currentUser.role === 'admin' : true;
-  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -167,7 +166,7 @@ export default function AdminLayout() {
         onClick={toggleSidebar}
       ></div>
 
-      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} unreadNotifCount={unreadCount} />
+      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       {/* Collapsed Left Rail for Desktop */}
       {!sidebarOpen && (

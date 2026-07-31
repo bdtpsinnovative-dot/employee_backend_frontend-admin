@@ -8,10 +8,9 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
-  unreadNotifCount?: number;
 }
 
-export default function Sidebar({ isOpen, onClose, currentUser, unreadNotifCount = 0 }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const isAdmin = currentUser ? currentUser.role === 'admin' : true; // Default to true during initial load
