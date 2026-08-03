@@ -61,6 +61,16 @@ func (h *SettingHandler) GetProfileTeams(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": teams})
 }
 
+// GetTeams GET /admin/settings/teams
+func (h *SettingHandler) GetTeams(c *gin.Context) {
+	teams, err := h.svc.GetTeams(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลทีมไม่สำเร็จ"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": teams})
+}
+
 type addProfileTeamBody struct {
 	Name string `json:"name" binding:"required"`
 }

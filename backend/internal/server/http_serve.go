@@ -336,6 +336,7 @@ func registerRoutes(
 		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice) // ปลดล็อคเครื่องมือถือ
 		admin.GET("/settings/profile-teams", settingH.GetProfileTeams)
 		admin.POST("/settings/profile-teams", settingH.AddProfileTeam)
+		admin.GET("/settings/teams", settingH.GetTeams)
 
 		admin.GET("/users/:id/quota", leaveH.GetUserQuota)    // ดูโควต้าวันลาพนักงาน
 		admin.PUT("/users/:id/quota", leaveH.UpdateUserQuota) // อัปเดตโควต้าวันลาพนักงาน

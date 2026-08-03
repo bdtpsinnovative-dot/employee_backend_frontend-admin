@@ -4,8 +4,6 @@ import { Trash2, X, Bell } from 'lucide-react';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
-  createTaskCategory,
-  deleteTaskCategory,
   fetchBrands,
   fetchUsers,
   createAdminTask,
@@ -14,9 +12,6 @@ import {
   deleteAdminTask,
   fetchTaskEvents,
   addTaskComment,
-  createBrand,
-  deleteBrand,
-  updateBrandResponsibilities,
   approveSubmission,
   requestRevision,
   fetchMe,
@@ -30,7 +25,6 @@ import type {
   AdminTask,
   User,
   Brand,
-  BrandResponsibility,
   TaskCategory,
   TaskEvent,
 } from '../types';
@@ -38,7 +32,6 @@ import { TaskToolbar } from '../components/tasks/TaskToolbar';
 import { TaskListView } from '../components/tasks/TaskListView';
 import { TaskDetailDrawer } from '../components/tasks/TaskDetailDrawer';
 import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
-import { TaskBrandSettingsModal } from '../components/tasks/TaskBrandSettingsModal';
 /* 
   [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS IMPORT]
   คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดใช้งานฟีเจอร์ "หัวข้องาน (Overview)" นี้ไว้
@@ -133,7 +126,6 @@ export default function Tasks() {
   const [showCreateModal, setShowCreateModal]       = useState(false);
   const [editingTask, setEditingTask]               = useState<AdminTask | null>(null);
   const [defaultCreateStatus, setDefaultCreateStatus] = useState<TaskStatus | undefined>();
-  const [showSettingsModal, setShowSettingsModal]   = useState(false);
   const [editTaskEvents, setEditTaskEvents]         = useState<TaskEvent[]>([]);
   const [editEventsLoading, setEditEventsLoading]   = useState(false);
 
@@ -388,39 +380,6 @@ export default function Tasks() {
     }
   };
 
-  // Brand / Category handlers
-  const handleCreateBrand = async (name: string) => {
-    const b = await createBrand(name);
-    setBrands((prev) => [...prev, b]);
-  };
-  const handleDeleteBrand = async (id: string) => {
-    await deleteBrand(id);
-    setBrands((prev) => prev.filter((b) => b.id !== id));
-  };
-  const handleUpdateBrandResponsibilities = async (
-    id: string,
-    responsibilities: BrandResponsibility[],
-  ) => {
-    const updated = await updateBrandResponsibilities(id, responsibilities);
-    setBrands((prev) => prev.map((brand) => (
-      brand.id === id
-        ? {
-            ...brand,
-            responsible_user_ids: updated.responsibleUserIds,
-            responsibilities: updated.responsibilities,
-          }
-        : brand
-    )));
-  };
-  const handleCreateCategory = async (name: string) => {
-    const c = await createTaskCategory(name);
-    setCategories((prev) => [...prev, c]);
-  };
-  const handleDeleteCategory = async (id: string) => {
-    await deleteTaskCategory(id);
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-  };
-
   // ─── Filter Logic ───
   const filteredTasks = tasks.filter((task) => {
     // กรองแสดงเฉพาะงานที่เราสร้าง หรือ งานที่เราเข้าร่วม (มีรายชื่อเป็นผู้รับผิดชอบ) เท่านั้น
@@ -538,7 +497,7 @@ export default function Tasks() {
           setDefaultCreateStatus(undefined);
           setShowCreateModal(true);
         }}
-        onOpenSettingsModal={() => setShowSettingsModal(true)}
+        onOpenSettingsModal={() => navigate('/brand-responsibilities')}
         canManageSettings={currentUser?.role === 'admin'}
         onOpenTrashModal={() => setShowTrashModal(true)}
         activeFilterCount={activeFilterCount}
@@ -644,20 +603,6 @@ export default function Tasks() {
         taskEvents={editTaskEvents}
         eventsLoading={editEventsLoading}
         onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
-      />
-
-      {/* Task Brand Settings Modal */}
-      <TaskBrandSettingsModal
-        isOpen={showSettingsModal && currentUser?.role === 'admin'}
-        onClose={() => setShowSettingsModal(false)}
-        brands={brands}
-        users={users}
-        categories={categories}
-        onCreateBrand={handleCreateBrand}
-        onDeleteBrand={handleDeleteBrand}
-        onUpdateBrandResponsibilities={handleUpdateBrandResponsibilities}
-        onCreateCategory={handleCreateCategory}
-        onDeleteCategory={handleDeleteCategory}
       />
 
       {/* Delete Confirmation Modal */}

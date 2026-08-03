@@ -2336,17 +2336,19 @@ func (h *BrandCategoryHandler) GetTaskMembers(c *gin.Context) {
 	var members []domain.UserSummary
 	if projectID != nil {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
-			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, u.position
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
 			FROM project_members pm
 			JOIN users u ON u.id = pm.user_id
+			LEFT JOIN teams t ON t.id = u.team_id
 			WHERE pm.project_id = $1 AND u.status = 'active'
 			ORDER BY u.first_name, u.last_name
 		`, *projectID)
 	} else {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
-			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, u.position
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
 			FROM task_assignees ta
 			JOIN users u ON u.id = ta.user_id
+			LEFT JOIN teams t ON t.id = u.team_id
 			WHERE ta.task_id = $1 AND u.status = 'active'
 			ORDER BY u.first_name, u.last_name
 		`, taskID)

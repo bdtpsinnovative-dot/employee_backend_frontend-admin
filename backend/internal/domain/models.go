@@ -11,13 +11,16 @@ import (
 // Maps to: public.users table
 // Old sheet: ฐานข้อมูลพนักงาน
 type User struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	AuthID        uuid.UUID `db:"auth_id" json:"auth_id"`
-	Email         string    `db:"email" json:"email"`
-	FirstName     string    `db:"first_name" json:"first_name"`
-	LastName      string    `db:"last_name" json:"last_name"`
-	Nickname      string    `db:"nickname" json:"nickname"`
-	Department    string    `db:"department" json:"department"`
+	ID         uuid.UUID  `db:"id" json:"id"`
+	AuthID     uuid.UUID  `db:"auth_id" json:"auth_id"`
+	Email      string     `db:"email" json:"email"`
+	FirstName  string     `db:"first_name" json:"first_name"`
+	LastName   string     `db:"last_name" json:"last_name"`
+	Nickname   string     `db:"nickname" json:"nickname"`
+	Department string     `db:"department" json:"department"`
+	TeamID     *uuid.UUID `db:"team_id" json:"team_id,omitempty"`
+	// Position and Team are compatibility fields populated from teams.short_name/name.
+	// They are no longer stored on users as text columns.
 	Position      string    `db:"position" json:"position"`
 	Team          string    `db:"team" json:"team"`
 	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
@@ -29,6 +32,17 @@ type User struct {
 	HasFace       bool      `db:"-" json:"has_face_embedding"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Team is an admin-managed employee team and the source for team labels in the UI.
+type Team struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	ShortName string    `db:"short_name" json:"short_name"`
+	SortOrder int       `db:"sort_order" json:"sort_order"`
+	IsActive  bool      `db:"is_active" json:"is_active"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (u User) FullName() string {

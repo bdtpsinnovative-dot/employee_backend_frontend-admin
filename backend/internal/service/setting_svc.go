@@ -2,14 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 )
-
-var defaultProfileTeams = []string{"BD", "Marketing", "Graphic"}
 
 type SettingService struct {
 	repo *repository.SettingRepo
@@ -39,27 +37,19 @@ func (s *SettingService) SetCheckInMode(ctx context.Context, mode string) error 
 // GetProfileTeams returns the admin-managed team choices. The three default
 // teams are always present even when the setting has not been saved yet.
 func (s *SettingService) GetProfileTeams(ctx context.Context) ([]string, error) {
-	raw, err := s.repo.Get(ctx, "profile_teams")
+	teamRecords, err := s.repo.ListTeams(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	teams := append([]string(nil), defaultProfileTeams...)
-	if raw == "" {
-		return teams, nil
-	}
-
-	var stored []string
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		return nil, err
-	}
-	for _, team := range stored {
-		team = strings.TrimSpace(team)
-		if team != "" && !containsFold(teams, team) {
-			teams = append(teams, team)
-		}
+	teams := make([]string, 0, len(teamRecords))
+	for _, team := range teamRecords {
+		teams = append(teams, team.Name)
 	}
 	return teams, nil
+}
+
+func (s *SettingService) GetTeams(ctx context.Context) ([]domain.Team, error) {
+	return s.repo.ListTeams(ctx)
 }
 
 // AddProfileTeam appends a new team choice while preventing case-insensitive duplicates.
@@ -72,22 +62,10 @@ func (s *SettingService) AddProfileTeam(ctx context.Context, name string) ([]str
 		return nil, errors.New("ชื่อทีมต้องไม่เกิน 50 ตัวอักษร")
 	}
 
-	teams, err := s.GetProfileTeams(ctx)
-	if err != nil {
+	if _, err := s.repo.CreateTeam(ctx, name, name); err != nil {
 		return nil, err
 	}
-	if !containsFold(teams, name) {
-		teams = append(teams, name)
-	}
-
-	encoded, err := json.Marshal(teams)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.Upsert(ctx, "profile_teams", string(encoded)); err != nil {
-		return nil, err
-	}
-	return teams, nil
+	return s.GetProfileTeams(ctx)
 }
 
 func containsFold(values []string, target string) bool {

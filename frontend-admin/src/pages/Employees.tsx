@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { addProfileTeam, fetchProfileTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
-import type { User } from '../types';
+import { addProfileTeam, fetchTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
+import type { Team, User } from '../types';
 
 export default function Employees() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
-  const [teams, setTeams] = useState<string[]>(['BD', 'Marketing', 'Graphic']);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
   const [addingTeam, setAddingTeam] = useState(false);
 
@@ -29,8 +29,8 @@ export default function Employees() {
 
   async function loadTeams() {
     try {
-      const data = await fetchProfileTeams();
-      if (data.length > 0) setTeams(data);
+      const data = await fetchTeams();
+      setTeams(data);
     } catch (err) {
       console.error('โหลดรายชื่อทีมล้มเหลว', err);
     }
@@ -114,10 +114,12 @@ export default function Employees() {
     if (!name) return;
     setAddingTeam(true);
     try {
-      const updatedTeams = await addProfileTeam(name);
+      const updatedNames = await addProfileTeam(name);
+      const updatedTeams = await fetchTeams();
       setTeams(updatedTeams);
-      const savedName = updatedTeams.find(team => team.toLowerCase() === name.toLowerCase()) || name;
-      setEditForm(current => ({ ...current, team: savedName }));
+      const savedTeam = updatedTeams.find(team => team.name.toLowerCase() === name.toLowerCase())
+        || updatedTeams.find(team => team.name.toLowerCase() === updatedNames.at(-1)?.toLowerCase());
+      setEditForm(current => ({ ...current, team_id: savedTeam?.id, team: savedTeam?.name || name }));
       setNewTeamName('');
     } catch (err) {
       console.error('เพิ่มทีมล้มเหลว:', err);
@@ -241,6 +243,7 @@ export default function Employees() {
                             nickname: user.nickname || '',
                             department: user.department,
                             position: user.position,
+                            team_id: user.team_id || null,
                             team: user.team || '',
                             role: user.role
                           });
@@ -412,29 +415,22 @@ export default function Employees() {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ตำแหน่ง</label>
-              <input 
-                type="text" 
-                value={editForm.position || ''} 
-                onChange={e => setEditForm({...editForm, position: e.target.value})}
-                className="form-control"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ทีม</label>
               <select
-                value={editForm.team || ''}
-                onChange={e => setEditForm({...editForm, team: e.target.value})}
+                value={editForm.team_id || ''}
+                onChange={e => {
+                  const selectedTeam = teams.find(team => team.id === e.target.value);
+                  setEditForm({
+                    ...editForm,
+                    team_id: selectedTeam?.id || null,
+                    team: selectedTeam?.name || '',
+                  });
+                }}
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
               >
                 <option value="">ยังไม่ระบุทีม</option>
-                {editForm.team && !teams.some(team => team.toLowerCase() === editForm.team?.toLowerCase()) && (
-                  <option value={editForm.team}>{editForm.team}</option>
-                )}
-                {teams.map(team => <option key={team} value={team}>{team}</option>)}
+                {teams.map(team => <option key={team.id} value={team.id}>{team.name} ({team.short_name})</option>)}
               </select>
               <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                 <input

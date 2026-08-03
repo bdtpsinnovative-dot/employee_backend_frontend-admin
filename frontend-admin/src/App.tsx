@@ -16,6 +16,7 @@ const Notifications = lazy(() => import('./pages/Notifications'));
 const TaskLogs = lazy(() => import('./pages/TaskLogs'));
 const BackupCenter = lazy(() => import('./pages/BackupCenter'));
 const Profile = lazy(() => import('./pages/Profile'));
+const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities'));
 
 import { fetchMe } from './services/adminApi';
 
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="daily-record" element={<DailyRecord />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
+            <Route path="brand-responsibilities" element={<BrandResponsibilities />} />
             <Route path="tasks/:taskId" element={<TaskDetail />} />
             <Route path="task-logs" element={<TaskLogs />} />
             <Route path="notifications" element={<Notifications />} />

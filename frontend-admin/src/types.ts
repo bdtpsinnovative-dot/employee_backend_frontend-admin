@@ -8,12 +8,26 @@ export interface User {
   last_name: string;
   nickname?: string;
   department: string;
+  team_id?: string | null;
+  team_name?: string;
+  team_short_name?: string;
+  // Compatibility fields returned by the API while other clients migrate.
   position: string;
   team: string;
   role: 'employee' | 'admin';
   status: 'pending' | 'active' | 'disabled';
   device_id?: string;
   avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  short_name: string;
+  sort_order: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

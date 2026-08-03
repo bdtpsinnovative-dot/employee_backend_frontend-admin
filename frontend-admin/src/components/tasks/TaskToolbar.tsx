@@ -114,7 +114,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
             >
               <Settings className="w-4 h-4 text-slate-500" />
-              <span>จัดการ แบรนด์ & หมวดหมู่</span>
+              <span>ตั้งค่าแบรนด์และผู้รับผิดชอบ</span>
             </button>
           )}
 

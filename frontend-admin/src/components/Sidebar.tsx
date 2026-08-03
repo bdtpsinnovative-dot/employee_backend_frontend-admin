@@ -137,6 +137,11 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       <NavLink to="/tasks" className={navLinkClass}>
         <i className="fa-solid fa-clipboard-list"></i> จัดการงาน
       </NavLink>
+      {isAdmin && (
+        <NavLink to="/brand-responsibilities" className={navLinkClass}>
+          <i className="fa-solid fa-sitemap"></i> ตั้งค่าแบรนด์และผู้รับผิดชอบ
+        </NavLink>
+      )}
 
       <div className="menu-category">การปฏิบัติงาน</div>
       <NavLink to="/daily-record" className={navLinkClass}>

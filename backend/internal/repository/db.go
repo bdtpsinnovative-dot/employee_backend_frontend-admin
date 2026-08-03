@@ -58,7 +58,6 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT;
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT '';
-		ALTER TABLE users ADD COLUMN IF NOT EXISTS team TEXT NOT NULL DEFAULT '';
 		CREATE TABLE IF NOT EXISTS settings (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL

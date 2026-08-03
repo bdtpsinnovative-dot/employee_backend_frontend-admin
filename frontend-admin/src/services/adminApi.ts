@@ -18,6 +18,7 @@ import type {
   TaskSubItem,
   TaskList,
   BackupJob,
+  Team,
   BackupConfig,
 } from '../types';
 
@@ -84,6 +85,11 @@ export async function fetchProfileTeams(): Promise<string[]> {
 
 export async function addProfileTeam(name: string): Promise<string[]> {
   const { data } = await api.post<ApiResponse<string[]>>('/admin/settings/profile-teams', { name });
+  return data.data ?? [];
+}
+
+export async function fetchTeams(): Promise<Team[]> {
+  const { data } = await api.get<ApiResponse<Team[]>>('/admin/settings/teams');
   return data.data ?? [];
 }
 

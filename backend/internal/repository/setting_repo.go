@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -35,4 +37,46 @@ func (r *SettingRepo) Upsert(ctx context.Context, key string, value string) erro
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
 	`, key, value)
 	return err
+}
+
+func (r *SettingRepo) ListTeams(ctx context.Context) ([]domain.Team, error) {
+	var teams []domain.Team
+	err := r.db.SelectContext(ctx, &teams, `
+		SELECT id, name, short_name, sort_order, is_active, created_at, updated_at
+		FROM teams
+		WHERE is_active = TRUE
+		ORDER BY sort_order ASC, name ASC
+	`)
+	return teams, err
+}
+
+func (r *SettingRepo) CreateTeam(ctx context.Context, name, shortName string) (domain.Team, error) {
+	var team domain.Team
+	err := r.db.GetContext(ctx, &team, `
+		INSERT INTO teams (name, short_name, sort_order)
+		VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM teams), 0))
+		RETURNING id, name, short_name, sort_order, is_active, created_at, updated_at
+	`, name, shortName)
+	if err != nil {
+		return domain.Team{}, err
+	}
+	return team, nil
+}
+
+func (r *SettingRepo) FindTeamID(ctx context.Context, value string) (*uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.db.GetContext(ctx, &id, `
+		SELECT id FROM teams
+		WHERE lower(btrim(name)) = lower(btrim($1))
+		   OR lower(btrim(short_name)) = lower(btrim($1))
+		ORDER BY sort_order, name
+		LIMIT 1
+	`, value)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
 }

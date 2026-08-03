@@ -13,6 +13,7 @@ const ADMIN_ONLY_ROUTES = [
   '/employees',
   '/holidays',
   '/backups',
+  '/brand-responsibilities',
   '/history',
   '/task-logs'
 ];
@@ -265,6 +266,22 @@ export default function AdminLayout() {
             >
               <i className="fa-solid fa-clipboard-list text-sm"></i>
             </NavLink>
+
+            {isAdmin && (
+              <NavLink
+                to="/brand-responsibilities"
+                title="ตั้งค่าแบรนด์และผู้รับผิดชอบ"
+                className={({ isActive }) =>
+                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  }`
+                }
+              >
+                <i className="fa-solid fa-sitemap text-sm"></i>
+              </NavLink>
+            )}
 
             <NavLink
               to="/daily-record"

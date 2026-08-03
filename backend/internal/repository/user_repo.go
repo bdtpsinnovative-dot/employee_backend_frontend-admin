@@ -21,7 +21,7 @@ func NewUserRepo(db *sqlx.DB) *UserRepo {
 // ใช้ตอน JWT middleware ดึงข้อมูล user หลังจาก verify token สำเร็จ
 func (r *UserRepo) FindByAuthID(ctx context.Context, authID uuid.UUID) (*domain.User, error) {
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT id, auth_id, email, first_name, last_name, nickname, department, position, team, role, status, device_id, avatar_url, fcm_token, face_embedding::text AS face_embedding, created_at, updated_at FROM users WHERE auth_id = $1`, authID)
+	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, COALESCE(t.short_name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id WHERE u.auth_id = $1`, authID)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (r *UserRepo) FindByAuthID(ctx context.Context, authID uuid.UUID) (*domain.
 // FindByID ค้นหา user จาก primary key
 func (r *UserRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT id, auth_id, email, first_name, last_name, nickname, department, position, team, role, status, device_id, avatar_url, fcm_token, face_embedding::text AS face_embedding, created_at, updated_at FROM users WHERE id = $1`, id)
+	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, COALESCE(t.short_name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id WHERE u.id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (r *UserRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, er
 // FindByEmail ค้นหา user จาก email
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT id, auth_id, email, first_name, last_name, nickname, department, position, team, role, status, device_id, avatar_url, fcm_token, face_embedding::text AS face_embedding, created_at, updated_at FROM users WHERE email = $1`, email)
+	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, COALESCE(t.short_name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id WHERE u.email = $1`, email)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +51,8 @@ func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*domain.User,
 // Create สร้าง user ใหม่ (สถานะ pending รอ Admin อนุมัติ)
 func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO users (id, auth_id, email, first_name, last_name, nickname, department, position, team, role, status, device_id, avatar_url, face_embedding)
-		VALUES (:id, :auth_id, :email, :first_name, :last_name, :nickname, :department, :position, :team, :role, :status, :device_id, :avatar_url, :face_embedding)
+		INSERT INTO users (id, auth_id, email, first_name, last_name, nickname, department, team_id, role, status, device_id, avatar_url, face_embedding)
+		VALUES (:id, :auth_id, :email, :first_name, :last_name, :nickname, :department, :team_id, :role, :status, :device_id, :avatar_url, :face_embedding)
 	`, user)
 	return err
 }
@@ -65,12 +65,20 @@ func (r *UserRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string
 
 // UpdateProfileAndRole อัปเดตข้อมูลพนักงานและสิทธิ์ (admin เท่านั้นที่ทำได้)
 // ponytail: minimum needed to edit user profile
-func (r *UserRepo) UpdateProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, department, position, team, role string) error {
+func (r *UserRepo) UpdateProfileAndRole(ctx context.Context, id uuid.UUID, firstName, lastName, nickname, department string, teamID *uuid.UUID, legacyTeam, role string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE users 
-		SET first_name = $1, last_name = $2, nickname = $3, department = $4, position = $5, team = $6, role = $7, updated_at = NOW()
+		SET first_name = $1, last_name = $2, nickname = $3, department = $4,
+		    team_id = COALESCE($5, (
+		      SELECT t.id FROM teams t
+		      WHERE lower(btrim(t.name)) = lower(btrim($6))
+		         OR lower(btrim(t.short_name)) = lower(btrim($6))
+		      ORDER BY t.sort_order, t.name
+		      LIMIT 1
+		    )),
+		    role = $7, updated_at = NOW()
 		WHERE id = $8`,
-		firstName, lastName, nickname, department, position, team, role, id)
+		firstName, lastName, nickname, department, teamID, legacyTeam, role, id)
 	return err
 }
 
@@ -136,7 +144,7 @@ func (r *UserRepo) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstNam
 // ListAll ดึงรายชื่อพนักงานทั้งหมด (สำหรับ Admin)
 func (r *UserRepo) ListAll(ctx context.Context) ([]domain.User, error) {
 	var users []domain.User
-	err := r.db.SelectContext(ctx, &users, `SELECT id, auth_id, email, first_name, last_name, nickname, department, position, team, role, status, device_id, avatar_url, fcm_token, created_at, updated_at FROM users ORDER BY created_at DESC`)
+	err := r.db.SelectContext(ctx, &users, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, COALESCE(t.short_name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id ORDER BY u.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}

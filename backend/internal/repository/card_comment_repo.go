@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // ─── CardAssigneeRepo ─────────────────────────────────────────────────────────
@@ -24,9 +24,10 @@ func NewCardAssigneeRepo(db *sqlx.DB) *CardAssigneeRepo {
 func (r *CardAssigneeRepo) ListByCard(ctx context.Context, cardID uuid.UUID) ([]domain.UserSummary, error) {
 	var users []domain.UserSummary
 	err := r.db.SelectContext(ctx, &users, `
-		SELECT u.id, u.first_name, u.last_name, u.avatar_url, u.position
+		SELECT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
 		FROM card_assignees ca
 		JOIN users u ON u.id = ca.user_id
+		LEFT JOIN teams t ON t.id = u.team_id
 		WHERE ca.card_id = $1
 		ORDER BY ca.created_at ASC
 	`, cardID)
@@ -47,9 +48,10 @@ func (r *CardAssigneeRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID)
 	}
 
 	query, args, err := sqlx.In(`
-		SELECT ca.card_id, u.id, u.first_name, u.last_name, u.avatar_url, u.position
+		SELECT ca.card_id, u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
 		FROM card_assignees ca
 		JOIN users u ON u.id = ca.user_id
+		LEFT JOIN teams t ON t.id = u.team_id
 		WHERE ca.card_id IN (?)
 		ORDER BY ca.created_at ASC
 	`, cardIDs)
@@ -136,9 +138,10 @@ func (r *CardCommentRepo) ListByCard(ctx context.Context, cardID uuid.UUID, curs
 			u.first_name AS author_first_name,
 			u.last_name  AS author_last_name,
 			u.avatar_url AS author_avatar_url,
-			u.position   AS author_position
+			COALESCE(t.short_name, '') AS author_position
 		FROM card_comments cc
 		JOIN users u ON u.id = cc.author_id
+		LEFT JOIN teams t ON t.id = u.team_id
 		WHERE cc.card_id = $1
 	`
 	args := []any{cardID}
