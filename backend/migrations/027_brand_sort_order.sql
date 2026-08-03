@@ -10,6 +10,6 @@ UPDATE brands b
 SET sort_order = ranked.next_order
 FROM ranked
 WHERE b.id = ranked.id
-  AND b.sort_order = 0;
+  AND NOT EXISTS (SELECT 1 FROM brands WHERE sort_order <> 0);
 
 CREATE INDEX IF NOT EXISTS idx_brands_sort_order ON brands(sort_order, name);

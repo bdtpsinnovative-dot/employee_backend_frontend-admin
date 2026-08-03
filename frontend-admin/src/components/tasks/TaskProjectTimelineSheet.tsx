@@ -852,6 +852,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     return bTime - aTime;
   });
 
+  // Notes are optional and usually empty. Keep the main timeline compact until
+  // at least one row actually contains a note.
+  const showNoteColumn = sortedLists.some((list) => Boolean(list.admin_comment?.trim()));
+
   const renderedRows = sortedLists.map((list: TaskList) => {
     const listPriority = list.priority || 'medium';
     const listStatus = list.status || 'in_progress';
@@ -968,16 +972,17 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         </td>
 
         {/* 6. STATUS */}
-        <td className="px-3 py-2 border-r border-slate-200 text-center align-middle">
+        <td className="w-28 min-w-[92px] px-2 py-2 border-r border-slate-200 text-center align-middle">
           {activeFilter === 'trash' ? (
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-750 border border-red-200">
+            <span className="inline-flex items-center justify-center whitespace-nowrap px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-750 border border-red-200">
               เหลือ {getRemainingDays(list.deleted_at)} วัน
             </span>
           ) : (
             (() => {
               const statusCfg = SUB_TASK_STATUS_CONFIG[listStatus] || SUB_TASK_STATUS_CONFIG.in_progress;
               return (
-                <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                <span className={`inline-flex items-center justify-center gap-1 whitespace-nowrap px-2 py-0.5 text-[10px] font-bold rounded-full border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                  {listStatus === 'completed' && <CheckCircle2 className="w-3 h-3 shrink-0" />}
                   {statusCfg.label}
                 </span>
               );
@@ -1015,9 +1020,18 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         </td>
 
         {/* 8. NOTE / REMARK */}
-        <td className="px-4 py-3 border-r border-slate-200 align-middle text-slate-700 text-xs max-w-[250px]">
-          <div className="line-clamp-2" title={listNote}>{listNote || '-'}</div>
-        </td>
+        {showNoteColumn && (
+          <td className="w-40 max-w-[180px] px-3 py-3 border-r border-slate-200 align-middle text-slate-700 text-xs">
+            {listNote ? (
+              <div className="flex items-start gap-1.5 min-w-0" title={listNote}>
+                <FileText className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-500" />
+                <span className="line-clamp-2">{listNote}</span>
+              </div>
+            ) : (
+              <span className="text-slate-400">-</span>
+            )}
+          </td>
+        )}
 
         {/* 9. LINK / FILES */}
         <td className="px-2 py-2 align-middle font-semibold" style={{ minWidth: 80 }} onClick={(e) => e.stopPropagation()}>
@@ -1204,7 +1218,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
           {/* Table Container */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs font-sans min-w-[950px]">
+            <table className={`w-full text-left border-collapse text-xs font-sans ${showNoteColumn ? 'min-w-[950px]' : 'min-w-[860px]'}`}>
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">DUE DATE</th>
@@ -1212,13 +1226,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   <th className="px-3 py-3 w-24 text-center border-r border-slate-200">PRIORITY</th>
                   <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">DETAILS</th>
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">ASSIGNMENT</th>
-                  <th className="px-3 py-3 w-24 text-center border-r border-slate-200">
+                  <th className="w-28 min-w-[92px] px-2 py-3 text-center border-r border-slate-200 whitespace-nowrap">
                     {activeFilter === 'trash' ? 'REMAINING' : 'STATUS'}
                   </th>
                   <th className="px-2 py-3 w-16 text-center border-r border-slate-200">
                     {activeFilter === 'trash' ? 'RESTORE' : 'LIST'}
                   </th>
-                  <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">NOTE / REMARK</th>
+                  {showNoteColumn && (
+                    <th className="w-40 max-w-[180px] px-3 py-3 border-r border-slate-200">NOTE</th>
+                  )}
                   <th className="px-2 py-3 w-[80px] text-center">LINK / FILES</th>
                 </tr>
               </thead>
@@ -1227,7 +1243,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   renderedRows
                 ) : (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
+                    <td colSpan={showNoteColumn ? 9 : 8} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
                       ยังไม่ได้เพิ่มงานย่อย
                     </td>
                   </tr>

@@ -58,7 +58,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
-  const isAdmin = currentUser ? currentUser.role === 'admin' : true;
+  const isAdmin = currentUser?.role === 'admin';
 
   async function handleLogout() {
     await supabase.auth.signOut();

@@ -134,6 +134,26 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 	`)
 
 	// ลบงานและคอร์สงานในถังขยะที่อายุเกิน 30 วันทันทีตอนสตาร์ทระบบ
+	// Brand ordering is used by the responsibility matrix. Keep this idempotent
+	// so production instances recover automatically when the migration was not
+	// applied manually before deploying the new backend.
+	if _, err := db.Exec(`
+		ALTER TABLE brands
+			ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+		WITH ranked AS (
+			SELECT id, ROW_NUMBER() OVER (ORDER BY name ASC) - 1 AS next_order
+			FROM brands
+		)
+		UPDATE brands b
+		SET sort_order = ranked.next_order
+		FROM ranked
+		WHERE b.id = ranked.id
+		  AND NOT EXISTS (SELECT 1 FROM brands WHERE sort_order <> 0);
+		CREATE INDEX IF NOT EXISTS idx_brands_sort_order ON brands(sort_order, name);
+	`); err != nil {
+		log.Printf("[DB Init] brand sort order migration failed: %v", err)
+	}
+
 	_, err = db.Exec(`
 		DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';
 		DELETE FROM task_lists WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days';

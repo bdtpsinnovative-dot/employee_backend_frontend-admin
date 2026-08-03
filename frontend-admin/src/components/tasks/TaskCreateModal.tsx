@@ -69,6 +69,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(initialAssignees);
   const [autoBrandAssigneeIds, setAutoBrandAssigneeIds] = useState<string[]>([]);
+  const [lockedAssigneeIds, setLockedAssigneeIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState(initialData?.brand_id || '');
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   const [priority, setPriority] = useState<string>(initialData?.priority || 'low');
@@ -93,8 +94,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       const initAssignees = initialData?.assignee_ids && initialData.assignee_ids.length > 0
         ? initialData.assignee_ids
         : initialData?.assigned_to ? [initialData.assigned_to] : [];
-      setSelectedAssignees(initAssignees);
+      const currentUserAssigneeIds = !initialData && currentUser?.id ? [currentUser.id] : [];
+      setSelectedAssignees(Array.from(new Set([...currentUserAssigneeIds, ...initAssignees])));
       setAutoBrandAssigneeIds([]);
+      setLockedAssigneeIds(currentUserAssigneeIds);
       setBrandId(initialData?.brand_id || '');
       setCategoryId(initialData?.category_id || '');
       setPriority(initialData?.priority || 'low');
@@ -108,7 +111,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
         setBoards([]); 
       }
     }
-  }, [isOpen, initialData, defaultStatus]);
+  }, [isOpen, initialData, defaultStatus, currentUser?.id]);
 
   if (!isOpen) return null;
 
@@ -185,6 +188,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       // Reset form
       setTitle(''); setDesc(''); setDueDate('');
       setSelectedAssignees([]); setBrandId(''); setCategoryId('');
+      setLockedAssigneeIds([]);
       setPriority('low'); setStatus('pending');
       setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
       onClose();
@@ -303,6 +307,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                   const u = users.find(usr => usr.id === uid);
                   if (!u) return null;
                   const isAutoAssigned = autoBrandAssigneeIds.includes(u.id);
+                  const isLocked = isAutoAssigned || lockedAssigneeIds.includes(u.id);
                   return (
                     <div key={u.id} className="relative group">
                       <img
@@ -311,7 +316,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                         className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-xs"
                         title={isAutoAssigned ? `${u.nickname || u.first_name} (ผู้เกี่ยวข้องอัตโนมัติ)` : (u.nickname || u.first_name)}
                       />
-                      {isAutoAssigned ? (
+                      {isLocked ? (
                         <span
                           className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600 shadow-sm"
                           title="ผู้เกี่ยวข้องอัตโนมัติ ลบไม่ได้"
@@ -477,7 +482,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                                 key={user.id}
                                 type="button"
                                 onClick={() => {
-                                  if (isSelected && autoBrandAssigneeIds.includes(user.id)) return;
+                                  const isLocked = autoBrandAssigneeIds.includes(user.id) || lockedAssigneeIds.includes(user.id);
+                                  if (isSelected && isLocked) return;
                                   setSelectedAssignees(current => current.includes(user.id)
                                     ? current.filter(id => id !== user.id)
                                     : [...current, user.id]);
@@ -489,9 +495,9 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                                   isSelected
                                     ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                     : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60'
-                                } ${isSelected && autoBrandAssigneeIds.includes(user.id) ? 'cursor-not-allowed opacity-90' : ''}`}
+                                } ${isSelected && (autoBrandAssigneeIds.includes(user.id) || lockedAssigneeIds.includes(user.id)) ? 'cursor-not-allowed opacity-90' : ''}`}
                                 aria-pressed={isSelected}
-                                title={isSelected && autoBrandAssigneeIds.includes(user.id)
+                                title={isSelected && (autoBrandAssigneeIds.includes(user.id) || lockedAssigneeIds.includes(user.id))
                                   ? `${user.nickname || user.first_name} (ผู้เกี่ยวข้องอัตโนมัติ ลบไม่ได้)`
                                   : isSelected ? `ยกเลิก ${user.nickname || user.first_name}` : `เลือก ${user.nickname || user.first_name}`}
                               >

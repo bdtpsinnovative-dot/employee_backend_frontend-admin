@@ -14,7 +14,7 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
-  const isAdmin = currentUser ? currentUser.role === 'admin' : true; // Default to true during initial load
+  const isAdmin = currentUser?.role === 'admin';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser
     ? `${currentUser.first_name} ${currentUser.last_name}${currentUser.nickname ? ` (${currentUser.nickname})` : ''}`.trim()
@@ -24,8 +24,8 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
   useEffect(() => {
-    loadPendingCount();
-  }, []);
+    if (isAdmin) void loadPendingCount();
+  }, [isAdmin]);
 
   async function loadPendingCount() {
     try {

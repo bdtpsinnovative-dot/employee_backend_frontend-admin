@@ -30,7 +30,12 @@ api.interceptors.response.use(
       error?.message ||
       'Request failed';
 
-    return Promise.reject(new Error(message));
+    // Keep the original Axios error so callers can inspect response.status
+    // and fall back from admin-only endpoints for employee accounts.
+    if (error && typeof error === 'object') {
+      error.message = message;
+    }
+    return Promise.reject(error);
   }
 );
 
