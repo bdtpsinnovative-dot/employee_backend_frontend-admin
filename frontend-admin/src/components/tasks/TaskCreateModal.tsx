@@ -451,7 +451,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="m-0 text-[11px] font-bold text-slate-700">ผู้เกี่ยวข้องกับแบรนด์</p>
-                    <p className="m-0 mt-0.5 text-[9px] text-slate-400">ระบบเลือกผู้เกี่ยวข้องทุกฝ่ายให้อัตโนมัติ และกดยกเลิกเป็นรายคนได้</p>
+                    <p className="m-0 mt-0.5 text-[9px] text-slate-400">ระบบเลือกทีมก่อนหน้าทีมของคุณอัตโนมัติ ส่วนทีมของคุณเลือกเพิ่มเองได้</p>
                   </div>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
                     เฉพาะบัญชีที่ใช้งานอยู่

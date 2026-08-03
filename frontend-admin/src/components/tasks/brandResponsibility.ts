@@ -62,8 +62,18 @@ export function getAutoBrandAssigneeIDs(
   users: User[],
   currentUser?: User | null,
 ): string[] {
+  const visibleGroups = getVisibleBrandResponsibilityGroups(brand, users, currentUser);
+  const mappedGroup = [...visibleGroups].reverse().find(group => (
+    currentUser ? group.users.some(user => user.id === currentUser.id) : false
+  ));
+  const currentTeamType = mappedGroup?.type ?? getResponsibilityTypeForUser(currentUser);
+
   return Array.from(new Set(
-    getVisibleBrandResponsibilityGroups(brand, users, currentUser)
+    visibleGroups
+      // The group where the current user is mapped remains visible for manual
+      // selection, but is not added automatically. Earlier groups are still
+      // auto-assigned, even if the user's profile team has a different value.
+      .filter(group => group.type !== currentTeamType)
       .flatMap(group => group.users.map(user => user.id)),
   ));
 }
