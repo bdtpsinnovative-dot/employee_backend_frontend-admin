@@ -125,6 +125,11 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
         </NavLink>
       )}
       {isAdmin && (
+        <NavLink to="/teams" className={navLinkClass}>
+          <i className="fa-solid fa-users-gear"></i> จัดการทีมและตำแหน่ง
+        </NavLink>
+      )}
+      {isAdmin && (
         <NavLink to="/holidays" className={navLinkClass}>
           <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
         </NavLink>

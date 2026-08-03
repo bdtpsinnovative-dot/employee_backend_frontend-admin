@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -90,6 +91,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		Nickname   string `json:"nickname"`
 		Department string `json:"department"`
 		TeamID     string `json:"team_id"`
+		PositionID string `json:"position_id"`
 		Team       string `json:"team"`
 		Role       string `json:"role"`
 	}
@@ -108,8 +110,19 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		teamID = &parsedTeamID
 	}
 
-	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Nickname, req.Department, teamID, req.Team, req.Role)
+	var positionID *uuid.UUID
+	if strings.TrimSpace(req.PositionID) != "" {
+		parsedPositionID, parseErr := uuid.Parse(strings.TrimSpace(req.PositionID))
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "position_id ไม่ถูกต้อง"})
+			return
+		}
+		positionID = &parsedPositionID
+	}
+
+	err = h.userSvc.UpdateUserProfileAndRole(c.Request.Context(), id, req.FirstName, req.LastName, req.Nickname, req.Department, teamID, positionID, req.Team, req.Role)
 	if err != nil {
+		log.Printf("[UpdateUser Error] userID=%s teamID=%q positionID=%q role=%q: %v", id, req.TeamID, req.PositionID, req.Role, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปเดตข้อมูลล้มเหลว"})
 		return
 	}

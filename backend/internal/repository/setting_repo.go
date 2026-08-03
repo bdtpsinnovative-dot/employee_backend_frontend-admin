@@ -63,6 +63,38 @@ func (r *SettingRepo) CreateTeam(ctx context.Context, name, shortName string) (d
 	return team, nil
 }
 
+func (r *SettingRepo) ListPositions(ctx context.Context, teamID *uuid.UUID) ([]domain.Position, error) {
+	var positions []domain.Position
+	query := `
+		SELECT id, team_id, name, sort_order, is_active, created_at, updated_at
+		FROM positions
+		WHERE is_active = TRUE
+	`
+	args := []any{}
+	if teamID != nil {
+		query += ` AND team_id = $1`
+		args = append(args, *teamID)
+	}
+	query += ` ORDER BY sort_order ASC, name ASC`
+	if err := r.db.SelectContext(ctx, &positions, query, args...); err != nil {
+		return nil, err
+	}
+	return positions, nil
+}
+
+func (r *SettingRepo) CreatePosition(ctx context.Context, teamID uuid.UUID, name string) (domain.Position, error) {
+	var position domain.Position
+	err := r.db.GetContext(ctx, &position, `
+		INSERT INTO positions (team_id, name, sort_order)
+		VALUES ($1, $2, COALESCE((SELECT MAX(sort_order) + 1 FROM positions WHERE team_id = $1), 0))
+		RETURNING id, team_id, name, sort_order, is_active, created_at, updated_at
+	`, teamID, name)
+	if err != nil {
+		return domain.Position{}, err
+	}
+	return position, nil
+}
+
 func (r *SettingRepo) FindTeamID(ctx context.Context, value string) (*uuid.UUID, error) {
 	var id uuid.UUID
 	err := r.db.GetContext(ctx, &id, `

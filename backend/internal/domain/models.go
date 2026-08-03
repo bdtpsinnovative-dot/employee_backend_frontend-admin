@@ -19,8 +19,8 @@ type User struct {
 	Nickname   string     `db:"nickname" json:"nickname"`
 	Department string     `db:"department" json:"department"`
 	TeamID     *uuid.UUID `db:"team_id" json:"team_id,omitempty"`
-	// Position and Team are compatibility fields populated from teams.short_name/name.
-	// They are no longer stored on users as text columns.
+	PositionID *uuid.UUID `db:"position_id" json:"position_id,omitempty"`
+	// Position and Team are joined display fields populated from positions.name and teams.name.
 	Position      string    `db:"position" json:"position"`
 	Team          string    `db:"team" json:"team"`
 	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
@@ -39,6 +39,17 @@ type Team struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Name      string    `db:"name" json:"name"`
 	ShortName string    `db:"short_name" json:"short_name"`
+	SortOrder int       `db:"sort_order" json:"sort_order"`
+	IsActive  bool      `db:"is_active" json:"is_active"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Position is a job position belonging to one team.
+type Position struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	TeamID    uuid.UUID `db:"team_id" json:"team_id"`
+	Name      string    `db:"name" json:"name"`
 	SortOrder int       `db:"sort_order" json:"sort_order"`
 	IsActive  bool      `db:"is_active" json:"is_active"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
@@ -252,6 +263,7 @@ type AppSetting struct {
 type Brand struct {
 	ID                 uuid.UUID             `db:"id" json:"id"`
 	Name               string                `db:"name" json:"name"`
+	SortOrder          int                   `db:"sort_order" json:"sort_order"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ResponsibleUserIDs []uuid.UUID           `db:"-" json:"responsible_user_ids"`
 	Responsibilities   []BrandResponsibility `db:"-" json:"responsibilities"`

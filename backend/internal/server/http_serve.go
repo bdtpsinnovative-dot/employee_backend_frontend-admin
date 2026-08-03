@@ -337,6 +337,9 @@ func registerRoutes(
 		admin.GET("/settings/profile-teams", settingH.GetProfileTeams)
 		admin.POST("/settings/profile-teams", settingH.AddProfileTeam)
 		admin.GET("/settings/teams", settingH.GetTeams)
+		admin.POST("/settings/teams", settingH.CreateTeam)
+		admin.GET("/settings/positions", settingH.GetPositions)
+		admin.POST("/settings/positions", settingH.CreatePosition)
 
 		admin.GET("/users/:id/quota", leaveH.GetUserQuota)    // ดูโควต้าวันลาพนักงาน
 		admin.PUT("/users/:id/quota", leaveH.UpdateUserQuota) // อัปเดตโควต้าวันลาพนักงาน
@@ -368,9 +371,10 @@ func registerRoutes(
 		admin.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems) // ดึง sub-items ของ task
 
 		// จัดการ Brand
-		admin.GET("/brands", brandCategoryH.ListBrands)         // ดึง Brand ทั้งหมด
-		admin.POST("/brands", brandCategoryH.CreateBrand)       // เพิ่ม Brand ใหม่
-		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand) // ลบ Brand
+		admin.GET("/brands", brandCategoryH.ListBrands)          // ดึง Brand ทั้งหมด
+		admin.POST("/brands", brandCategoryH.CreateBrand)        // เพิ่ม Brand ใหม่
+		admin.PUT("/brands/order", brandCategoryH.ReorderBrands) // จัดลำดับ Brand
+		admin.DELETE("/brands/:id", brandCategoryH.DeleteBrand)  // ลบ Brand
 		admin.PUT("/brands/:id/responsibilities", brandCategoryH.UpdateBrandResponsibilities)
 
 		// จัดการหมวดหมู่งาน (Task Categories)

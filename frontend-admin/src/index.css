@@ -20,6 +20,33 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); } ::-webkit-scrollbar-thumb { background: rgba(37, 99, 235, 0.35); border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: rgba(37, 99, 235, 0.55); }
 
     .right-panel, .stat-card, .table-card, .record-controls, .modal-box, .history-filters, .login-left, .glass-panel { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+
+    /* Employee editor: keep every field visible and compact on light backgrounds. */
+    .employee-edit-modal { width: 100% !important; max-width: 680px !important; max-height: 92vh; overflow-y: auto; padding: 24px !important; color: #1E293B; background: #FFFFFF !important; border: 1px solid #E2E8F0; border-radius: 20px !important; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18); }
+    .employee-edit-modal h3 { margin: 0 0 20px !important; color: #0F172A; font-size: 20px; line-height: 1.3; }
+    .employee-edit-modal > div:nth-of-type(1) { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px !important; margin-bottom: 16px !important; }
+    .employee-edit-modal > div:nth-of-type(2) { display: none !important; }
+    .employee-edit-modal > div:nth-of-type(3), .employee-edit-modal > div:nth-of-type(4), .employee-edit-modal > div:nth-of-type(5) { margin-bottom: 16px !important; }
+    .employee-edit-modal > div:nth-of-type(3) > div { display: none !important; }
+    .employee-edit-modal > div:nth-of-type(6) { display: flex !important; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .employee-edit-actions { position: sticky; bottom: -24px; z-index: 5; display: flex !important; justify-content: flex-end !important; gap: 10px; margin: 22px -24px -24px !important; padding: 14px 24px 24px; border-top: 1px solid #E2E8F0; background: #FFFFFF; }
+    .employee-edit-modal label { display: block !important; margin: 0 0 6px !important; color: #64748B !important; font-size: 12px !important; font-weight: 600; }
+    .employee-edit-modal .form-control { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid #CBD5E1 !important; border-radius: 10px; background: #FFFFFF !important; color: #1E293B !important; font-size: 13px; }
+    .employee-edit-modal .form-control:focus { border-color: #6366F1 !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
+    .employee-edit-modal .form-control:disabled { background: #F1F5F9 !important; color: #94A3B8 !important; }
+    .employee-edit-modal .btn-secondary, .employee-edit-modal .btn-primary { min-height: 42px; padding: 9px 18px; border-radius: 10px; }
+    .employee-edit-modal .btn-secondary { background: #F8FAFC; color: #475569; border: 1px solid #CBD5E1; }
+    .employee-edit-actions .btn-primary { display: inline-flex !important; width: auto !important; min-width: 132px; align-items: center; justify-content: center; background: #2563EB !important; color: #FFFFFF !important; border: 0 !important; visibility: visible !important; opacity: 1 !important; }
+    .employee-table th:nth-child(4), .employee-table td:nth-child(4) { display: none; }
+
+    @media (max-width: 640px) {
+        .employee-edit-modal { padding: 18px !important; border-radius: 16px !important; }
+        .employee-edit-modal > div:nth-of-type(1) { grid-template-columns: 1fr; gap: 12px !important; }
+        .employee-edit-modal > div:nth-of-type(6) { flex-direction: column-reverse; }
+        .employee-edit-modal > div:nth-of-type(6) button { width: 100%; }
+        .employee-edit-actions { flex-direction: column-reverse; }
+        .employee-edit-actions button { width: 100%; }
+    }
     .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; width: var(--sidebar-width); height: 100%; min-height: 0; padding: 35px 25px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 1000; transition: 0.3s ease; border-radius: 0; overflow-x: hidden; overflow-y: auto; }
     .sidebar.collapsed { width: 0 !important; padding: 0 !important; opacity: 0; pointer-events: none; border: none !important; box-shadow: none !important; }
     .sidebar-overlay { display: none; }

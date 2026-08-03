@@ -32,7 +32,7 @@ func NewBrandRepo(db *sqlx.DB) *BrandRepo {
 // ListAll ดึง Brand ทั้งหมด เรียงตามชื่อ
 func (r *BrandRepo) ListAll(ctx context.Context) ([]domain.Brand, error) {
 	var brands []domain.Brand
-	err := r.db.SelectContext(ctx, &brands, `SELECT * FROM brands ORDER BY name ASC`)
+	err := r.db.SelectContext(ctx, &brands, `SELECT id, name, sort_order, created_at FROM brands ORDER BY sort_order ASC, name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -82,10 +82,32 @@ func (r *BrandRepo) ListAll(ctx context.Context) ([]domain.Brand, error) {
 // Create เพิ่ม Brand ใหม่
 func (r *BrandRepo) Create(ctx context.Context, b *domain.Brand) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO brands (id, name, created_at)
-		VALUES (:id, :name, :created_at)
+		INSERT INTO brands (id, name, sort_order, created_at)
+		VALUES (:id, :name, COALESCE((SELECT MAX(sort_order) + 1 FROM brands), 0), :created_at)
 	`, b)
 	return err
+}
+
+func (r *BrandRepo) Reorder(ctx context.Context, brandIDs []uuid.UUID) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var count int
+	if err := tx.GetContext(ctx, &count, `SELECT COUNT(*) FROM brands`); err != nil {
+		return err
+	}
+	if count != len(brandIDs) {
+		return errors.New("brand order must include every brand")
+	}
+	for index, brandID := range brandIDs {
+		if _, err := tx.ExecContext(ctx, `UPDATE brands SET sort_order = $1 WHERE id = $2`, index, brandID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // Delete ลบ Brand

@@ -9,6 +9,7 @@ export interface User {
   nickname?: string;
   department: string;
   team_id?: string | null;
+  position_id?: string | null;
   team_name?: string;
   team_short_name?: string;
   // Compatibility fields returned by the API while other clients migrate.
@@ -26,6 +27,16 @@ export interface Team {
   id: string;
   name: string;
   short_name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Position {
+  id: string;
+  team_id: string;
+  name: string;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -168,6 +179,7 @@ export interface LeaveQuota {
 export interface Brand {
   id: string;
   name: string;
+  sort_order: number;
   created_at: string;
   responsible_user_ids?: string[];
   responsibilities?: BrandResponsibility[];

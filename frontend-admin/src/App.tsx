@@ -17,6 +17,7 @@ const TaskLogs = lazy(() => import('./pages/TaskLogs'));
 const BackupCenter = lazy(() => import('./pages/BackupCenter'));
 const Profile = lazy(() => import('./pages/Profile'));
 const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities'));
+const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 
 import { fetchMe } from './services/adminApi';
 
@@ -120,6 +121,7 @@ export default function App() {
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="brand-responsibilities" element={<BrandResponsibilities />} />
+            <Route path="teams" element={<TeamManagement />} />
             <Route path="tasks/:taskId" element={<TaskDetail />} />
             <Route path="task-logs" element={<TaskLogs />} />
             <Route path="notifications" element={<Notifications />} />

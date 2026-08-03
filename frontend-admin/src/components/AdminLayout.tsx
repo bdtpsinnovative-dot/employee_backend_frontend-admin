@@ -14,6 +14,7 @@ const ADMIN_ONLY_ROUTES = [
   '/holidays',
   '/backups',
   '/brand-responsibilities',
+  '/teams',
   '/history',
   '/task-logs'
 ];

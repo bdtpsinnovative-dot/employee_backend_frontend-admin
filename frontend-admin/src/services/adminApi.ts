@@ -20,6 +20,7 @@ import type {
   BackupJob,
   Team,
   BackupConfig,
+  Position,
 } from '../types';
 
 // ────────────────── Backup & Restore ──────────────────
@@ -91,6 +92,29 @@ export async function addProfileTeam(name: string): Promise<string[]> {
 export async function fetchTeams(): Promise<Team[]> {
   const { data } = await api.get<ApiResponse<Team[]>>('/admin/settings/teams');
   return data.data ?? [];
+}
+
+export async function createTeam(name: string, shortName: string): Promise<Team> {
+  const { data } = await api.post<ApiResponse<Team>>('/admin/settings/teams', {
+    name,
+    short_name: shortName,
+  });
+  return data.data;
+}
+
+export async function fetchPositions(teamId?: string): Promise<Position[]> {
+  const { data } = await api.get<ApiResponse<Position[]>>('/admin/settings/positions', {
+    params: teamId ? { team_id: teamId } : undefined,
+  });
+  return data.data ?? [];
+}
+
+export async function createPosition(teamId: string, name: string): Promise<Position> {
+  const { data } = await api.post<ApiResponse<Position>>('/admin/settings/positions', {
+    team_id: teamId,
+    name,
+  });
+  return data.data;
 }
 
 export async function disableUser(id: string): Promise<void> {
@@ -266,6 +290,10 @@ export async function createBrand(name: string): Promise<Brand> {
 
 export async function deleteBrand(id: string): Promise<void> {
   await api.delete(`/admin/brands/${id}`);
+}
+
+export async function reorderBrands(brandIds: string[]): Promise<void> {
+  await api.put('/admin/brands/order', { brand_ids: brandIds });
 }
 
 export async function updateBrandResponsibilities(

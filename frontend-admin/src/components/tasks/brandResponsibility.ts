@@ -18,6 +18,19 @@ const responsibilityLabels: Record<BrandResponsibilityType, string> = {
 
 const responsibilityTypes: BrandResponsibilityType[] = ['bd', 'mkt', 'graphic'];
 
+const normalizeTeamKey = (value?: string | null) => (
+  (value || '').trim().toLowerCase().replace(/[^a-z]/g, '')
+);
+
+function getResponsibilityTypeForUser(user?: User | null): BrandResponsibilityType | null {
+  if (!user) return null;
+  const teamKey = normalizeTeamKey(user.team_short_name || user.team);
+  if (teamKey === 'bd' || teamKey.includes('businessdevelop')) return 'bd';
+  if (teamKey === 'mkt' || teamKey.includes('marketing')) return 'mkt';
+  if (teamKey === 'gp' || teamKey.includes('graphic')) return 'graphic';
+  return null;
+}
+
 export function getActiveBrandResponsibilityGroups(
   brand: Brand | undefined,
   users: User[],
@@ -47,9 +60,29 @@ export function getActiveBrandResponsibilityGroups(
 export function getAutoBrandAssigneeIDs(
   brand: Brand | undefined,
   users: User[],
+  currentUser?: User | null,
 ): string[] {
   return Array.from(new Set(
-    getActiveBrandResponsibilityGroups(brand, users)
+    getVisibleBrandResponsibilityGroups(brand, users, currentUser)
       .flatMap(group => group.users.map(user => user.id)),
   ));
+}
+
+export function getVisibleBrandResponsibilityGroups(
+  brand: Brand | undefined,
+  users: User[],
+  currentUser?: User | null,
+): BrandResponsibilityGroup[] {
+  const groups = getActiveBrandResponsibilityGroups(brand, users);
+  const teamType = getResponsibilityTypeForUser(currentUser);
+  const teamIndex = teamType ? responsibilityTypes.indexOf(teamType) : -1;
+  const mappedIndex = currentUser
+    ? groups.reduce((lastIndex, group, index) => (
+      group.users.some(user => user.id === currentUser.id) ? index : lastIndex
+    ), -1)
+    : -1;
+  const currentIndex = Math.max(teamIndex, mappedIndex);
+  if (currentIndex < 0) return groups.slice(0, 1);
+
+  return groups.slice(0, currentIndex + 1);
 }

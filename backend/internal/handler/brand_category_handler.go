@@ -414,6 +414,27 @@ func (h *BrandCategoryHandler) ListBrands(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": brands})
 }
 
+// ReorderBrands PUT /admin/brands/order
+func (h *BrandCategoryHandler) ReorderBrands(c *gin.Context) {
+	var req struct {
+		BrandIDs []string `json:"brand_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.BrandIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุลำดับ Brand"})
+		return
+	}
+	brandIDs, err := parseUniqueUUIDs(req.BrandIDs)
+	if err != nil || len(brandIDs) != len(req.BrandIDs) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รายการ Brand ไม่ถูกต้อง"})
+		return
+	}
+	if err := h.brandRepo.Reorder(c.Request.Context(), brandIDs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 // CreateBrand POST /admin/brands
 func (h *BrandCategoryHandler) CreateBrand(c *gin.Context) {
 	var req struct {
@@ -2336,19 +2357,21 @@ func (h *BrandCategoryHandler) GetTaskMembers(c *gin.Context) {
 	var members []domain.UserSummary
 	if projectID != nil {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
-			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(p.name, '') AS position
 			FROM project_members pm
 			JOIN users u ON u.id = pm.user_id
 			LEFT JOIN teams t ON t.id = u.team_id
+			LEFT JOIN positions p ON p.id = u.position_id
 			WHERE pm.project_id = $1 AND u.status = 'active'
 			ORDER BY u.first_name, u.last_name
 		`, *projectID)
 	} else {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
-			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(t.short_name, '') AS position
+			SELECT DISTINCT u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(p.name, '') AS position
 			FROM task_assignees ta
 			JOIN users u ON u.id = ta.user_id
 			LEFT JOIN teams t ON t.id = u.team_id
+			LEFT JOIN positions p ON p.id = u.position_id
 			WHERE ta.task_id = $1 AND u.status = 'active'
 			ORDER BY u.first_name, u.last_name
 		`, taskID)

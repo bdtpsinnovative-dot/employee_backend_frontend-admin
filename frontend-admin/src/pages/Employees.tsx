@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { addProfileTeam, fetchTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
-import type { Team, User } from '../types';
+import { addProfileTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
+import type { Position, Team, User } from '../types';
 
 export default function Employees() {
   const [users, setUsers] = useState<User[]>([]);
@@ -8,6 +8,7 @@ export default function Employees() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
   const [addingTeam, setAddingTeam] = useState(false);
 
@@ -25,6 +26,7 @@ export default function Employees() {
     loadUsers();
     loadMe();
     loadTeams();
+    loadPositions();
   }, []);
 
   async function loadTeams() {
@@ -33,6 +35,15 @@ export default function Employees() {
       setTeams(data);
     } catch (err) {
       console.error('โหลดรายชื่อทีมล้มเหลว', err);
+    }
+  }
+
+  async function loadPositions(teamId?: string) {
+    try {
+      const data = await fetchPositions(teamId);
+      setPositions(data);
+    } catch (err) {
+      console.error('โหลดรายการตำแหน่งล้มเหลว', err);
     }
   }
 
@@ -177,7 +188,7 @@ export default function Employees() {
 
   function renderTable(userList: User[], emptyMsg: string) {
     return (
-        <table>
+        <table className="employee-table">
           <thead>
             <tr>
               <th>ชื่อ-นามสกุล</th>
@@ -227,7 +238,7 @@ export default function Employees() {
                     )}
                   </td>
                   <td data-label="จัดการ" style={{ textAlign: 'right' }}>
-                    {user.id === currentAdminId ? (
+                    {user.id === '' ? (
                       <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic' }}>
                         (บัญชีของคุณ)
                       </span>
@@ -243,6 +254,7 @@ export default function Employees() {
                             nickname: user.nickname || '',
                             department: user.department,
                             position: user.position,
+                            position_id: user.position_id || null,
                             team_id: user.team_id || null,
                             team: user.team || '',
                             role: user.role
@@ -263,7 +275,7 @@ export default function Employees() {
                           <i className="fa-solid fa-check"></i> อนุมัติ
                         </button>
                       )}
-                      {user.status === 'active' && (
+                      {user.status === 'active' && user.id !== currentAdminId && (
                         <button
                           className="btn-reject"
                           disabled={actionLoading === user.id}
@@ -367,7 +379,7 @@ export default function Employees() {
       {/* Edit User Modal */}
       {editUser && (
         <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, padding: '20px' }}>
-          <div className="modal-content glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '25px', borderRadius: '16px' }}>
+          <div className="modal-content glass-panel employee-edit-modal" style={{ width: '100%', maxWidth: '680px', padding: '24px', borderRadius: '20px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px' }}>แก้ไขข้อมูลพนักงาน</h3>
             
             <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
@@ -423,8 +435,11 @@ export default function Employees() {
                   setEditForm({
                     ...editForm,
                     team_id: selectedTeam?.id || null,
+                    position_id: null,
+                    position: '',
                     team: selectedTeam?.name || '',
                   });
+                  void loadPositions(selectedTeam?.id);
                 }}
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
@@ -454,11 +469,36 @@ export default function Employees() {
               </div>
             </div>
 
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ตำแหน่ง</label>
+              <select
+                value={editForm.position_id || ''}
+                onChange={e => {
+                  const selectedPosition = positions.find(position => position.id === e.target.value);
+                  setEditForm({
+                    ...editForm,
+                    position_id: selectedPosition?.id || null,
+                    position: selectedPosition?.name || '',
+                  });
+                }}
+                className="form-control"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                disabled={!editForm.team_id}
+              >
+                <option value="">ยังไม่ระบุตำแหน่ง</option>
+                {positions.filter(position => position.team_id === editForm.team_id).map(position => (
+                  <option key={position.id} value={position.id}>{position.name}</option>
+                ))}
+              </select>
+              {!editForm.team_id && <div style={{ marginTop: '5px', fontSize: '12px', color: 'var(--text-gray)' }}>กรุณาเลือกทีมก่อน</div>}
+            </div>
+
             <div style={{ marginBottom: '25px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>สิทธิ์การใช้งาน (Role)</label>
               <select 
                 value={editForm.role || 'employee'} 
                 onChange={e => setEditForm({...editForm, role: e.target.value as 'employee' | 'admin'})}
+                disabled={editUser.id === currentAdminId}
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
               >
@@ -467,7 +507,7 @@ export default function Employees() {
               </select>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <div className="employee-edit-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button 
                 className="btn-secondary" 
                 onClick={() => setEditUser(null)}

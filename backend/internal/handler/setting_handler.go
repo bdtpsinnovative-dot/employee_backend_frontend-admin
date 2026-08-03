@@ -6,6 +6,7 @@ import (
 
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type SettingHandler struct {
@@ -69,6 +70,70 @@ func (h *SettingHandler) GetTeams(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": teams})
+}
+
+type createTeamBody struct {
+	Name      string `json:"name" binding:"required"`
+	ShortName string `json:"short_name" binding:"required"`
+}
+
+// CreateTeam POST /admin/settings/teams
+func (h *SettingHandler) CreateTeam(c *gin.Context) {
+	var body createTeamBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุชื่อทีมและชื่อย่อทีม"})
+		return
+	}
+	team, err := h.svc.CreateTeam(c.Request.Context(), body.Name, body.ShortName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": team})
+}
+
+// GetPositions GET /admin/settings/positions?team_id=<uuid>
+func (h *SettingHandler) GetPositions(c *gin.Context) {
+	var teamID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("team_id")); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "team_id ไม่ถูกต้อง"})
+			return
+		}
+		teamID = &parsed
+	}
+	positions, err := h.svc.GetPositions(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลตำแหน่งไม่สำเร็จ"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": positions})
+}
+
+type createPositionBody struct {
+	TeamID string `json:"team_id" binding:"required"`
+	Name   string `json:"name" binding:"required"`
+}
+
+// CreatePosition POST /admin/settings/positions
+func (h *SettingHandler) CreatePosition(c *gin.Context) {
+	var body createPositionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุทีมและชื่อตำแหน่ง"})
+		return
+	}
+	teamID, err := uuid.Parse(strings.TrimSpace(body.TeamID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "team_id ไม่ถูกต้อง"})
+		return
+	}
+	position, err := h.svc.CreatePosition(c.Request.Context(), teamID, body.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": position})
 }
 
 type addProfileTeamBody struct {

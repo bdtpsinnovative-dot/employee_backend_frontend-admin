@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Calendar, User, UsersRound, Check, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
+import { X, Plus, Trash2, Calendar, User, Check, Lock, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
 import {
-  getActiveBrandResponsibilityGroups,
+  getVisibleBrandResponsibilityGroups,
   getAutoBrandAssigneeIDs,
 } from './brandResponsibility';
 
@@ -132,7 +132,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       return;
     }
     const nextBrand = brands.find(brand => brand.id === nextBrandId);
-    const activeMappedAssigneeIds = getAutoBrandAssigneeIDs(nextBrand, users);
+    const activeMappedAssigneeIds = getAutoBrandAssigneeIDs(nextBrand, users, currentUser);
 
     const manualAssigneeIds = selectedAssignees.filter(
       id => !autoBrandAssigneeIds.includes(id),
@@ -200,32 +200,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     .filter(u => !selectedAssignees.includes(u.id));
 
   const selectedBrand = brands.find(brand => brand.id === brandId);
-  const brandResponsibilityGroups = getActiveBrandResponsibilityGroups(selectedBrand, users);
-
-  const teamGroups = Array.from(
-    users
-      .filter(u => u.id !== currentUser?.id && u.status === 'active' && u.team?.trim())
-      .reduce((groups, user) => {
-        const teamName = user.team.trim();
-        const existing = groups.get(teamName) || [];
-        existing.push(user);
-        groups.set(teamName, existing);
-        return groups;
-      }, new Map<string, UserType[]>())
-      .entries()
-  ).sort(([a], [b]) => a.localeCompare(b));
-
-  const toggleTeam = (members: UserType[]) => {
-    const memberIDs = members.map(member => member.id);
-    const allSelected = memberIDs.every(id => selectedAssignees.includes(id));
-    if (allSelected) {
-      setAutoBrandAssigneeIds(current => current.filter(id => !memberIDs.includes(id)));
-    }
-    setSelectedAssignees(current => allSelected
-      ? current.filter(id => !memberIDs.includes(id))
-      : Array.from(new Set([...current, ...memberIDs]))
-    );
-  };
+  const brandResponsibilityGroups = getVisibleBrandResponsibilityGroups(selectedBrand, users, currentUser);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -322,67 +297,39 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 <span>ผู้รับผิดชอบ</span>
               </label>
 
-              {!initialData && (
-                <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-800">
-                      <UsersRound className="h-3.5 w-3.5" /> มอบหมายตามทีม
-                    </span>
-                    <span className="text-[10px] text-indigo-500">กดซ้ำเพื่อยกเลิกทั้งทีม</span>
-                  </div>
-                  {teamGroups.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {teamGroups.map(([teamName, members]) => {
-                        const allSelected = members.every(member => selectedAssignees.includes(member.id));
-                        return (
-                          <button
-                            key={teamName}
-                            type="button"
-                            onClick={() => toggleTeam(members)}
-                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer ${
-                              allSelected
-                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
-                                : 'border-indigo-200 bg-white text-indigo-700 hover:border-indigo-400 hover:bg-indigo-50'
-                            }`}
-                          >
-                            <span className={`grid h-4 w-4 place-items-center rounded-full ${allSelected ? 'bg-white/20' : 'bg-indigo-100'}`}>
-                              {allSelected ? <Check className="h-3 w-3" /> : <UsersRound className="h-3 w-3" />}
-                            </span>
-                            <span>{teamName}</span>
-                            <span className={allSelected ? 'text-indigo-100' : 'text-indigo-400'}>{members.length} คน</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="m-0 text-[11px] text-indigo-500">ยังไม่มีพนักงานที่ถูกกำหนดทีม กรุณากำหนดทีมในหน้าพนักงานก่อน</p>
-                  )}
-                </div>
-              )}
-              
               <div className="flex flex-wrap items-center gap-2">
                 {/* Selected Avatars */}
                 {selectedAssignees.map(uid => {
                   const u = users.find(usr => usr.id === uid);
                   if (!u) return null;
+                  const isAutoAssigned = autoBrandAssigneeIds.includes(u.id);
                   return (
                     <div key={u.id} className="relative group">
                       <img
                         src={avatarUrl(u.avatar_url) || undefined}
                         alt={u.nickname || u.first_name}
                         className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-xs"
-                        title={`${u.nickname || u.first_name} (${u.team || u.department || 'ยังไม่ระบุทีม'})`}
+                        title={isAutoAssigned ? `${u.nickname || u.first_name} (ผู้เกี่ยวข้องอัตโนมัติ)` : (u.nickname || u.first_name)}
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAssignees(prev => prev.filter(id => id !== u.id));
-                          setAutoBrandAssigneeIds(prev => prev.filter(id => id !== u.id));
-                        }}
-                        className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center text-rose-500 hover:text-rose-700 shadow-sm border border-slate-200 cursor-pointer"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
+                      {isAutoAssigned ? (
+                        <span
+                          className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600 shadow-sm"
+                          title="ผู้เกี่ยวข้องอัตโนมัติ ลบไม่ได้"
+                        >
+                          <Lock className="h-2.5 w-2.5" />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAssignees(prev => prev.filter(id => id !== u.id));
+                            setAutoBrandAssigneeIds(prev => prev.filter(id => id !== u.id));
+                          }}
+                          className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-rose-500 shadow-sm hover:text-rose-700 cursor-pointer"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -413,15 +360,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                           onClick={() => {
                             setSelectedAssignees(prev => [...prev, u.id]);
                           }}
-                          className="flex items-center gap-2 px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-full text-[11px] font-semibold text-slate-700 hover:text-indigo-700 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                          className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 shadow-2xs transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95 cursor-pointer"
                         >
                           <img
                             src={avatarUrl(u.avatar_url) || undefined}
                             alt={u.nickname || u.first_name}
-                            className="w-4 h-4 rounded-full object-cover border border-white"
+                            className="h-8 w-8 rounded-full border border-white object-cover shadow-sm"
                           />
                           <span>{u.nickname || u.first_name}</span>
-                          {u.team && <span className="text-[9px] font-medium text-slate-400">{u.team}</span>}
                         </button>
                       ))
                     ) : (
@@ -531,6 +477,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                                 key={user.id}
                                 type="button"
                                 onClick={() => {
+                                  if (isSelected && autoBrandAssigneeIds.includes(user.id)) return;
                                   setSelectedAssignees(current => current.includes(user.id)
                                     ? current.filter(id => id !== user.id)
                                     : [...current, user.id]);
@@ -542,9 +489,11 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                                   isSelected
                                     ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                     : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/60'
-                                }`}
+                                } ${isSelected && autoBrandAssigneeIds.includes(user.id) ? 'cursor-not-allowed opacity-90' : ''}`}
                                 aria-pressed={isSelected}
-                                title={isSelected ? `ยกเลิก ${user.nickname || user.first_name}` : `เลือก ${user.nickname || user.first_name}`}
+                                title={isSelected && autoBrandAssigneeIds.includes(user.id)
+                                  ? `${user.nickname || user.first_name} (ผู้เกี่ยวข้องอัตโนมัติ ลบไม่ได้)`
+                                  : isSelected ? `ยกเลิก ${user.nickname || user.first_name}` : `เลือก ${user.nickname || user.first_name}`}
                               >
                                 {imageURL ? (
                                   <img src={imageURL} alt="" className="h-4 w-4 rounded-full object-cover" />
