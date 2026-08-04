@@ -401,6 +401,7 @@ type UserSummary struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	FirstName string    `db:"first_name" json:"first_name"`
 	LastName  string    `db:"last_name" json:"last_name"`
+	Nickname  *string   `db:"nickname" json:"nickname,omitempty"`
 	AvatarURL *string   `db:"avatar_url" json:"avatar_url,omitempty"`
 	Position  string    `db:"position" json:"position"`
 }

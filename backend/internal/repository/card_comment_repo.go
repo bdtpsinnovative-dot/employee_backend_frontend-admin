@@ -49,7 +49,7 @@ func (r *CardAssigneeRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID)
 	}
 
 	query, args, err := sqlx.In(`
-		SELECT ca.card_id, u.id, u.first_name, u.last_name, u.avatar_url, COALESCE(p.name, '') AS position
+		SELECT ca.card_id, u.id, u.first_name, u.last_name, u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
 		FROM card_assignees ca
 		JOIN users u ON u.id = ca.user_id
 		LEFT JOIN teams t ON t.id = u.team_id
@@ -67,6 +67,7 @@ func (r *CardAssigneeRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID)
 		ID        uuid.UUID `db:"id"`
 		FirstName string    `db:"first_name"`
 		LastName  string    `db:"last_name"`
+		Nickname  *string   `db:"nickname"`
 		AvatarURL *string   `db:"avatar_url"`
 		Position  string    `db:"position"`
 	}
@@ -80,6 +81,7 @@ func (r *CardAssigneeRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID)
 			ID:        row.ID,
 			FirstName: row.FirstName,
 			LastName:  row.LastName,
+			Nickname:  row.Nickname,
 			AvatarURL: row.AvatarURL,
 			Position:  row.Position,
 		})
