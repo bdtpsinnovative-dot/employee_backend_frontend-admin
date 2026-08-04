@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // NotificationService จัดการการสร้าง, ดึง, และอัปเดตสถานะ notification
@@ -32,6 +32,16 @@ func NewNotificationService(
 // Notify บันทึก notification ลง DB และส่ง push notification ผ่าน Firebase พร้อมกัน
 // nType: "leave" | "attendance" | "system" | "announcement" | "task_comment"
 func (s *NotificationService) Notify(ctx context.Context, userID uuid.UUID, title, body, nType string, metadata ...map[string]string) {
+	s.notify(ctx, userID, title, body, nType, true, metadata...)
+}
+
+// NotifyInApp records an item in the notification center without sending FCM.
+// Use this for ordinary edits that should remain inside the in-app bell.
+func (s *NotificationService) NotifyInApp(ctx context.Context, userID uuid.UUID, title, body, nType string, metadata ...map[string]string) {
+	s.notify(ctx, userID, title, body, nType, false, metadata...)
+}
+
+func (s *NotificationService) notify(ctx context.Context, userID uuid.UUID, title, body, nType string, sendPush bool, metadata ...map[string]string) {
 	var meta map[string]string
 	var metaJSON json.RawMessage
 	if len(metadata) > 0 && metadata[0] != nil {
@@ -58,7 +68,7 @@ func (s *NotificationService) Notify(ctx context.Context, userID uuid.UUID, titl
 	}
 
 	// ส่ง Push Notification แบบ async (ไม่ block)
-	if s.firebaseSvc != nil && s.userRepo != nil {
+	if sendPush && s.firebaseSvc != nil && s.userRepo != nil {
 		go func() {
 			user, err := s.userRepo.FindByID(context.Background(), userID)
 			if err != nil || user == nil || user.FcmToken == nil || *user.FcmToken == "" {

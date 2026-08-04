@@ -33,6 +33,10 @@ type BrandCategoryHandler struct {
 	notifSvc       *service.NotificationService
 }
 
+func shouldPushTaskListStatus(status string) bool {
+	return status == "in_review" || status == "completed"
+}
+
 func NewBrandCategoryHandler(
 	brandRepo *repository.BrandRepo,
 	categoryRepo *repository.TaskCategoryRepo,
@@ -956,25 +960,14 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	scope := &repository.TaskEventScope{TaskID: taskID, ListID: &list.ID, Name: list.Name}
 	h.audit(c, scope, "board_created", "สร้างบอร์ด: "+list.Name, nil)
 
-	// แจ้งเตือนผู้เกี่ยวข้องกับงานหลัก (ผู้สร้างและผู้รับผิดชอบ) เมื่อมีคนเพิ่มงานย่อยใหม่
+	// แจ้งเฉพาะผู้ที่ถูกเพิ่มเข้า task_lists ใหม่ ไม่กระจายไปทุกคนในงานหลัก
 	if h.notifSvc != nil {
 		actorIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 		actorID, _ := actorIDRaw.(uuid.UUID)
 		capturedListName := list.Name
 		capturedListID := list.ID
+		capturedAssigneeIDs := append([]uuid.UUID(nil), req.AssigneeIDs...)
 		go func() {
-			var userIDs []uuid.UUID
-			dbErr := h.cardRepo.GetDB().SelectContext(context.Background(), &userIDs,
-				`SELECT DISTINCT user_id FROM (
-					SELECT assigned_by AS user_id FROM tasks WHERE id = $1
-					UNION
-					SELECT assigned_to AS user_id FROM tasks WHERE id = $1 AND assigned_to IS NOT NULL
-					UNION
-					SELECT user_id FROM task_assignees WHERE task_id = $1
-				) t WHERE user_id IS NOT NULL`, taskID)
-			if dbErr != nil {
-				return
-			}
 			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
 			actorName := "ทีมงาน"
 			if actor != nil {
@@ -985,7 +978,11 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 					actorName = actor.Nickname
 				}
 			}
-			for _, uID := range userIDs {
+			recipients := make(map[uuid.UUID]struct{}, len(capturedAssigneeIDs))
+			for _, uID := range capturedAssigneeIDs {
+				recipients[uID] = struct{}{}
+			}
+			for uID := range recipients {
 				if uID == actorID {
 					continue // ไม่แจ้งเตือนผู้ทำการสร้างเอง
 				}
@@ -993,7 +990,7 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 					"➕ เพิ่มงานย่อยใหม่",
 					actorName+` เพิ่มงานย่อย "`+capturedListName+`" ในงานของคุณ`,
 					"task_list_update",
-					map[string]string{"task_id": taskID.String(), "list_id": capturedListID.String()},
+					map[string]string{"task_id": taskID.String(), "list_id": capturedListID.String(), "type": "task_list_assignment"},
 				)
 			}
 		}()
@@ -1061,6 +1058,10 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
+	}
+	var addedAssigneeIDs []uuid.UUID
+	if req.AssigneeIDs != nil {
+		addedAssigneeIDs, _ = changedAuditAssignees(existingList.AssigneeIDs, *req.AssigneeIDs)
 	}
 
 	if req.Priority != nil &&
@@ -1211,26 +1212,14 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		return
 	}
 
-	// แจ้งเตือนผู้เกี่ยวข้องกับงานหลัก (ผู้สร้างและผู้รับผิดชอบ) เมื่อมีการอัปเดตงานย่อย
-	if h.notifSvc != nil && (req.Name != nil || req.Status != nil || req.Description != nil || req.AdminComment != nil || req.Attachments != nil || hasDueDate || hasStartDate) {
+	// การเพิ่มผู้รับผิดชอบและสถานะสำคัญส่ง FCM; การแก้ไขทั่วไปอยู่ในกระดิ่งเท่านั้น
+	if h.notifSvc != nil {
 		actorIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 		actorID, _ := actorIDRaw.(uuid.UUID)
 		capturedExistingList := existingList
 		capturedReq := req
+		capturedAddedAssigneeIDs := append([]uuid.UUID(nil), addedAssigneeIDs...)
 		go func() {
-			var userIDs []uuid.UUID
-			dbErr := h.cardRepo.GetDB().SelectContext(context.Background(), &userIDs,
-				`SELECT DISTINCT user_id FROM (
-					SELECT assigned_by AS user_id FROM tasks WHERE id = $1
-					UNION
-					SELECT assigned_to AS user_id FROM tasks WHERE id = $1 AND assigned_to IS NOT NULL
-					UNION
-					SELECT user_id FROM task_assignees WHERE task_id = $1
-				) t WHERE user_id IS NOT NULL`, taskID)
-			if dbErr != nil {
-				return
-			}
-
 			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
 			actorName := "ทีมงาน"
 			if actor != nil {
@@ -1240,6 +1229,40 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				} else if actor.Nickname != "" {
 					actorName = actor.Nickname
 				}
+			}
+
+			for _, assigneeID := range capturedAddedAssigneeIDs {
+				if assigneeID == actorID {
+					continue
+				}
+				h.notifSvc.Notify(
+					context.Background(),
+					assigneeID,
+					"มอบหมายงานย่อยใหม่",
+					actorName+` เพิ่มคุณเป็นผู้รับผิดชอบงานย่อย "`+updated.Name+`"`,
+					"task_list_update",
+					map[string]string{"task_id": taskID.String(), "list_id": listID.String(), "type": "task_list_assignment"},
+				)
+			}
+
+			hasGeneralUpdate := capturedReq.Name != nil || capturedReq.Status != nil || capturedReq.Description != nil || capturedReq.Priority != nil || capturedReq.AdminComment != nil || capturedReq.Attachments != nil || capturedReq.AssigneeIDs != nil || hasDueDate || hasStartDate
+			if !hasGeneralUpdate {
+				return
+			}
+
+			var userIDs []uuid.UUID
+			dbErr := h.cardRepo.GetDB().SelectContext(context.Background(), &userIDs,
+				`SELECT DISTINCT user_id FROM (
+					SELECT assigned_by AS user_id FROM tasks WHERE id = $1
+					UNION
+					SELECT assigned_to AS user_id FROM tasks WHERE id = $1 AND assigned_to IS NOT NULL
+					UNION
+					SELECT user_id FROM task_assignees WHERE task_id = $1
+					UNION
+					SELECT user_id FROM list_assignees WHERE list_id = $2
+				) t WHERE user_id IS NOT NULL`, taskID, listID)
+			if dbErr != nil {
+				return
 			}
 
 			listName := capturedExistingList.Name
@@ -1263,10 +1286,16 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				if uID == actorID {
 					continue // ไม่แจ้งเตือนผู้ทำการแก้ไขเอง
 				}
-				h.notifSvc.Notify(context.Background(), uID,
-					notifTitle, notifBody, "task_list_update",
-					map[string]string{"task_id": taskID.String(), "list_id": listID.String()},
-				)
+				metadata := map[string]string{"task_id": taskID.String(), "list_id": listID.String(), "type": "task_list_update"}
+				statusChanged := capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status
+				if statusChanged {
+					metadata["type"] = "task_list_status"
+				}
+				if statusChanged && shouldPushTaskListStatus(*capturedReq.Status) {
+					h.notifSvc.Notify(context.Background(), uID, notifTitle, notifBody, "task_list_update", metadata)
+				} else {
+					h.notifSvc.NotifyInApp(context.Background(), uID, notifTitle, notifBody, "task_list_update", metadata)
+				}
 			}
 		}()
 	}

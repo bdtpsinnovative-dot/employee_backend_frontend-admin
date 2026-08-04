@@ -18,6 +18,23 @@ type TaskService struct {
 	notifSvc    *NotificationService
 }
 
+func shouldPushTaskStatus(status string) bool {
+	return status == "in_review" || status == "completed"
+}
+
+func taskStatusLabel(status string) string {
+	switch status {
+	case "in_progress":
+		return "กำลังทำ"
+	case "in_review":
+		return "รอตรวจ"
+	case "completed":
+		return "เสร็จสิ้น"
+	default:
+		return "รอทำ"
+	}
+}
+
 func NewTaskService(taskRepo *repository.TaskRepo, userRepo *repository.UserRepo, firebaseSvc *FirebaseService, notifSvc *NotificationService) *TaskService {
 	return &TaskService{
 		taskRepo:    taskRepo,
@@ -100,7 +117,7 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 				"มอบหมายงานใหม่",
 				"คุณได้รับมอบหมายงานใหม่: "+title,
 				"system",
-				map[string]string{"task_id": t.ID.String()},
+				map[string]string{"task_id": t.ID.String(), "type": "task_assignment"},
 			)
 		}
 	}
@@ -133,6 +150,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	}
 
 	oldAssigneeIDs := task.AssigneeIDs
+	oldStatus := task.Status
 
 	task.Title = title
 	task.Description = description
@@ -181,7 +199,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 					"มอบหมายงานใหม่",
 					"คุณได้รับมอบหมายงานใหม่: "+task.Title,
 					"system",
-					map[string]string{"task_id": task.ID.String()},
+					map[string]string{"task_id": task.ID.String(), "type": "task_assignment"},
 				)
 			}
 		}
@@ -207,14 +225,27 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		}
 		delete(recipients, userID)
 
+		statusChanged := status != "" && status != oldStatus
 		for recipientID := range recipients {
-			s.notifSvc.Notify(
+			metadata := map[string]string{"task_id": task.ID.String(), "type": "task_update"}
+			if statusChanged {
+				metadata["type"] = "task_status"
+				title := "อัปเดตสถานะงานหลัก"
+				body := actorName + " ได้เปลี่ยนสถานะงานหลัก \"" + task.Title + "\" เป็น [" + taskStatusLabel(task.Status) + "]"
+				if shouldPushTaskStatus(task.Status) {
+					s.notifSvc.Notify(ctx, recipientID, title, body, "system", metadata)
+				} else {
+					s.notifSvc.NotifyInApp(ctx, recipientID, title, body, "system", metadata)
+				}
+				continue
+			}
+			s.notifSvc.NotifyInApp(
 				ctx,
 				recipientID,
 				"อัปเดตงานหลัก",
 				actorName+" ได้แก้ไขรายละเอียดงานหลัก: "+task.Title,
 				"system",
-				map[string]string{"task_id": task.ID.String()},
+				metadata,
 			)
 		}
 	}
@@ -270,36 +301,6 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 		Content:   &content,
 	})
 
-	// Trigger Push Notification to admins when employee updates status
-	if !isAdmin && s.userRepo != nil && s.firebaseSvc != nil {
-		employee, userErr := s.userRepo.FindByID(ctx, userID)
-		if userErr == nil && employee != nil {
-			employeeName := employee.FullName()
-			statusThai := "รอทำ"
-			if status == "in_progress" {
-				statusThai = "กำลังทำ"
-			} else if status == "in_review" {
-				statusThai = "รอตรวจ"
-			} else if status == "completed" {
-				statusThai = "เสร็จสิ้น"
-			}
-
-			// Find all admin users to notify
-			admins, listErr := s.userRepo.ListAll(ctx)
-			if listErr == nil {
-				for _, admin := range admins {
-					if admin.Role == "admin" && admin.FcmToken != nil && *admin.FcmToken != "" {
-						fcmToken := *admin.FcmToken
-						taskTitle := task.Title
-						go func() {
-							_ = s.firebaseSvc.SendNotification(context.Background(), fcmToken, "อัปเดตงานพนักงาน 📋", employeeName+" เปลี่ยนสถานะงาน: "+taskTitle+" เป็น ["+statusThai+"]", nil)
-						}()
-					}
-				}
-			}
-		}
-	}
-
 	// Trigger in-app notifications for status change (excluding the editor)
 	if s.notifSvc != nil {
 		actorName := "ใครบางคน"
@@ -311,14 +312,7 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 			}
 		}
 
-		statusThai := "รอทำ"
-		if status == "in_progress" {
-			statusThai = "กำลังทำ"
-		} else if status == "in_review" {
-			statusThai = "รอตรวจ"
-		} else if status == "completed" {
-			statusThai = "เสร็จสิ้น"
-		}
+		statusThai := taskStatusLabel(status)
 
 		recipients := make(map[uuid.UUID]bool)
 		if task.AssignedBy != nil {
@@ -330,14 +324,14 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 		delete(recipients, userID)
 
 		for recipientID := range recipients {
-			s.notifSvc.Notify(
-				ctx,
-				recipientID,
-				"อัปเดตสถานะงานหลัก",
-				actorName+" ได้เปลี่ยนสถานะงานหลัก \""+task.Title+"\" เป็น ["+statusThai+"]",
-				"system",
-				map[string]string{"task_id": task.ID.String()},
-			)
+			title := "อัปเดตสถานะงานหลัก"
+			body := actorName + " ได้เปลี่ยนสถานะงานหลัก \"" + task.Title + "\" เป็น [" + statusThai + "]"
+			metadata := map[string]string{"task_id": task.ID.String(), "type": "task_status"}
+			if shouldPushTaskStatus(status) {
+				s.notifSvc.Notify(ctx, recipientID, title, body, "system", metadata)
+			} else {
+				s.notifSvc.NotifyInApp(ctx, recipientID, title, body, "system", metadata)
+			}
 		}
 	}
 
