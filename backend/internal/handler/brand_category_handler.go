@@ -987,7 +987,7 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 					continue // ไม่แจ้งเตือนผู้ทำการสร้างเอง
 				}
 				h.notifSvc.Notify(context.Background(), uID,
-					"➕ เพิ่มงานย่อยใหม่",
+					"เพิ่มงานย่อยใหม่",
 					actorName+` เพิ่มงานย่อย "`+capturedListName+`" ในงานของคุณ`,
 					"task_list_update",
 					map[string]string{"task_id": taskID.String(), "list_id": capturedListID.String(), "type": "task_list_assignment"},
@@ -1269,16 +1269,16 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			var notifTitle, notifBody string
 			if capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status {
 				newStatusLabel := readableBoardStatus(*capturedReq.Status)
-				notifTitle = "🔄 อัปเดตสถานะงานย่อย"
+				notifTitle = "อัปเดตสถานะงานย่อย"
 				notifBody = actorName + ` เปลี่ยนสถานะ "` + listName + `" เป็น "` + newStatusLabel + `"`
 			} else if capturedReq.Name != nil && *capturedReq.Name != capturedExistingList.Name {
-				notifTitle = "✏️ เปลี่ยนชื่องานย่อย"
+				notifTitle = "เปลี่ยนชื่องานย่อย"
 				notifBody = actorName + ` เปลี่ยนชื่อ "` + capturedExistingList.Name + `" เป็น "` + *capturedReq.Name + `"`
 			} else if capturedReq.Attachments != nil {
-				notifTitle = "📎 อัปเดตไฟล์งานย่อย"
+				notifTitle = "อัปเดตไฟล์งานย่อย"
 				notifBody = actorName + ` อัปเดตไฟล์แนบใน "` + listName + `"`
 			} else {
-				notifTitle = "📝 แก้ไขงานย่อย"
+				notifTitle = "แก้ไขงานย่อย"
 				notifBody = actorName + ` แก้ไขข้อมูลงานย่อย "` + listName + `"`
 			}
 

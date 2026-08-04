@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // LeaveHandler รับ HTTP Request เกี่ยวกับใบลา
@@ -30,10 +30,10 @@ func NewLeaveHandler(svc *service.LeaveService, userSvc *service.UserService, no
 type createLeaveBody struct {
 	Date           string  `json:"date" binding:"required"`       // วันที่ลา (YYYY-MM-DD)
 	LeaveType      string  `json:"leave_type" binding:"required"` // ลาป่วย, ลากิจ, สลับวันหยุด, ทำงานวันหยุด
-	Duration       string  `json:"duration"`                       // เต็มวัน, ครึ่งวันเช้า, ครึ่งวันบ่าย
-	SwapDate       *string `json:"swap_date"`                      // วันที่ทำงานชดเชย (สำหรับสลับวันหยุด)
+	Duration       string  `json:"duration"`                      // เต็มวัน, ครึ่งวันเช้า, ครึ่งวันบ่าย
+	SwapDate       *string `json:"swap_date"`                     // วันที่ทำงานชดเชย (สำหรับสลับวันหยุด)
 	Reason         string  `json:"reason"`
-	MedicalCertURL *string `json:"medical_cert_url"`               // URL ใบรับรองแพทย์
+	MedicalCertURL *string `json:"medical_cert_url"` // URL ใบรับรองแพทย์
 }
 
 // Create POST /api/leaves — ส่งใบลา
@@ -85,7 +85,7 @@ func (h *LeaveHandler) Create(c *gin.Context) {
 						h.notifSvc.Notify(
 							context.Background(),
 							admin.ID,
-							"คำขอลาใหม่ 📝",
+							"คำขอลาใหม่",
 							employeeName+" ยื่นคำขอ"+body.LeaveType+" วันที่ "+body.Date,
 							fmt.Sprintf("leave:%s", req.ID.String()),
 						)
@@ -202,7 +202,7 @@ func (h *LeaveHandler) GetUserQuota(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
 		return
 	}
-	
+
 	year, _, err := parseYearMonth(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ปีไม่ถูกต้อง"})
@@ -231,7 +231,7 @@ func (h *LeaveHandler) UpdateUserQuota(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
 		return
 	}
-	
+
 	year, _, err := parseYearMonth(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ปีไม่ถูกต้อง"})
@@ -318,7 +318,7 @@ func (h *OffsiteHandler) Create(c *gin.Context) {
 						h.notifSvc.Notify(
 							context.Background(),
 							admin.ID,
-							"คำขอออกหน้างานใหม่ 📍",
+							"คำขอออกหน้างานใหม่",
 							employeeName+" ยื่นคำขอปฏิบัติงานนอกสถานที่ วันที่ "+body.Date,
 							fmt.Sprintf("leave:%s", req.ID.String()),
 						)
