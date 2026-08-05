@@ -272,23 +272,25 @@ export default function DailyRecord() {
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '70%' }}>สมาชิก</th>
-                  <th style={{ width: '30%' }}>ทีม</th>
+                  <th style={{ width: '50%' }}>สมาชิก</th>
+                  <th style={{ width: '25%' }}>ทีม</th>
+                  <th style={{ width: '25%' }}>ตำแหน่ง</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={2} style={{ textAlign: 'center', padding: '30px' }}>กำลังโหลดข้อมูล...</td>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: '30px' }}>กำลังโหลดข้อมูล...</td>
                   </tr>
                 ) : teamMembers.length === 0 ? (
                   <tr>
-                    <td colSpan={2} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>ไม่พบสมาชิกในทีม</td>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>ไม่พบสมาชิกในทีม</td>
                   </tr>
                 ) : teamMembers.map(member => (
                   <tr key={member.id}>
                     <td data-label="สมาชิก"><ProfileCell member={member} /></td>
                     <td data-label="ทีม">{member.team || '-'}</td>
+                    <td data-label="ตำแหน่ง">{member.position || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -321,21 +323,22 @@ export default function DailyRecord() {
         <table>
           <thead>
             <tr>
-              <th style={{ width: '30%' }}>ชื่อ-นามสกุล</th>
+              <th style={{ width: '25%' }}>ชื่อ-นามสกุล</th>
               <th style={{ width: '15%' }}>ทีม</th>
-              <th style={{ width: '55%' }}>สถานะ</th>
+              <th style={{ width: '15%' }}>ตำแหน่ง</th>
+              <th style={{ width: '45%' }}>สถานะ</th>
             </tr>
           </thead>
           <tbody id="record-table">
             {loading ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: '30px' }}>
+                <td colSpan={4} style={{ textAlign: 'center', padding: '30px' }}>
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             ) : records.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
+                <td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
                   ไม่พบข้อมูลพนักงาน
                 </td>
               </tr>
@@ -349,6 +352,7 @@ export default function DailyRecord() {
                   <tr key={rec.user.id}>
                     <td data-label="ชื่อ-นามสกุล"><ProfileCell member={rec.user} /></td>
                     <td data-label="ทีม">{rec.user.team || '-'}</td>
+                    <td data-label="ตำแหน่ง">{rec.user.position || '-'}</td>
                     <td data-label="สถานะ">
                       {rec.attendance ? (
                         (() => {

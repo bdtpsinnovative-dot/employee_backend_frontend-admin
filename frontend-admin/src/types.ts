@@ -30,6 +30,7 @@ export interface TeamMember {
   nickname?: string;
   avatar_url?: string;
   team?: string;
+  position?: string;
 }
 
 export interface TeamMembersData {

@@ -43,6 +43,7 @@ type TeamMember struct {
 	Nickname  string    `db:"nickname" json:"nickname"`
 	AvatarURL *string   `db:"avatar_url" json:"avatar_url"`
 	Team      string    `db:"team" json:"team"`
+	Position  string    `db:"position" json:"position"`
 }
 
 // TeamMembers is the response payload for the current user's team lookup.

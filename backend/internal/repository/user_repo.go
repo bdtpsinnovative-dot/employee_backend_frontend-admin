@@ -160,9 +160,11 @@ func (r *UserRepo) ListActiveByTeamID(ctx context.Context, teamID uuid.UUID) ([]
 	var members []domain.TeamMember
 	err := r.db.SelectContext(ctx, &members, `
 		SELECT u.id, u.first_name, u.last_name, u.nickname, u.avatar_url,
-		       COALESCE(t.name, '') AS team
+		       COALESCE(t.name, '') AS team,
+		       COALESCE(p.name, '') AS position
 		FROM users u
 		LEFT JOIN teams t ON t.id = u.team_id
+		LEFT JOIN positions p ON p.id = u.position_id
 		WHERE u.status = 'active' AND u.team_id = $1
 		ORDER BY u.first_name ASC, u.last_name ASC, u.id ASC
 	`, teamID)
