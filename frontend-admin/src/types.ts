@@ -23,6 +23,20 @@ export interface User {
   updated_at: string;
 }
 
+export interface TeamMember {
+  id: string;
+  first_name: string;
+  last_name: string;
+  nickname?: string;
+  avatar_url?: string;
+  team?: string;
+}
+
+export interface TeamMembersData {
+  team_assigned: boolean;
+  members: TeamMember[];
+}
+
 export interface Team {
   id: string;
   name: string;

@@ -34,6 +34,23 @@ type User struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// TeamMember is the minimal user projection returned by the team-members API.
+// It intentionally omits account, device, and biometric fields.
+type TeamMember struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	FirstName string    `db:"first_name" json:"first_name"`
+	LastName  string    `db:"last_name" json:"last_name"`
+	Nickname  string    `db:"nickname" json:"nickname"`
+	AvatarURL *string   `db:"avatar_url" json:"avatar_url"`
+	Team      string    `db:"team" json:"team"`
+}
+
+// TeamMembers is the response payload for the current user's team lookup.
+type TeamMembers struct {
+	TeamAssigned bool         `json:"team_assigned"`
+	Members      []TeamMember `json:"members"`
+}
+
 // Team is an admin-managed employee team and the source for team labels in the UI.
 type Team struct {
 	ID        uuid.UUID `db:"id" json:"id"`

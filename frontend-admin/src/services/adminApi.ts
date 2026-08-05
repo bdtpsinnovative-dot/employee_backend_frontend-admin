@@ -21,6 +21,7 @@ import type {
   Team,
   BackupConfig,
   Position,
+  TeamMembersData,
 } from '../types';
 
 // ────────────────── Backup & Restore ──────────────────
@@ -69,6 +70,11 @@ export async function fetchUsers(ids?: string[]): Promise<User[]> {
 export async function fetchActiveUsers(): Promise<User[]> {
   const { data } = await api.get<ApiResponse<User[]>>('/api/users/active');
   return data.data;
+}
+
+export async function fetchTeamMembers(): Promise<TeamMembersData> {
+  const { data } = await api.get<ApiResponse<TeamMembersData>>('/api/users/team-members');
+  return data.data ?? { team_assigned: false, members: [] };
 }
 
 export async function approveUser(id: string): Promise<void> {

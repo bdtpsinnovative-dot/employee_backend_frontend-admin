@@ -154,6 +154,24 @@ func (r *UserRepo) ListAll(ctx context.Context) ([]domain.User, error) {
 	return users, nil
 }
 
+// ListActiveByTeamID returns the minimal profile projection for active users
+// assigned to the given team.
+func (r *UserRepo) ListActiveByTeamID(ctx context.Context, teamID uuid.UUID) ([]domain.TeamMember, error) {
+	var members []domain.TeamMember
+	err := r.db.SelectContext(ctx, &members, `
+		SELECT u.id, u.first_name, u.last_name, u.nickname, u.avatar_url,
+		       COALESCE(t.name, '') AS team
+		FROM users u
+		LEFT JOIN teams t ON t.id = u.team_id
+		WHERE u.status = 'active' AND u.team_id = $1
+		ORDER BY u.first_name ASC, u.last_name ASC, u.id ASC
+	`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
 // CompareFaceDistance คำนวณระยะห่าง (Euclidean distance) ของ Face Vector เทียบกับที่บันทึกไว้
 func (r *UserRepo) CompareFaceDistance(ctx context.Context, id uuid.UUID, faceVector string) (float64, error) {
 	var distance float64

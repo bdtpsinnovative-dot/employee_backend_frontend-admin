@@ -133,6 +133,32 @@ func (s *UserService) ListAll(ctx context.Context) ([]domain.User, error) {
 	return s.userRepo.ListAll(ctx)
 }
 
+// GetTeamMembers returns active users who share the current user's team.
+// Users without a team are intentionally given an empty member list.
+func (s *UserService) GetTeamMembers(ctx context.Context, userID uuid.UUID) (*domain.TeamMembers, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &domain.TeamMembers{
+		Members: make([]domain.TeamMember, 0),
+	}
+	if user.TeamID == nil {
+		return result, nil
+	}
+
+	result.TeamAssigned = true
+	members, err := s.userRepo.ListActiveByTeamID(ctx, *user.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	if members != nil {
+		result.Members = members
+	}
+	return result, nil
+}
+
 // UpdateFcmToken saves the user's FCM token
 func (s *UserService) UpdateFcmToken(ctx context.Context, userID uuid.UUID, fcmToken string) error {
 	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {

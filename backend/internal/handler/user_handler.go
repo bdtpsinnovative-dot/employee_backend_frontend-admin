@@ -103,6 +103,23 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": user})
 }
 
+// GetTeamMembers returns active members of the current user's team.
+func (h *UserHandler) GetTeamMembers(c *gin.Context) {
+	userID, exists := currentUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "กรุณาเข้าสู่ระบบ"})
+		return
+	}
+
+	result, err := h.svc.GetTeamMembers(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงสมาชิกทีมล้มเหลว"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": result})
+}
+
 type completeProfileBody struct {
 	FirstName  string    `json:"first_name" binding:"required"`
 	LastName   string    `json:"last_name" binding:"required"`

@@ -221,6 +221,7 @@ func registerRoutes(
 	{
 		// ข้อมูลผู้ใช้
 		api.GET("/users", adminH.ListUsers)                        // ดึงรายชื่อพนักงานทั้งหมด (สำหรับมอบหมายงาน)
+		api.GET("/users/team-members", userH.GetTeamMembers)       // ดึงสมาชิกทีมของผู้ใช้ปัจจุบัน
 		api.PUT("/users/me/device", userH.BindDevice)              // ผูกเครื่องมือถือ
 		api.PUT("/users/me/fcm-token", userH.UpdateFcmToken)       // บันทึก FCM Token
 		api.PUT("/users/me/profile/info", userH.UpdateProfileInfo) // อัปเดตชื่อและรูปโปรไฟล์

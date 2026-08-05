@@ -1,7 +1,16 @@
-import { useState, useEffect } from 'react';
-import { fetchAllAttendance, fetchUsers, manualAttendance, fetchAllRequests, fetchHolidays } from '../services/adminApi';
-import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  fetchAllAttendance,
+  fetchUsers,
+  manualAttendance,
+  fetchAllRequests,
+  fetchHolidays,
+  fetchMe,
+  fetchTeamMembers,
+} from '../services/adminApi';
+import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday, TeamMember } from '../types';
 import DatePicker from '../components/DatePicker';
+import { avatarUrl } from '../components/tasks/taskUtils';
 
 interface EmployeeRecord {
   user: User;
@@ -11,9 +20,58 @@ interface EmployeeRecord {
   selectedStatus: string;
 }
 
+interface ProfileIdentity {
+  first_name: string;
+  last_name: string;
+  nickname?: string;
+  avatar_url?: string;
+}
+
+function ProfileCell({ member }: { member: ProfileIdentity }) {
+  const fullName = `${member.first_name} ${member.last_name}`.trim();
+  const profileAvatar = avatarUrl(member.avatar_url);
+  const initial = member.first_name.trim().charAt(0).toUpperCase()
+    || member.last_name.trim().charAt(0).toUpperCase()
+    || 'U';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span style={{
+        width: '38px',
+        height: '38px',
+        borderRadius: '50%',
+        overflow: 'hidden',
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#e0e7ff',
+        color: '#4338ca',
+        fontWeight: 700,
+        fontSize: '14px',
+      }}>
+        {profileAvatar ? (
+          <img
+            src={profileAvatar}
+            alt={`รูปโปรไฟล์ของ ${fullName}`}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : initial}
+      </span>
+      <span style={{ fontWeight: 600 }}>
+        {fullName}
+        {member.nickname ? ` (${member.nickname})` : ''}
+      </span>
+    </div>
+  );
+}
+
 export default function DailyRecord() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [records, setRecords] = useState<EmployeeRecord[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamAssigned, setTeamAssigned] = useState(true);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -21,10 +79,23 @@ export default function DailyRecord() {
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, [date]);
+    let cancelled = false;
 
-  async function loadData() {
+    async function loadCurrentUser() {
+      try {
+        const user = await fetchMe();
+        if (!cancelled) setCurrentUser(user);
+      } catch (err) {
+        console.error('โหลดข้อมูลผู้ใช้ล้มเหลว:', err);
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadCurrentUser();
+    return () => { cancelled = true; };
+  }, []);
+
+  const loadAdminData = useCallback(async () => {
     setLoading(true);
     setMessage('');
     try {
@@ -74,7 +145,29 @@ export default function DailyRecord() {
       console.error('โหลดข้อมูลล้มเหลว:', err);
     }
     setLoading(false);
-  }
+  }, [date]);
+
+  const loadEmployeeTeam = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchTeamMembers();
+      setTeamAssigned(data.team_assigned);
+      setTeamMembers(data.members ?? []);
+    } catch (err) {
+      console.error('โหลดสมาชิกทีมล้มเหลว:', err);
+      setTeamMembers([]);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (currentUser.role === 'admin') {
+      void loadAdminData();
+    } else {
+      void loadEmployeeTeam();
+    }
+  }, [currentUser, loadAdminData, loadEmployeeTeam]);
 
   function handleStatusChange(userId: string, status: string) {
     setRecords(prev => prev.map(r =>
@@ -119,7 +212,7 @@ export default function DailyRecord() {
       (failCount > 0 ? ` (ล้มเหลว ${failCount} รายการ)` : '')
     );
 
-    await loadData();
+    await loadAdminData();
     setSaving(false);
   }
 
@@ -150,6 +243,59 @@ export default function DailyRecord() {
     }
   }
 
+  if (!currentUser) {
+    return (
+      <div id="daily-record" className="page-section active">
+        <h2 style={{ marginBottom: '20px' }}>บันทึกเวลา</h2>
+        <div className="table-card glass-panel" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-gray)' }}>
+          {loading ? 'กำลังโหลดข้อมูล...' : 'โหลดข้อมูลผู้ใช้ไม่สำเร็จ'}
+        </div>
+      </div>
+    );
+  }
+
+  if (currentUser.role === 'employee') {
+    if (!loading && !teamAssigned) {
+      return (
+        <div id="daily-record" className="page-section active" style={{ textAlign: 'center', color: 'var(--text-gray)' }}>
+          ยังไม่ได้กำหนดทีม
+        </div>
+      );
+    }
+
+    return (
+      <div id="daily-record" className="page-section active">
+        <h2 style={{ marginBottom: '20px' }}>สมาชิกในทีม</h2>
+        <div className="table-card glass-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '70%' }}>สมาชิก</th>
+                  <th style={{ width: '30%' }}>ทีม</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: 'center', padding: '30px' }}>กำลังโหลดข้อมูล...</td>
+                  </tr>
+                ) : teamMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>ไม่พบสมาชิกในทีม</td>
+                  </tr>
+                ) : teamMembers.map(member => (
+                  <tr key={member.id}>
+                    <td data-label="สมาชิก"><ProfileCell member={member} /></td>
+                    <td data-label="ทีม">{member.team || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="daily-record" className="page-section active">
       <h2 style={{ marginBottom: '20px' }}>บันทึกเวลา</h2>
@@ -174,7 +320,7 @@ export default function DailyRecord() {
           <thead>
             <tr>
               <th style={{ width: '30%' }}>ชื่อ-นามสกุล</th>
-              <th style={{ width: '15%' }}>แผนก</th>
+              <th style={{ width: '15%' }}>ทีม</th>
               <th style={{ width: '55%' }}>สถานะ</th>
             </tr>
           </thead>
@@ -199,8 +345,8 @@ export default function DailyRecord() {
 
                 return (
                   <tr key={rec.user.id}>
-                    <td data-label="ชื่อ-นามสกุล" style={{ fontWeight: 600 }}>{rec.user.first_name} {rec.user.last_name}</td>
-                    <td data-label="แผนก">{rec.user.department || '-'}</td>
+                    <td data-label="ชื่อ-นามสกุล"><ProfileCell member={rec.user} /></td>
+                    <td data-label="ทีม">{rec.user.team || '-'}</td>
                     <td data-label="สถานะ">
                       {rec.attendance ? (
                         (() => {
