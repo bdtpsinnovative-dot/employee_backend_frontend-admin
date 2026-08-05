@@ -359,16 +359,10 @@ export async function deleteTaskCategory(id: string): Promise<void> {
 // ────────────────── Admin Tasks ──────────────────
 
 export async function fetchAdminTasks(): Promise<AdminTask[]> {
-  try {
-    const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
-    return data.data ?? [];
-  } catch (err: any) {
-    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
-      const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
-      return data.data ?? [];
-    }
-    throw err;
-  }
+  // The task page is scoped to work owned by or assigned to the signed-in user,
+  // including for Admins. Admin privileges apply to actions, not visibility.
+  const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
+  return data.data ?? [];
 }
 
 export async function createAdminTask(body: {
@@ -425,6 +419,10 @@ export async function updateAdminTask(id: string, body: {
 
 export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'in_review' | 'completed'): Promise<void> {
   await api.patch(`/api/tasks/${id}/status`, { status });
+}
+
+export async function approveTask(id: string): Promise<void> {
+  await api.post(`/api/tasks/${id}/approve`);
 }
 
 export async function createTaskSubItem(taskId: string, title: string, dueDate?: string): Promise<any> {

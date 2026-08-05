@@ -8,9 +8,7 @@ import {
   CheckSquare,
   Link as LinkIcon,
   CheckCircle2,
-  AlertCircle,
   Edit3,
-  Trash2,
   Crown,
   Users,
   Star
@@ -33,8 +31,6 @@ interface TaskListViewProps {
   onStatusChange: (task: AdminTask, status: TaskStatus) => void;
   onOpenCreateModal: (defaultStatus?: TaskStatus) => void;
   onApproveSubmission?: (task: AdminTask) => void;
-  onRequestRevision?: (task: AdminTask) => void;
-  onDeleteTask?: (id: string) => void;
   currentUser: User | null;
   onToggleStar?: (taskId: string, isStarred: boolean) => void;
 }
@@ -52,8 +48,6 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   onStatusChange,
   // onOpenCreateModal,
   onApproveSubmission,
-  onRequestRevision,
-  onDeleteTask,
   currentUser,
   onToggleStar,
 }) => {
@@ -169,7 +163,6 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               const priority = getTaskPriority(task);
               const isCreator = task.assigned_by === currentUser?.id;
               const isAdmin = currentUser?.role === 'admin';
-              const canDelete = isAdmin || isCreator;
               const canEdit = isAdmin || isCreator;
 
               // Assignees
@@ -477,34 +470,15 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                       )}
 
 
-                      {/* ปุ่มลบงาน (ย้ายไปถังขยะ) */}
-                      {onDeleteTask && canDelete && (
-                        <button
-                          onClick={() => onDeleteTask(task.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-red-700 bg-red-50 hover:bg-red-100 hover:text-red-800 active:scale-95 border border-red-200 rounded-lg shadow-2xs transition-all cursor-pointer"
-                          title="คลิกเพื่อลบงานนี้ (ย้ายไปถังขยะ)"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
-                          <span>ลบ</span>
-                        </button>
-                      )}
-
-                      {/* ถ้าเป็นสถานะ in_review ให้แสดงปุ่ม อนุมัติ / ขอแก้ไข เพิ่มเติมด้านล่าง */}
-                      {task.status === 'in_review' && (
-                        <div className="w-full flex items-center justify-center gap-1 mt-1 pt-1 border-t border-slate-200/80">
+                      {/* ถ้างานรอตรวจสอบ ให้แสดงปุ่มอนุมัติแทนปุ่มลบ */}
+                      {task.status === 'in_review' && onApproveSubmission && (
+                        <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => onApproveSubmission?.(task)}
+                            onClick={() => onApproveSubmission(task)}
                             className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded px-2 py-0.5 transition-colors"
                           >
                             <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
                             <span>อนุมัติ</span>
-                          </button>
-                          <button
-                            onClick={() => onRequestRevision?.(task)}
-                            className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded px-2 py-0.5 transition-colors"
-                          >
-                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                            <span>ขอแก้ไข</span>
                           </button>
                         </div>
                       )}

@@ -19,6 +19,7 @@ interface TaskCreateModalProps {
   currentUser?: UserType | null;
   taskEvents?: TaskEvent[];
   eventsLoading?: boolean;
+  onDelete?: (id: string) => void;
   onSubmit: (data: {
     title: string;
     description: string;
@@ -55,6 +56,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   currentUser,
   taskEvents = [],
   eventsLoading = false,
+  onDelete,
   onSubmit,
 }) => {
   const [title, setTitle] = useState(initialData?.title || '');
@@ -637,7 +639,18 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
             )}
 
             {/* Buttons */}
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between gap-2 pt-4 border-t border-slate-200">
+              {initialData && onDelete ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(initialData.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  ลบงาน
+                </button>
+              ) : <span />}
+              <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
@@ -652,6 +665,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               >
                 {loading ? 'กำลังบันทึก...' : initialData ? 'บันทึกการแก้ไข' : 'สร้างงาน'}
               </button>
+              </div>
             </div>
           </form>
           )}

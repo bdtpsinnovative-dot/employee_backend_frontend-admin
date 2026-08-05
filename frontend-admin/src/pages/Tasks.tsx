@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Trash2, X, Bell } from 'lucide-react';
+import { Trash2, X, Bell, CheckCircle2 } from 'lucide-react';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -9,11 +9,10 @@ import {
   createAdminTask,
   updateAdminTask,
   updateAdminTaskStatus,
+  approveTask,
   deleteAdminTask,
   fetchTaskEvents,
   addTaskComment,
-  approveSubmission,
-  requestRevision,
   fetchMe,
   createTaskList,
   fetchTrashTasks,
@@ -131,6 +130,7 @@ export default function Tasks() {
 
   // ─── Trash Bin & Delete Confirmation State ───
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [taskToApprove, setTaskToApprove] = useState<AdminTask | null>(null);
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [trashTasks, setTrashTasks] = useState<AdminTask[]>([]);
   const [trashLoading, setTrashLoading] = useState(false);
@@ -357,26 +357,18 @@ export default function Tasks() {
     }
   };
 
-  const handleApproveSubmission = async (task: AdminTask) => {
-    if (!task.latest_submission) return;
-    if (!window.confirm('ยืนยันการอนุมัติผลงาน?')) return;
-    try {
-      await approveSubmission(task.id, task.latest_submission.id);
-      await loadAll(true);
-    } catch (e: any) {
-      alert(e.message || 'อนุมัติผลงานล้มเหลว');
-    }
+  const handleApproveTask = async (task: AdminTask) => {
+    setTaskToApprove(task);
   };
 
-  const handleRequestRevision = async (task: AdminTask) => {
-    if (!task.latest_submission) return;
-    const note = window.prompt('ระบุข้อควรแก้ไข:');
-    if (note === null) return;
+  const handleConfirmApprove = async () => {
+    if (!taskToApprove) return;
     try {
-      await requestRevision(task.id, task.latest_submission.id, note);
+      await approveTask(taskToApprove.id);
+      setTaskToApprove(null);
       await loadAll(true);
     } catch (e: any) {
-      alert(e.message || 'ขอแก้ไขผลงานล้มเหลว');
+      alert(e.message || 'อนุมัติงานล้มเหลว');
     }
   };
 
@@ -552,9 +544,7 @@ export default function Tasks() {
               setDefaultCreateStatus(status);
               setShowCreateModal(true);
             }}
-            onApproveSubmission={handleApproveSubmission}
-            onRequestRevision={handleRequestRevision}
-            onDeleteTask={handleDeleteTask}
+            onApproveSubmission={currentUser?.role === 'admin' ? handleApproveTask : undefined}
             currentUser={currentUser}
             onToggleStar={handleToggleStar}
           />
@@ -602,6 +592,10 @@ export default function Tasks() {
         currentUser={currentUser}
         taskEvents={editTaskEvents}
         eventsLoading={editEventsLoading}
+        onDelete={(id) => {
+          setEditingTask(null);
+          handleDeleteTask(id);
+        }}
         onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
       />
 
@@ -631,6 +625,45 @@ export default function Tasks() {
               >
                 ย้ายไปถังขยะ
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Confirmation Modal */}
+      {taskToApprove && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-6 py-5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800">ยืนยันการอนุมัติงาน</h3>
+                <p className="mt-0.5 text-xs font-medium text-slate-500">ตรวจสอบงานเสร็จสิ้นแล้วใช่ไหม</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm leading-6 text-slate-600">
+                งาน <span className="font-bold text-slate-800">“{taskToApprove.title}”</span> จะเปลี่ยนสถานะเป็น <span className="font-bold text-emerald-600">เสร็จสิ้น</span>
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTaskToApprove(null)}
+                  className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmApprove}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  อนุมัติและเสร็จสิ้น
+                </button>
+              </div>
             </div>
           </div>
         </div>
