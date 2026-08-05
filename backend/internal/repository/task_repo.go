@@ -175,7 +175,15 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.start_date, t.due_date, t.priority,
+		       CASE
+				   WHEN t.status = 'completed' THEN 'completed'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
+					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
+				   ELSE 'in_progress'
+			   END AS status,
+		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
@@ -210,7 +218,15 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.start_date, t.due_date, t.priority,
+		       CASE
+				   WHEN t.status = 'completed' THEN 'completed'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
+					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
+				   ELSE 'in_progress'
+			   END AS status,
+		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
@@ -243,7 +259,15 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	var tasks []domain.Task
 	err := r.db.SelectContext(ctx, &tasks, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.start_date, t.due_date, t.priority,
+		       CASE
+				   WHEN t.status = 'completed' THEN 'completed'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
+					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
+				   ELSE 'in_progress'
+			   END AS status,
+		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,

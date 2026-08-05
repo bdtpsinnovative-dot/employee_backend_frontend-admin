@@ -508,6 +508,32 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 	return tx.Commit()
 }
 
+// SyncParentTaskStatus derives the parent task status from its active
+// deliverables. A task with no deliverables remains pending; a partially
+// completed task is in progress; and a task whose deliverables are all
+// complete waits for review.
+func (r *TaskListRepo) SyncParentTaskStatus(ctx context.Context, taskID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE tasks AS t
+		SET status = CASE
+			WHEN stats.total_count = 0 THEN 'pending'
+			WHEN stats.done_count = stats.total_count THEN 'in_review'
+			ELSE 'in_progress'
+		END,
+		completed_at = NULL
+		FROM (
+			SELECT
+				$1::uuid AS task_id,
+				COUNT(*)::int AS total_count,
+				COUNT(*) FILTER (WHERE status = 'completed')::int AS done_count
+			FROM task_lists
+			WHERE task_id = $1 AND deleted_at IS NULL
+		) AS stats
+		WHERE t.id = stats.task_id
+	`, taskID)
+	return err
+}
+
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	// Deliverables are soft-deleted so legacy cards and sub-items remain
 	// recoverable if this hidden hierarchy is restored in the future.

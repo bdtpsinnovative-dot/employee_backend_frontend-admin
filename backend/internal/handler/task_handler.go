@@ -190,7 +190,7 @@ func (h *TaskHandler) ListAllTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
-// DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id (Admin or Creator)
+// DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id (Creator only)
 func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -209,12 +209,9 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	roleRaw, _ := c.Get(middleware.ContextKeyRole)
 	isAdmin := roleRaw.(string) == "admin"
 
-	if !isAdmin {
-		isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
-		if !isCreator {
-			c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์ลบงานนี้ (ต้องเป็นแอดมินหรือผู้สร้างงานเท่านั้น)"})
-			return
-		}
+	if !isAdmin && (task.AssignedBy == nil || *task.AssignedBy != userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์ลบงานนี้ (ต้องเป็นเจ้าของงานหรือแอดมินเท่านั้น)"})
+		return
 	}
 
 	err = h.taskSvc.DeleteTask(c.Request.Context(), id)
@@ -471,10 +468,8 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 
 	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	userID := userIDRaw.(uuid.UUID)
-
 	roleRaw, _ := c.Get(middleware.ContextKeyRole)
-	role := roleRaw.(string)
-	isAdmin := role == "admin"
+	isAdmin := roleRaw.(string) == "admin"
 
 	err = h.taskSvc.UpdateTaskStatus(c.Request.Context(), id, req.Status, userID, isAdmin)
 	if err != nil {
@@ -484,6 +479,30 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 	h.audit(c, nil, "task_status_changed", "เปลี่ยนสถานะงานเป็น: "+req.Status, &id)
 
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตสถานะงานสำเร็จ"})
+}
+
+// ApproveTask POST /api/tasks/:id/approve (Admin only)
+func (h *TaskHandler) ApproveTask(c *gin.Context) {
+	roleRaw, _ := c.Get(middleware.ContextKeyRole)
+	if roleRaw.(string) != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะแอดมินเท่านั้นที่อนุมัติงานได้"})
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID := userIDRaw.(uuid.UUID)
+
+	if err := h.taskSvc.ApproveTask(c.Request.Context(), id, userID); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+	h.audit(c, nil, "task_approved", "อนุมัติงานและเปลี่ยนสถานะเป็นเสร็จสิ้น", &id)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อนุมัติงานสำเร็จ"})
 }
 
 // ListTrashTasks GET /api/tasks/trash

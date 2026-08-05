@@ -870,6 +870,12 @@ func (h *BrandCategoryHandler) RestoreTaskList(c *gin.Context) {
 		return
 	}
 
+	if taskID, ok := h.taskIDForList(c, listID); ok {
+		if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
+			log.Printf("failed to sync parent task status after list restore (%s): %v", taskID, err)
+		}
+	}
+
 	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
 	name := listID.String()
 	if scope != nil && scope.Name != "" {
@@ -957,6 +963,11 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างรายการล้มเหลว"})
 		return
 	}
+	if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task status after list create (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
+		return
+	}
 	scope := &repository.TaskEventScope{TaskID: taskID, ListID: &list.ID, Name: list.Name}
 	h.audit(c, scope, "board_created", "สร้างบอร์ด: "+list.Name, nil)
 
@@ -1014,6 +1025,11 @@ func (h *BrandCategoryHandler) DeleteTaskList(c *gin.Context) {
 	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
 	if err := h.listRepo.Delete(c.Request.Context(), listID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ลบรายการล้มเหลว"})
+		return
+	}
+	if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task status after list delete (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
 		return
 	}
 	name := listID.String()
@@ -1204,6 +1220,12 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "เรียงลำดับรายการล้มเหลว"})
 			return
 		}
+	}
+
+	if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task status after list update (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
+		return
 	}
 
 	updated, err := h.listRepo.Get(c.Request.Context(), listID)

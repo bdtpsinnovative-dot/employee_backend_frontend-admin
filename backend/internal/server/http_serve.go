@@ -257,10 +257,11 @@ func registerRoutes(
 		api.GET("/tasks/trash", taskH.ListTrashTasks)                              // ดูงานในถังขยะ
 		api.POST("/tasks", taskH.CreateTask)                                       // เพิ่มงานใหม่
 		api.POST("/tasks/:id/restore", taskH.RestoreTask)                          // กู้คืนงานจากถังขยะ
-		api.PUT("/tasks/:id", taskH.UpdateTask)                                    // อัปเดตรายละเอียดงาน (แอดมินแก้ไขรายละเอียดงานหลัก)
-		api.PATCH("/tasks/:id", taskH.UpdateTask)                                  // แก้ไขรายละเอียดและผู้รับผิดชอบงาน
-		api.DELETE("/tasks/:id", taskH.DeleteTask)                                 // ลบงาน (ผู้สร้างงานหรือแอดมิน)
+		api.PUT("/tasks/:id", taskH.UpdateTask)                                    // อัปเดตรายละเอียดงาน (เจ้าของงานเท่านั้น)
+		api.PATCH("/tasks/:id", taskH.UpdateTask)                                  // แก้ไขรายละเอียดและผู้รับผิดชอบงาน (เจ้าของงานเท่านั้น)
+		api.DELETE("/tasks/:id", taskH.DeleteTask)                                 // ลบงาน (เจ้าของงานเท่านั้น)
 		api.PATCH("/tasks/:id/status", taskH.UpdateTaskStatus)                     // อัปเดตสถานะงาน (พนักงาน)
+		api.POST("/tasks/:id/approve", taskH.ApproveTask)                          // อนุมัติงาน (แอดมิน)
 		api.POST("/tasks/:id/star", taskH.ToggleStarTask)                          // ติดดาวงานหลัก
 		api.PATCH("/tasks/sub-items/:id/toggle", brandCategoryH.ToggleTaskSubItem) // เปลี่ยนสถานะรายการย่อย (พนักงาน)
 		api.GET("/tasks/:id/sub-items", brandCategoryH.ListTaskSubItems)           // ดึงรายการย่อยของงาน (พนักงาน + แอดมิน)

@@ -131,14 +131,12 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// Only an admin or the creator may change assignment metadata.
+	// The task owner or an Admin may change assignment metadata.
 	// Assignees may update progress through UpdateTaskStatus, but must not
 	// be able to remove other assignees or rewrite the assignment itself.
-	if !isAdmin {
-		isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
-		if !isCreator {
-			return nil, fmt.Errorf("permission denied: you cannot edit this task")
-		}
+	isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
+	if !isAdmin && !isCreator {
+		return nil, fmt.Errorf("permission denied: only the task owner can edit this task")
 	}
 	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, task.ProjectID); err != nil {
 		return nil, fmt.Errorf("invalid assignees: %w", err)
@@ -253,31 +251,29 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	return task, nil
 }
 
-func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID, isAdmin bool) error {
-	log.Printf("[UpdateTaskStatus Debug] Start id=%s, status=%s, userID=%s, isAdmin=%v", id, status, userID, isAdmin)
+func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status string, userID uuid.UUID, adminOverride bool) error {
+	log.Printf("[UpdateTaskStatus Debug] Start id=%s, status=%s, userID=%s, adminOverride=%v", id, status, userID, adminOverride)
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
 		log.Printf("[UpdateTaskStatus Debug] FindByID failed: %v", err)
 		return fmt.Errorf("task not found: %w", err)
 	}
 
-	// Verify ownership unless the request is made by an Admin
-	if !isAdmin {
-		log.Printf("[UpdateTaskStatus Debug] Checking ownership for employee %s", userID)
-		isAssigned := false
-		if task.AssignedTo != nil && *task.AssignedTo == userID {
-			isAssigned = true
-		}
+	// The task owner and assigned users may update task status. Admin approval
+	// is the one explicit exception and is only used by ApproveTask.
+	isOwner := task.AssignedBy != nil && *task.AssignedBy == userID
+	isAssigned := task.AssignedTo != nil && *task.AssignedTo == userID
+	if !isAssigned {
 		for _, aid := range task.AssigneeIDs {
 			if aid == userID {
 				isAssigned = true
 				break
 			}
 		}
-		if !isAssigned {
-			log.Printf("[UpdateTaskStatus Debug] Ownership check failed")
-			return fmt.Errorf("permission denied: task is not assigned to you")
-		}
+	}
+	if !adminOverride && !isOwner && !isAssigned {
+		log.Printf("[UpdateTaskStatus Debug] Ownership check failed")
+		return fmt.Errorf("permission denied: task is not owned or assigned to you")
 	}
 
 	// Valid status values
@@ -336,6 +332,10 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 	}
 
 	return nil
+}
+
+func (s *TaskService) ApproveTask(ctx context.Context, id, adminID uuid.UUID) error {
+	return s.UpdateTaskStatus(ctx, id, "completed", adminID, true)
 }
 
 func (s *TaskService) DeleteTask(ctx context.Context, id uuid.UUID) error {
