@@ -53,7 +53,7 @@ export default function Tasks() {
       if (typeof meta === 'string') {
         try {
           meta = JSON.parse(meta);
-        } catch {}
+        } catch { }
       }
       if (meta && typeof meta === 'object') {
         tId = meta.task_id || null;
@@ -77,7 +77,7 @@ export default function Tasks() {
         if (typeof meta === 'string') {
           try {
             meta = JSON.parse(meta);
-          } catch {}
+          } catch { }
         }
         if (meta && typeof meta === 'object') {
           tId = meta.task_id || null;
@@ -97,37 +97,37 @@ export default function Tasks() {
       for (const n of unreadMain) {
         try {
           await markNotificationRead(n.id);
-        } catch {}
+        } catch { }
       }
     }
   };
 
 
   // ─── Main Data State ───
-  const [tasks, setTasks]           = useState<AdminTask[]>([]);
-  const [users, setUsers]           = useState<User[]>([]);
-  const [brands, setBrands]         = useState<Brand[]>([]);
+  const [tasks, setTasks] = useState<AdminTask[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
 
   // ─── Search & Filter State ───
-  const [searchQuery, setSearchQuery]           = useState('');
-  const [selectedBrand, setSelectedBrand]       = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('');
-  const [ownershipMode, setOwnershipMode]       = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
-  const [tabFilter, setTabFilter]               = useState<'all' | 'completed' | 'starred'>('all');
+  const [ownershipMode, setOwnershipMode] = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
+  const [tabFilter, setTabFilter] = useState<'all' | 'completed' | 'starred'>('all');
 
   // ─── Modals & Drawers ───
-  const [showCreateModal, setShowCreateModal]       = useState(false);
-  const [editingTask, setEditingTask]               = useState<AdminTask | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<AdminTask | null>(null);
   const [defaultCreateStatus, setDefaultCreateStatus] = useState<TaskStatus | undefined>();
-  const [editTaskEvents, setEditTaskEvents]         = useState<TaskEvent[]>([]);
-  const [editEventsLoading, setEditEventsLoading]   = useState(false);
+  const [editTaskEvents, setEditTaskEvents] = useState<TaskEvent[]>([]);
+  const [editEventsLoading, setEditEventsLoading] = useState(false);
 
   // ─── Trash Bin & Delete Confirmation State ───
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -136,10 +136,10 @@ export default function Tasks() {
   const [trashLoading, setTrashLoading] = useState(false);
 
   // ─── Task Detail Drawer State ───
-  const [selectedTask, setSelectedTask]   = useState<AdminTask | null>(null);
-  const [taskEvents, setTaskEvents]       = useState<TaskEvent[]>([]);
+  const [selectedTask, setSelectedTask] = useState<AdminTask | null>(null);
+  const [taskEvents, setTaskEvents] = useState<TaskEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [commentText, setCommentText]     = useState('');
+  const [commentText, setCommentText] = useState('');
 
   // ─── Load Initial Data ───
   const loadAll = useCallback(async (silent?: boolean) => {
@@ -415,8 +415,8 @@ export default function Tasks() {
         task.assignee_ids && task.assignee_ids.length > 0
           ? task.assignee_ids
           : task.assigned_to
-          ? [task.assigned_to]
-          : [];
+            ? [task.assigned_to]
+            : [];
       if (!ids.includes(selectedAssignee)) return false;
     }
 
@@ -432,8 +432,8 @@ export default function Tasks() {
         task.assignee_ids && task.assignee_ids.length > 0
           ? task.assignee_ids
           : task.assigned_to
-          ? [task.assigned_to]
-          : [];
+            ? [task.assigned_to]
+            : [];
       if (!ids.includes(currentUser?.id || '')) return false;
     }
 
@@ -535,29 +535,29 @@ export default function Tasks() {
             />
           ) : (
           */}
-            <TaskListView
-              tasks={sortedTasks}
-              userMap={userMap}
-              brandMap={brandMap}
-              categoryMap={categoryMap}
-              notifications={notifications}
-              setNotifications={setNotifications}
-              onSelectTask={setSelectedTask}
-              onEditTask={setEditingTask}
-              onSelectProjectSheet={(task) => {
-                navigate(`/tasks/${task.id}`);
-              }}
-              onStatusChange={handleStatusChange}
-              onOpenCreateModal={(status) => {
-                setDefaultCreateStatus(status);
-                setShowCreateModal(true);
-              }}
-              onApproveSubmission={handleApproveSubmission}
-              onRequestRevision={handleRequestRevision}
-              onDeleteTask={handleDeleteTask}
-              currentUser={currentUser}
-              onToggleStar={handleToggleStar}
-            />
+          <TaskListView
+            tasks={sortedTasks}
+            userMap={userMap}
+            brandMap={brandMap}
+            categoryMap={categoryMap}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            onSelectTask={setSelectedTask}
+            onEditTask={setEditingTask}
+            onSelectProjectSheet={(task) => {
+              navigate(`/tasks/${task.id}`);
+            }}
+            onStatusChange={handleStatusChange}
+            onOpenCreateModal={(status) => {
+              setDefaultCreateStatus(status);
+              setShowCreateModal(true);
+            }}
+            onApproveSubmission={handleApproveSubmission}
+            onRequestRevision={handleRequestRevision}
+            onDeleteTask={handleDeleteTask}
+            currentUser={currentUser}
+            onToggleStar={handleToggleStar}
+          />
           {/* )} */}
         </div>
       )}
@@ -686,13 +686,12 @@ export default function Tasks() {
                               {deletedAt.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </td>
                             <td className="px-4 py-3 text-center align-middle">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                                remainingDays <= 5 
-                                  ? 'bg-red-50 text-red-700 border border-red-150' 
-                                  : remainingDays <= 15 
-                                    ? 'bg-amber-50 text-amber-700 border border-amber-150' 
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] ${remainingDays <= 5
+                                  ? 'bg-red-50 text-red-700 border border-red-150'
+                                  : remainingDays <= 15
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-150'
                                     : 'bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}>
+                                }`}>
                                 {remainingDays} วัน
                               </span>
                             </td>
@@ -754,7 +753,7 @@ export default function Tasks() {
                     if (typeof meta === 'string') {
                       try {
                         meta = JSON.parse(meta);
-                      } catch {}
+                      } catch { }
                     }
                     if (meta && typeof meta === 'object') {
                       tId = meta.task_id || null;

@@ -83,11 +83,10 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenMainNotif}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all border relative ${
-              hasUnreadMainNotif
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all border relative ${hasUnreadMainNotif
                 ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70 shadow-2xs'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-            }`}
+              }`}
             title="ดูการแจ้งเตือนและการเปลี่ยนแปลงงานหลักทั้งหมด"
           >
             <Bell className={`w-4 h-4 ${hasUnreadMainNotif ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`} />
@@ -151,35 +150,32 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
           */}
           <button
             onClick={() => onTabFilterChange('all')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              tabFilter === 'all'
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'all'
                 ? 'bg-blue-600 text-white shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
-            }`}
+              }`}
           >
             <LayoutList className="w-3.5 h-3.5" />
             <span>รายการรวม</span>
           </button>
-          
+
           <button
             onClick={() => onTabFilterChange('completed')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              tabFilter === 'completed'
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'completed'
                 ? 'bg-green-600 text-white shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
-            }`}
+              }`}
           >
             <i className="fa-solid fa-calendar-check text-xs"></i>
             <span>งานที่เสร็จแล้ว</span>
           </button>
-          
+
           <button
             onClick={() => onTabFilterChange('starred')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              tabFilter === 'starred'
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'starred'
                 ? 'bg-amber-500 text-white shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 font-medium'
-            }`}
+              }`}
           >
             <i className="fa-solid fa-star text-xs"></i>
             <span>งานที่ติดดาว</span>

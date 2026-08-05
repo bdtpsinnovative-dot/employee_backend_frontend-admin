@@ -152,11 +152,9 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       <NavLink to="/daily-record" className={navLinkClass}>
         <i className="fa-solid fa-calendar-check"></i> บันทึกเวลา & การลา
       </NavLink>
-      {isAdmin && (
-        <NavLink to="/history" className={navLinkClass}>
-          <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
-        </NavLink>
-      )}
+      <NavLink to="/history" className={navLinkClass}>
+        <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
+      </NavLink>
 
 
       <div

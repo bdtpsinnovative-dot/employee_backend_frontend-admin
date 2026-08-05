@@ -36,7 +36,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
         return;
       }
       setAuthenticated(true);
-      
+
       try {
         await fetchMe();
         setHasProfile(true);
@@ -44,8 +44,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
         console.error('ไม่พบข้อมูลโปรไฟล์พนักงาน:', err);
         // หากเกิดข้อผิดพลาดจากเครือข่าย หรือ Server Offline (เช่น 502, Network Error)
         // เราจะไม่ดีดผู้ใช้ออกจากระบบ (เพื่อป้องกันไม่ให้ต้องล็อกอินใหม่ตอนรีสตาร์ท API)
-        const isOfflineOrServerError = 
-          err.message?.includes('Network Error') || 
+        const isOfflineOrServerError =
+          err.message?.includes('Network Error') ||
           err.message?.includes('status code 5') ||
           err.message?.includes('Request failed') ||
           (err.response && err.response.status >= 500);
@@ -101,7 +101,7 @@ export default function App() {
       >
         <Routes>
           <Route path="/login" element={<Login />} />
-          
+
           <Route
             path="/"
             element={

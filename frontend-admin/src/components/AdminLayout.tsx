@@ -11,11 +11,9 @@ const ADMIN_ONLY_ROUTES = [
   '/dashboard',
   '/requests',
   '/employees',
-  '/holidays',
   '/backups',
   '/brand-responsibilities',
   '/teams',
-  '/history',
   '/task-logs'
 ];
 
@@ -25,14 +23,14 @@ function getInitialSidebarOpen(): boolean {
     if (saved !== null) {
       return saved === 'true';
     }
-  } catch {}
+  } catch { }
   return window.innerWidth > 900;
 }
 
 function saveSidebarPref(open: boolean) {
   try {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
-  } catch {}
+  } catch { }
 
   try {
     const request = indexedDB.open('hr_preferences_db', 1);
@@ -47,12 +45,13 @@ function saveSidebarPref(open: boolean) {
       const tx = db.transaction('settings', 'readwrite');
       tx.objectStore('settings').put(open, SIDEBAR_STORAGE_KEY);
     };
-  } catch {}
+  } catch { }
 }
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUserLoaded, setCurrentUserLoaded] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const location = useLocation();
@@ -71,7 +70,7 @@ export default function AdminLayout() {
         const data = await fetchPendingRequests();
         const count = (data.leaves?.length ?? 0) + (data.offsite?.length ?? 0);
         setPendingCount(count);
-      } catch {}
+      } catch { }
     }
     if (isAdmin) {
       loadPendingCount();
@@ -84,7 +83,7 @@ export default function AdminLayout() {
       try {
         const data = await fetchNotifications();
         setNotifications(data);
-      } catch {}
+      } catch { }
     }
     loadNotifications();
     const interval = setInterval(loadNotifications, 30000);
@@ -100,6 +99,8 @@ export default function AdminLayout() {
         setCurrentUser(user);
       } catch (err) {
         console.error('ไม่สามารถโหลดข้อมูลผู้ใช้:', err);
+      } finally {
+        setCurrentUserLoaded(true);
       }
     }
     loadCurrentUser();
@@ -107,7 +108,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
-      const isAdminRoute = ADMIN_ONLY_ROUTES.some(route => 
+      const isAdminRoute = ADMIN_ONLY_ROUTES.some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       );
       if (isAdminRoute) {
@@ -134,11 +135,11 @@ export default function AdminLayout() {
             setSidebarOpen(getReq.result);
             try {
               localStorage.setItem(SIDEBAR_STORAGE_KEY, String(getReq.result));
-            } catch {}
+            } catch { }
           }
         };
       };
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -190,10 +191,9 @@ export default function AdminLayout() {
                 to="/dashboard"
                 title="ภาพรวมระบบ (Dashboard)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                   }`
                 }
               >
@@ -206,10 +206,9 @@ export default function AdminLayout() {
                 to="/requests"
                 title="อนุมัติคำขอ (Requests)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                   }`
                 }
               >
@@ -227,10 +226,9 @@ export default function AdminLayout() {
                 to="/employees"
                 title="ฐานข้อมูลพนักงาน (Employees)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                   }`
                 }
               >
@@ -238,30 +236,26 @@ export default function AdminLayout() {
               </NavLink>
             )}
 
-            {isAdmin && (
-              <NavLink
-                to="/holidays"
-                title="ปฏิทินวันหยุด (Holidays)"
-                className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
-                  }`
-                }
-              >
-                <i className="fa-solid fa-calendar-days text-sm"></i>
-              </NavLink>
-            )}
+            <NavLink
+              to="/holidays"
+              title="ปฏิทินวันหยุด (Holidays)"
+              className={({ isActive }) =>
+                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                }`
+              }
+            >
+              <i className="fa-solid fa-calendar-days text-sm"></i>
+            </NavLink>
 
             <NavLink
               to="/tasks"
               title="จัดการงาน (Tasks)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                 }`
               }
             >
@@ -273,10 +267,9 @@ export default function AdminLayout() {
                 to="/brand-responsibilities"
                 title="ตั้งค่าแบรนด์และผู้รับผิดชอบ"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                   }`
                 }
               >
@@ -288,31 +281,27 @@ export default function AdminLayout() {
               to="/daily-record"
               title="บันทึกเวลา & การลา (Daily Record)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
                 }`
               }
             >
               <i className="fa-solid fa-calendar-check text-sm"></i>
             </NavLink>
 
-            {isAdmin && (
-              <NavLink
-                to="/history"
-                title="ประวัติย้อนหลัง (History)"
-                className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
-                  }`
-                }
-              >
-                <i className="fa-solid fa-clock-rotate-left text-sm"></i>
-              </NavLink>
-            )}
+            <NavLink
+              to="/history"
+              title="ประวัติย้อนหลัง (History)"
+              className={({ isActive }) =>
+                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                }`
+              }
+            >
+              <i className="fa-solid fa-clock-rotate-left text-sm"></i>
+            </NavLink>
 
 
           </div>
@@ -352,7 +341,7 @@ export default function AdminLayout() {
           </div>
 
           {/* Child Routes Render Here */}
-          <Outlet context={{ selectedUser, setSelectedUser, currentUser, notifications, setNotifications }} />
+          <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
         </div>
 
         {isDashboard && <RightPanel selectedUser={selectedUser} />}

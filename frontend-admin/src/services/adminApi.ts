@@ -162,6 +162,14 @@ export async function fetchMonthlyHistory(month: string): Promise<HistoryRecord[
   return data.data ?? [];
 }
 
+/** Fetch the signed-in employee's attendance history for one month. */
+export async function fetchAttendanceHistory(year: number, month: number): Promise<Attendance[]> {
+  const { data } = await api.get<ApiResponse<Attendance[]>>('/api/attendance/history', {
+    params: { year, month },
+  });
+  return data.data ?? [];
+}
+
 export async function manualAttendance(body: {
   user_id: string;
   date: string;
@@ -218,6 +226,18 @@ export async function deleteLocation(id: string): Promise<void> {
 export async function fetchMe(): Promise<User> {
   const { data } = await api.get<ApiResponse<User>>('/api/users/me');
   return data.data;
+}
+
+/** Fetch the signed-in employee's leave requests (all statuses). */
+export async function fetchMyLeaves(): Promise<LeaveRequest[]> {
+  const { data } = await api.get<ApiResponse<LeaveRequest[]>>('/api/leaves');
+  return data.data ?? [];
+}
+
+/** Fetch the signed-in employee's offsite requests (all statuses). */
+export async function fetchMyOffsite(): Promise<OffsiteRequest[]> {
+  const { data } = await api.get<ApiResponse<OffsiteRequest[]>>('/api/offsite');
+  return data.data ?? [];
 }
 
 export async function updateMyProfile(body: {

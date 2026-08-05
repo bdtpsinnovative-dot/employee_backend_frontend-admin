@@ -1,7 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Download, FileText, BarChart, Search, CheckCircle } from 'lucide-react';
-import { fetchMonthlyHistory, fetchHolidays } from '../services/adminApi';
-import type { HistoryRecord, Holiday } from '../types';
+import {
+  fetchAttendanceHistory,
+  fetchHolidays,
+  fetchMonthlyHistory,
+  fetchMyLeaves,
+  fetchMyOffsite,
+} from '../services/adminApi';
+import type { Attendance, HistoryRecord, Holiday, LeaveRequest, OffsiteRequest, User } from '../types';
 import MonthPicker from '../components/MonthPicker';
 import {
   formatDate,
@@ -32,7 +39,88 @@ interface UserSummary {
   onTimeRate: number; // %
 }
 
+function getDatePart(value: string | undefined): string {
+  return value ? value.split('T')[0] : '';
+}
+
+function isInMonth(value: string | undefined, year: number, month: number): boolean {
+  const datePart = getDatePart(value);
+  return datePart.startsWith(`${year}-${String(month).padStart(2, '0')}-`);
+}
+
+function getEmployeeDisplayName(user: User): string {
+  return [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
+    || user.nickname
+    || user.email;
+}
+
+function mapEmployeeHistory(
+  user: User,
+  attendance: Attendance[],
+  leaves: LeaveRequest[],
+  offsite: OffsiteRequest[],
+  year: number,
+  month: number,
+): HistoryRecord[] {
+  const userName = getEmployeeDisplayName(user);
+  const userFields = {
+    user_name: userName,
+    email: user.email || '',
+    department: user.department || '',
+    position: user.position || '',
+  };
+
+  const records: HistoryRecord[] = [
+    ...attendance
+      .filter(record => record.user_id === user.id && isInMonth(record.date, year, month))
+      .map(record => ({
+        ...userFields,
+        date: record.date,
+        status: record.status || 'unknown',
+        type: 'attendance',
+        reason: '',
+        check_in_at: record.check_in_at,
+        check_out_at: record.check_out_at,
+        check_in_photo: record.check_in_photo,
+        check_out_photo: record.check_out_photo,
+        created_at: record.created_at || record.check_in_at || record.date,
+      })),
+    ...leaves
+      .filter(record => record.user_id === user.id && isInMonth(record.date, year, month))
+      .map(record => ({
+        ...userFields,
+        date: record.date,
+        status: `${record.leave_type} ${record.duration} (${record.status})`,
+        type: 'leave',
+        reason: record.reason || '',
+        check_in_photo: record.medical_cert_url,
+        created_at: record.created_at || record.date,
+      })),
+    ...offsite
+      .filter(record => record.user_id === user.id && isInMonth(record.date, year, month))
+      .map(record => ({
+        ...userFields,
+        date: record.date,
+        status: `offsite (${record.status})`,
+        type: 'offsite',
+        reason: record.reason || '',
+        created_at: record.created_at || record.date,
+      })),
+  ];
+
+  records.sort((a, b) => {
+    const dateOrder = b.date.localeCompare(a.date);
+    if (dateOrder !== 0) return dateOrder;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+  return records;
+}
+
 export default function History() {
+  const { currentUser, currentUserLoaded } = useOutletContext<{
+    currentUser: User | null;
+    currentUserLoaded: boolean;
+  }>();
   const [allRows, setAllRows] = useState<HistoryRecord[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +135,7 @@ export default function History() {
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<'log' | 'summary'>('log');
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
+  const loadSequence = useRef(0);
 
   const [selectedYear, selectedMonth] = useMemo(() => {
     const [y, m] = filterMonth.split('-');
@@ -57,32 +146,69 @@ export default function History() {
     return new Date(selectedYear, selectedMonth, 0).getDate();
   }, [selectedYear, selectedMonth]);
 
+  const loadData = useCallback(async () => {
+    if (!currentUser) return;
+
+    const sequence = ++loadSequence.current;
+    setLoading(true);
+    try {
+      const [year, month] = filterMonth.split('-').map(Number);
+      let records: HistoryRecord[];
+      let holidaysData: Holiday[];
+
+      if (currentUser.role === 'admin') {
+        // Keep the admin report on its existing all-users endpoint.
+        [records, holidaysData] = await Promise.all([
+          fetchMonthlyHistory(filterMonth),
+          fetchHolidays(year),
+        ]);
+      } else {
+        // Self-scoped endpoints are intentionally requested in parallel. The
+        // current user's id also guards the mapping against accidental leakage.
+        const [attendance, leaves, offsite, employeeHolidays] = await Promise.all([
+          fetchAttendanceHistory(year, month),
+          fetchMyLeaves(),
+          fetchMyOffsite(),
+          fetchHolidays(year),
+        ]);
+        records = mapEmployeeHistory(currentUser, attendance, leaves, offsite, year, month);
+        holidaysData = employeeHolidays;
+      }
+
+      if (sequence === loadSequence.current) {
+        setAllRows(records);
+        setHolidays(holidaysData ?? []);
+        setPage(1);
+      }
+    } catch (err) {
+      if (sequence === loadSequence.current) {
+        console.error('โหลดประวัติล้มเหลว:', err);
+      }
+    } finally {
+      if (sequence === loadSequence.current) {
+        setLoading(false);
+      }
+    }
+  }, [currentUser, filterMonth]);
+
   useEffect(() => {
-    loadData();
+    if (!currentUser) {
+      if (currentUserLoaded) {
+        loadSequence.current += 1;
+        setAllRows([]);
+        setLoading(false);
+      }
+      return;
+    }
+
+    void loadData();
     const currentMonthStr = new Date().toISOString().slice(0, 7);
     if (filterMonth === currentMonthStr) {
       setFilterDay(String(new Date().getDate()).padStart(2, '0'));
     } else {
       setFilterDay('All');
     }
-  }, [filterMonth]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const year = parseInt(filterMonth.split('-')[0], 10);
-      const [records, holidaysData] = await Promise.all([
-        fetchMonthlyHistory(filterMonth),
-        fetchHolidays(year),
-      ]);
-      setAllRows(records);
-      setHolidays(holidaysData ?? []);
-      setPage(1);
-    } catch (err) {
-      console.error('โหลดประวัติล้มเหลว:', err);
-    }
-    setLoading(false);
-  }
+  }, [currentUser, currentUserLoaded, filterMonth, loadData]);
 
   // ──── คำนวณวันทำการเฉลี่ยของแผนก (ไม่รวม ส-อา และวันหยุดราชการ) ────
   const { scheduledWorkDays, scheduledYMDs } = useMemo(() => {

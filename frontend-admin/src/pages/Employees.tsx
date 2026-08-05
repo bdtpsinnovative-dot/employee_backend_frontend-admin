@@ -158,7 +158,7 @@ export default function Employees() {
   }, [filteredUsers]);
 
   const totalPages = Math.max(1, Math.ceil(activeUsers.length / PAGE_SIZE));
-  
+
   // Auto-correct page if filtering reduces total pages
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -188,62 +188,62 @@ export default function Employees() {
 
   function renderTable(userList: User[], emptyMsg: string) {
     return (
-        <table className="employee-table">
-          <thead>
+      <table className="employee-table">
+        <thead>
+          <tr>
+            <th>ชื่อ-นามสกุล</th>
+            <th>ตำแหน่ง</th>
+            <th>ทีม</th>
+            <th>แผนก</th>
+            <th>สิทธิ์</th>
+            <th>สถานะ</th>
+            <th>อุปกรณ์</th>
+            <th style={{ textAlign: 'right' }}>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
             <tr>
-              <th>ชื่อ-นามสกุล</th>
-              <th>ตำแหน่ง</th>
-              <th>ทีม</th>
-              <th>แผนก</th>
-              <th>สิทธิ์</th>
-              <th>สถานะ</th>
-              <th>อุปกรณ์</th>
-              <th style={{ textAlign: 'right' }}>จัดการ</th>
+              <td colSpan={8} style={{ textAlign: 'center', padding: '30px' }}>
+                กำลังโหลดข้อมูล...
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '30px' }}>
-                  กำลังโหลดข้อมูล...
+          ) : userList.length === 0 ? (
+            <tr>
+              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
+                {emptyMsg}
+              </td>
+            </tr>
+          ) : (
+            userList.map((user) => (
+              <tr key={user.id}>
+                <td data-label="ชื่อ-นามสกุล">
+                  <div style={{ fontWeight: 600 }}>
+                    {user.first_name} {user.last_name} {user.nickname ? `(${user.nickname})` : ''}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{user.email}</div>
                 </td>
-              </tr>
-            ) : userList.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
-                  {emptyMsg}
+                <td data-label="ตำแหน่ง">{user.position || '-'}</td>
+                <td data-label="ทีม">{user.team || '-'}</td>
+                <td data-label="แผนก">{user.department || '-'}</td>
+                <td data-label="สิทธิ์">{roleBadge(user.role)}</td>
+                <td data-label="สถานะ">{statusBadge(user.status)}</td>
+                <td data-label="อุปกรณ์">
+                  {user.device_id ? (
+                    <span style={{ fontSize: '12px', color: 'var(--green)' }}>
+                      <i className="fa-solid fa-mobile-screen"></i> ผูกแล้ว
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>ยังไม่ผูก</span>
+                  )}
                 </td>
-              </tr>
-            ) : (
-              userList.map((user) => (
-                <tr key={user.id}>
-                  <td data-label="ชื่อ-นามสกุล">
-                    <div style={{ fontWeight: 600 }}>
-                      {user.first_name} {user.last_name} {user.nickname ? `(${user.nickname})` : ''}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{user.email}</div>
-                  </td>
-                  <td data-label="ตำแหน่ง">{user.position || '-'}</td>
-                  <td data-label="ทีม">{user.team || '-'}</td>
-                  <td data-label="แผนก">{user.department || '-'}</td>
-                  <td data-label="สิทธิ์">{roleBadge(user.role)}</td>
-                  <td data-label="สถานะ">{statusBadge(user.status)}</td>
-                  <td data-label="อุปกรณ์">
-                    {user.device_id ? (
-                      <span style={{ fontSize: '12px', color: 'var(--green)' }}>
-                        <i className="fa-solid fa-mobile-screen"></i> ผูกแล้ว
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>ยังไม่ผูก</span>
-                    )}
-                  </td>
-                  <td data-label="จัดการ" style={{ textAlign: 'right' }}>
-                    {user.id === '' ? (
-                      <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic' }}>
-                        (บัญชีของคุณ)
-                      </span>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <td data-label="จัดการ" style={{ textAlign: 'right' }}>
+                  {user.id === '' ? (
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic' }}>
+                      (บัญชีของคุณ)
+                    </span>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <button
                         className="btn-secondary"
                         onClick={() => {
@@ -264,7 +264,7 @@ export default function Employees() {
                       >
                         <i className="fa-solid fa-pen-to-square"></i> แก้ไข
                       </button>
-                      
+
                       {user.status === 'pending' && (
                         <button
                           className="btn-approve"
@@ -296,13 +296,13 @@ export default function Employees() {
                         </button>
                       )}
                     </div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     );
   }
 
@@ -310,7 +310,7 @@ export default function Employees() {
     <div id="employees" className="page-section active">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
         <h2>ฐานข้อมูลพนักงาน</h2>
-        
+
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
           <div className="search-input-wrapper" style={{ flex: '1 1 200px', maxWidth: '300px', position: 'relative' }}>
             <i className="fa-solid fa-search" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-gray)' }}></i>
@@ -319,14 +319,16 @@ export default function Employees() {
               placeholder="ค้นหาชื่อ หรือ อีเมล..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
-              style={{ width: '100%', padding: '10px 15px 10px 40px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
+              className="form-control"
+              style={{ width: '100%', paddingLeft: '40px', margin: 0 }}
             />
           </div>
 
           <select
             value={filterStatus}
             onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-            style={{ padding: '10px 15px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'var(--bg-dark)', color: 'white', cursor: 'pointer' }}
+            className="form-control"
+            style={{ width: 'auto', margin: 0, cursor: 'pointer' }}
           >
             <option value="all">สถานะทั้งหมด</option>
             <option value="active">ใช้งานปกติ</option>
@@ -351,27 +353,37 @@ export default function Employees() {
 
       <div className="table-card glass-panel">
         {renderTable(pagedUsers, 'ไม่พบข้อมูลพนักงาน')}
-        
+
         {/* Pagination Controls */}
         {!loading && activeUsers.length > PAGE_SIZE && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <button
-              className="btn-page"
-              disabled={page <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              style={{ padding: '6px 14px', fontSize: '13px', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px' }}
-            >
-              ‹ ก่อนหน้า
-            </button>
-            <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>หน้า {page} / {totalPages}</span>
-            <button
-              className="btn-page"
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              style={{ padding: '6px 14px', fontSize: '13px', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '8px' }}
-            >
-              ถัดไป ›
-            </button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+            <div className="text-xs font-semibold text-slate-500">
+              แสดง {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, activeUsers.length)} จากทั้งหมด {activeUsers.length} รายการ
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-700 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-chevron-left text-[10px]"></i>
+                ก่อนหน้า
+              </button>
+
+              <div className="px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                หน้า {page} / {totalPages}
+              </div>
+
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-700 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              >
+                ถัดไป
+                <i className="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -381,34 +393,34 @@ export default function Employees() {
         <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, padding: '20px' }}>
           <div className="modal-content glass-panel employee-edit-modal" style={{ width: '100%', maxWidth: '680px', padding: '24px', borderRadius: '20px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '20px' }}>แก้ไขข้อมูลพนักงาน</h3>
-            
+
             <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
               <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ชื่อ</label>
-                <input 
-                  type="text" 
-                  value={editForm.first_name || ''} 
-                  onChange={e => setEditForm({...editForm, first_name: e.target.value})}
+                <input
+                  type="text"
+                  value={editForm.first_name || ''}
+                  onChange={e => setEditForm({ ...editForm, first_name: e.target.value })}
                   className="form-control"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
               <div style={{ flex: 2 }}>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>นามสกุล</label>
-                <input 
-                  type="text" 
-                  value={editForm.last_name || ''} 
-                  onChange={e => setEditForm({...editForm, last_name: e.target.value})}
+                <input
+                  type="text"
+                  value={editForm.last_name || ''}
+                  onChange={e => setEditForm({ ...editForm, last_name: e.target.value })}
                   className="form-control"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ชื่อเล่น</label>
-                <input 
-                  type="text" 
-                  value={editForm.nickname || ''} 
-                  onChange={e => setEditForm({...editForm, nickname: e.target.value})}
+                <input
+                  type="text"
+                  value={editForm.nickname || ''}
+                  onChange={e => setEditForm({ ...editForm, nickname: e.target.value })}
                   className="form-control"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />
@@ -417,10 +429,10 @@ export default function Employees() {
 
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>แผนก</label>
-              <input 
-                type="text" 
-                value={editForm.department || ''} 
-                onChange={e => setEditForm({...editForm, department: e.target.value})}
+              <input
+                type="text"
+                value={editForm.department || ''}
+                onChange={e => setEditForm({ ...editForm, department: e.target.value })}
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
               />
@@ -495,9 +507,9 @@ export default function Employees() {
 
             <div style={{ marginBottom: '25px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>สิทธิ์การใช้งาน (Role)</label>
-              <select 
-                value={editForm.role || 'employee'} 
-                onChange={e => setEditForm({...editForm, role: e.target.value as 'employee' | 'admin'})}
+              <select
+                value={editForm.role || 'employee'}
+                onChange={e => setEditForm({ ...editForm, role: e.target.value as 'employee' | 'admin' })}
                 disabled={editUser.id === currentAdminId}
                 className="form-control"
                 style={{ width: '100%', boxSizing: 'border-box' }}
@@ -508,16 +520,16 @@ export default function Employees() {
             </div>
 
             <div className="employee-edit-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={() => setEditUser(null)}
                 disabled={actionLoading === editUser.id}
                 style={{ padding: '8px 16px' }}
               >
                 ยกเลิก
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 onClick={handleSaveEdit}
                 disabled={actionLoading === editUser.id}
                 style={{ padding: '8px 16px' }}

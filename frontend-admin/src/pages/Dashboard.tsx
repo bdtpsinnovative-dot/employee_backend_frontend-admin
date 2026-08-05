@@ -633,13 +633,16 @@ export default function Dashboard() {
 
       <div className="dashboard-grid">
         {/* การ์ด 1: พนักงานทั้งหมด / ลาสะสม */}
-        <div className="stat-card glass-panel" style={selectedUser ? {} : { backgroundImage: 'var(--primary-gradient)', color: 'white' }}>
-          <div className="stat-icon" style={selectedUser ? { color: 'var(--blue)' } : { background: 'rgba(255, 255, 255, 0.25)', color: 'white' }}>
+        <div
+          className="stat-card glass-panel"
+          style={selectedUser ? {} : { background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: 'white', borderColor: 'transparent' }}
+        >
+          <div className="stat-icon" style={selectedUser ? { color: 'var(--blue)' } : { background: 'rgba(255, 255, 255, 0.2)', color: 'white' }}>
             <i className={`fa-solid ${cardData.total.icon}`}></i>
           </div>
           <div className="stat-info">
-            <h4 style={selectedUser ? {} : { color: 'white' }}>{cardData.total.label}</h4>
-            <h2 style={selectedUser ? {} : { color: 'white' }}>{cardData.total.value}</h2>
+            <h4 style={selectedUser ? {} : { color: 'rgba(255, 255, 255, 0.9)' }}>{cardData.total.label}</h4>
+            <h2 style={selectedUser ? {} : { color: '#ffffff' }}>{cardData.total.value}</h2>
           </div>
         </div>
 
