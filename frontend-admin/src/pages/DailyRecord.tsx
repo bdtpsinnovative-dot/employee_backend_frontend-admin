@@ -54,6 +54,8 @@ function ProfileCell({ member }: { member: ProfileIdentity }) {
           <img
             src={profileAvatar}
             alt={`รูปโปรไฟล์ของ ${fullName}`}
+            loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : initial}

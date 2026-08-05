@@ -3,7 +3,6 @@ import { Download, FileText, BarChart, Search, CheckCircle } from 'lucide-react'
 import { fetchMonthlyHistory, fetchHolidays } from '../services/adminApi';
 import type { HistoryRecord, Holiday } from '../types';
 import MonthPicker from '../components/MonthPicker';
-import { exportXLSX } from '../utils/excelExport';
 import {
   formatDate,
   formatTime,
@@ -285,14 +284,20 @@ export default function History() {
     setPage(1);
   }
 
-  function handleExport() {
-    const mLeaveMap = new Map<string, boolean>();
-    allRows.forEach(r => {
-      if (r.type === 'leave' && r.status.includes('approved') && r.status.includes('ครึ่งเช้า')) {
-        mLeaveMap.set(`${r.user_name}_${r.date.split('T')[0]}`, true);
-      }
-    });
-    exportXLSX(filteredRows, summaryData, scheduledWorkDays, filterMonth, mLeaveMap);
+  async function handleExport() {
+    try {
+      const excelExportModule = import('../utils/excelExport');
+      const mLeaveMap = new Map<string, boolean>();
+      allRows.forEach(r => {
+        if (r.type === 'leave' && r.status.includes('approved') && r.status.includes('ครึ่งเช้า')) {
+          mLeaveMap.set(`${r.user_name}_${r.date.split('T')[0]}`, true);
+        }
+      });
+      const { exportXLSX } = await excelExportModule;
+      exportXLSX(filteredRows, summaryData, scheduledWorkDays, filterMonth, mLeaveMap);
+    } catch (err) {
+      console.error('ส่งออก Excel ล้มเหลว:', err);
+    }
   }
 
   const inactiveTabStyle = {

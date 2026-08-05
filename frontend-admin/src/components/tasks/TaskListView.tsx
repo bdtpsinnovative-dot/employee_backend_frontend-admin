@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Bell,
   X,
@@ -96,8 +96,37 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
     }
   };
 
+  const unreadSubTaskTaskIds = useMemo(() => {
+    const taskIds = new Set<string>();
+
+    notifications.forEach((notification) => {
+      if (notification.is_read) return;
+
+      let taskId: string | null = null;
+      let listId: unknown = null;
+      if (notification.metadata) {
+        let metadata = notification.metadata;
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata);
+          } catch {}
+        }
+        if (metadata && typeof metadata === 'object') {
+          taskId = metadata.task_id || null;
+          listId = metadata.list_id || null;
+        }
+      }
+
+      if (taskId !== null && listId !== null) {
+        taskIds.add(taskId);
+      }
+    });
+
+    return taskIds;
+  }, [notifications]);
+
   // Flatten and sort all tasks chronologically by due date ascending
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const sortedTasks = useMemo(() => [...tasks].sort((a, b) => {
     const aDue = a.due_date && !a.due_date.startsWith('0001-01-01') ? new Date(a.due_date).getTime() : Infinity;
     const bDue = b.due_date && !b.due_date.startsWith('0001-01-01') ? new Date(b.due_date).getTime() : Infinity;
     
@@ -109,7 +138,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
-  });
+  }), [tasks]);
 
   return (
     <div className="p-6">
@@ -154,24 +183,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               const assignees = assigneeIds.map((id) => userMap[id]).filter(Boolean);
               const firstAssignee = assignees[0];
 
-              const hasUnreadSubTaskNotif = notifications.some(n => {
-                if (n.is_read) return false;
-                let tId: string | null = null;
-                let lId: string | null = null;
-                if (n.metadata) {
-                  let meta = n.metadata;
-                  if (typeof meta === 'string') {
-                    try {
-                      meta = JSON.parse(meta);
-                    } catch {}
-                  }
-                  if (meta && typeof meta === 'object') {
-                    tId = meta.task_id || null;
-                    lId = meta.list_id || null;
-                  }
-                }
-                return tId === task.id && lId !== null;
-              });
+              const hasUnreadSubTaskNotif = unreadSubTaskTaskIds.has(task.id);
 
               return (
                 <tr
