@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
@@ -13,8 +13,11 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const isAdmin = currentUser?.role === 'admin';
+  const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser
     ? `${currentUser.first_name} ${currentUser.last_name}${currentUser.nickname ? ` (${currentUser.nickname})` : ''}`.trim()
@@ -60,7 +63,10 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
           type="button"
           className="sidebar-close-btn"
           id="sidebar-close"
-          onClick={onClose}
+          onClick={() => {
+            setProfileMenuOpen(false);
+            onClose();
+          }}
           aria-label="ปิดเมนูด้านข้าง"
           style={{ display: isOpen ? 'flex' : 'none' }}
         >
@@ -69,10 +75,14 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       </div>
 
       {/* Top Profile Card: Avatar, Name, Position & Role Badge */}
-      <NavLink
-        to="/profile"
-        className={({ isActive }) => `sidebar-profile ${isActive ? 'active' : ''}`}
-        aria-label={`เปิดโปรไฟล์ของ ${profileName}`}
+      <button
+        type="button"
+        className={`sidebar-profile ${profileMenuOpen ? 'active open' : ''}`}
+        aria-label={`${profileMenuOpen ? 'ปิด' : 'เปิด'}เมนูโปรไฟล์ของ ${profileName}`}
+        aria-haspopup="menu"
+        aria-expanded={profileMenuOpen}
+        aria-controls="sidebar-profile-menu"
+        onClick={() => setProfileMenuOpen((previous) => !previous)}
       >
         <div className="sidebar-profile-avatar-wrapper">
           <span className="sidebar-profile-avatar" aria-hidden="true">
@@ -87,8 +97,36 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
             {roleBadgeText}
           </span>
         </div>
-        <i className="fa-solid fa-chevron-right sidebar-profile-chevron" aria-hidden="true"></i>
-      </NavLink>
+        <i
+          className={`fa-solid fa-chevron-right sidebar-profile-chevron ${profileMenuOpen ? 'open' : ''}`}
+          aria-hidden="true"
+        ></i>
+      </button>
+
+      {profileMenuOpen && (
+        <div className="sidebar-profile-menu" id="sidebar-profile-menu">
+          <NavLink
+            to="/profile"
+            className={({ isActive }) => `sidebar-profile-action ${isActive ? 'active' : ''}`}
+            onClick={() => setProfileMenuOpen(false)}
+          >
+            <span className="sidebar-profile-action-icon" aria-hidden="true">
+              <i className="fa-solid fa-user"></i>
+            </span>
+            <span>โปรไฟล์</span>
+          </NavLink>
+          <button
+            type="button"
+            className="sidebar-profile-action sidebar-profile-action-danger"
+            onClick={handleLogout}
+          >
+            <span className="sidebar-profile-action-icon" aria-hidden="true">
+              <i className="fa-solid fa-right-from-bracket"></i>
+            </span>
+            <span>ออกจากระบบ</span>
+          </button>
+        </div>
+      )}
 
       {isAdmin && (
         <NavLink to="/dashboard" className={navLinkClass}>
@@ -125,29 +163,16 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
         </NavLink>
       )}
       {isAdmin && (
-        <NavLink to="/teams" className={navLinkClass}>
-          <i className="fa-solid fa-users-gear"></i> จัดการทีมและตำแหน่ง
+        <NavLink to="/teams" className={`nav-item ${isOrganizationSettings ? 'active' : ''}`}>
+          <i className="fa-solid fa-users-gear"></i> จัดการทีมและแบรนด์
         </NavLink>
       )}
-      {isAdmin && (
-        <NavLink to="/holidays" className={navLinkClass}>
-          <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
-        </NavLink>
-      )}
-      {isAdmin && (
-        <NavLink to="/backups" className={navLinkClass}>
-          <i className="fa-solid fa-database"></i> สำรองและกู้คืนข้อมูล
-        </NavLink>
-      )}
+      <NavLink to="/holidays" className={navLinkClass}>
+        <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
+      </NavLink>
       <NavLink to="/tasks" className={navLinkClass}>
         <i className="fa-solid fa-clipboard-list"></i> จัดการงาน
       </NavLink>
-      {isAdmin && (
-        <NavLink to="/brand-responsibilities" className={navLinkClass}>
-          <i className="fa-solid fa-sitemap"></i> ตั้งค่าแบรนด์และผู้รับผิดชอบ
-        </NavLink>
-      )}
-
       <div className="menu-category">การปฏิบัติงาน</div>
       <NavLink to="/daily-record" className={navLinkClass}>
         <i className="fa-solid fa-calendar-check"></i> บันทึกเวลา & การลา
@@ -156,14 +181,6 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
         <i className="fa-solid fa-clock-rotate-left"></i> ประวัติย้อนหลัง
       </NavLink>
 
-
-      <div
-        className="nav-item logout"
-        style={{ marginTop: 'auto', color: '#718096', cursor: 'pointer' }}
-        onClick={handleLogout}
-      >
-        <i className="fa-solid fa-right-from-bracket"></i> ออกจากระบบ
-      </div>
     </div>
   );
 }

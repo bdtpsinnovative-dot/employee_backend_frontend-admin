@@ -58,6 +58,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
   const isAdmin = currentUser?.role === 'admin';
+  const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -173,31 +174,41 @@ export default function AdminLayout() {
       <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       {/* Collapsed Left Rail for Desktop */}
+      {/* Collapsed Left Rail for Desktop */}
       {!sidebarOpen && (
-        <div className="hidden md:flex flex-col items-center py-5 bg-white border-r border-slate-200 w-[56px] shrink-0 z-30 shadow-2xs select-none transition-all duration-300 h-screen sticky top-0 overflow-y-auto">
-          {/* Hamburger toggle button */}
-          <button
-            onClick={toggleSidebar}
-            title="ขยายเมนูด้านข้าง (Expand Sidebar)"
-            className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-600 hover:text-blue-600 flex items-center justify-center transition-all shadow-2xs active:scale-95 cursor-pointer mb-6"
-          >
-            <i className="fa-solid fa-bars text-sm"></i>
-          </button>
+        <div className="collapsed-sidebar-rail hidden md:flex flex-col items-center py-3 bg-white border-r border-slate-200/80 w-[88px] shrink-0 z-30 shadow-2xs select-none transition-all duration-300 h-screen sticky top-0 overflow-y-auto overflow-x-hidden scrollbar-none">
+          {/* Top Brand & Hamburger toggle button */}
+          <div className="flex flex-col items-center gap-2 mb-3 w-full px-1">
+            <button
+              onClick={toggleSidebar}
+              title="ขยายเมนูด้านข้าง (Expand Sidebar)"
+              aria-label="ขยายเมนูด้านข้าง"
+              aria-expanded={false}
+              aria-controls="sidebar"
+              className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center justify-center transition-all shadow-sm shadow-blue-500/25 active:scale-95 cursor-pointer group"
+            >
+              <i className="fa-solid fa-bars text-sm group-hover:scale-110 transition-transform"></i>
+            </button>
+            <span className="text-[9px] font-black text-slate-400 tracking-wider uppercase">เมนู</span>
+          </div>
+
+          <div className="w-6 border-t border-slate-100 mb-2"></div>
 
           {/* Navigation Icons list */}
-          <div className="flex-1 flex flex-col items-center gap-4 w-full">
+          <div className="flex-1 flex flex-col items-center gap-1 w-full px-1">
             {isAdmin && (
               <NavLink
                 to="/dashboard"
                 title="ภาพรวมระบบ (Dashboard)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `collapsed-nav-link ${isActive
+                    ? 'active'
+                    : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                   }`
                 }
               >
-                <i className="fa-solid fa-chart-pie text-sm"></i>
+                <i className="fa-solid fa-chart-pie"></i>
+                <span className="collapsed-nav-label">ภาพรวม</span>
               </NavLink>
             )}
 
@@ -206,15 +217,16 @@ export default function AdminLayout() {
                 to="/requests"
                 title="อนุมัติคำขอ (Requests)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `collapsed-nav-link ${isActive
+                    ? 'active'
+                    : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                   }`
                 }
               >
-                <i className="fa-solid fa-envelope-open-text text-sm"></i>
+                <i className="fa-solid fa-envelope-open-text"></i>
+                <span className="collapsed-nav-label">อนุมัติคำขอ</span>
                 {pendingCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white rounded-full flex items-center justify-center text-[9px] font-extrabold shadow-2xs border border-white">
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-4 px-1 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ring-white">
                     {pendingCount}
                   </span>
                 )}
@@ -226,13 +238,30 @@ export default function AdminLayout() {
                 to="/employees"
                 title="ฐานข้อมูลพนักงาน (Employees)"
                 className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                  `collapsed-nav-link ${isActive
+                    ? 'active'
+                    : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                   }`
                 }
               >
-                <i className="fa-solid fa-user-plus text-sm"></i>
+                <i className="fa-solid fa-user-plus"></i>
+                <span className="collapsed-nav-label">พนักงาน</span>
+              </NavLink>
+            )}
+
+            {isAdmin && (
+              <NavLink
+                to="/teams"
+                title="จัดการทีมและแบรนด์ (Organization settings)"
+                className={({ isActive }) =>
+                  `collapsed-nav-link ${isActive || isOrganizationSettings
+                    ? 'active'
+                    : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
+                  }`
+                }
+              >
+                <i className="fa-solid fa-users-gear"></i>
+                <span className="collapsed-nav-label">ทีม/แบรนด์</span>
               </NavLink>
             )}
 
@@ -240,80 +269,73 @@ export default function AdminLayout() {
               to="/holidays"
               title="ปฏิทินวันหยุด (Holidays)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `collapsed-nav-link ${isActive
+                  ? 'active'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                 }`
               }
             >
-              <i className="fa-solid fa-calendar-days text-sm"></i>
+              <i className="fa-solid fa-calendar-days"></i>
+              <span className="collapsed-nav-label">ปฏิทิน</span>
             </NavLink>
 
             <NavLink
               to="/tasks"
               title="จัดการงาน (Tasks)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `collapsed-nav-link ${isActive
+                  ? 'active'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                 }`
               }
             >
-              <i className="fa-solid fa-clipboard-list text-sm"></i>
+              <i className="fa-solid fa-clipboard-list"></i>
+              <span className="collapsed-nav-label">งาน</span>
             </NavLink>
 
-            {isAdmin && (
-              <NavLink
-                to="/brand-responsibilities"
-                title="ตั้งค่าแบรนด์และผู้รับผิดชอบ"
-                className={({ isActive }) =>
-                  `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
-                  }`
-                }
-              >
-                <i className="fa-solid fa-sitemap text-sm"></i>
-              </NavLink>
-            )}
+            <div className="collapsed-nav-divider" aria-hidden="true"></div>
+            <span className="collapsed-nav-section-label">งานประจำวัน</span>
 
             <NavLink
               to="/daily-record"
               title="บันทึกเวลา & การลา (Daily Record)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `collapsed-nav-link ${isActive
+                  ? 'active'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                 }`
               }
             >
-              <i className="fa-solid fa-calendar-check text-sm"></i>
+              <i className="fa-solid fa-calendar-check"></i>
+              <span className="collapsed-nav-label">บันทึกเวลา</span>
             </NavLink>
 
             <NavLink
               to="/history"
               title="ประวัติย้อนหลัง (History)"
               className={({ isActive }) =>
-                `w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-transparent'
+                `collapsed-nav-link ${isActive
+                  ? 'active'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
                 }`
               }
             >
-              <i className="fa-solid fa-clock-rotate-left text-sm"></i>
+              <i className="fa-solid fa-clock-rotate-left"></i>
+              <span className="collapsed-nav-label">ประวัติ</span>
             </NavLink>
-
-
           </div>
 
           {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            title="ออกจากระบบ (Logout)"
-            className="w-10 h-10 rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer border border-transparent active:scale-95 mt-auto"
-          >
-            <i className="fa-solid fa-right-from-bracket text-sm"></i>
-          </button>
+          <div className="flex flex-col items-center gap-1 w-full px-1 mt-auto">
+            <button
+              onClick={handleLogout}
+              title="ออกจากระบบ (Logout)"
+              className="collapsed-nav-link text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200/60 active:scale-95 transition-all cursor-pointer"
+            >
+              <i className="fa-solid fa-right-from-bracket"></i>
+              <span className="collapsed-nav-label">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -344,7 +366,7 @@ export default function AdminLayout() {
           <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
         </div>
 
-        {isDashboard && <RightPanel selectedUser={selectedUser} />}
+        {isDashboard && <RightPanel selectedUser={selectedUser} onSelectUser={setSelectedUser} />}
       </div>
     </div>
   );

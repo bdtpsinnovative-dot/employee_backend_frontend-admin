@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
-import { fetchAllRequests, fetchUserHistory, fetchUserQuota, updateUserQuota } from '../services/adminApi';
-import type { LeaveRequest, User } from '../types';
+import { fetchAllAttendance, fetchAllRequests, fetchUserHistory, fetchUserQuota, updateUserQuota, fetchUsers } from '../services/adminApi';
+import type { Attendance, LeaveRequest, User } from '../types';
+import { avatarUrl } from './tasks/taskUtils';
 
 interface RightPanelProps {
   selectedUser: User | null;
+  onSelectUser: (user: User) => void;
 }
 
-export default function RightPanel({ selectedUser }: RightPanelProps) {
+export default function RightPanel({ selectedUser, onSelectUser }: RightPanelProps) {
   const [todayLeaves, setTodayLeaves] = useState<LeaveRequest[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<Attendance[]>([]);
+  const [todayOffsiteCount, setTodayOffsiteCount] = useState(0);
+  const [employees, setEmployees] = useState<User[]>([]);
 
   // สิทธิวันลาสะสมสำหรับพนักงานที่ถูกเลือก
   const [usedSick, setUsedSick] = useState(0);
@@ -28,20 +33,28 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
 
   useEffect(() => {
     loadTodayData();
+    fetchUsers()
+      .then(users => setEmployees(users.filter(user => user.status === 'active')))
+      .catch(() => setEmployees([]));
   }, []);
 
   useEffect(() => {
-    if (selectedUser) {
-      setIsEditingQuota(false);
-      loadEmployeeQuota(selectedUser.id);
-    }
+    if (!selectedUser) return;
+    let cancelled = false;
+    setIsEditingQuota(false);
+    void loadEmployeeQuota(selectedUser.id, () => !cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [selectedUser]);
 
   async function loadTodayData() {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
     try {
-      const [allRequests] = await Promise.all([
+      const [allRequests, attendance] = await Promise.all([
         fetchAllRequests(),
+        fetchAllAttendance(todayStr),
       ]);
 
       const todaysLeaves = (allRequests.leaves ?? []).filter(l => {
@@ -49,18 +62,23 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
         return leaveDate === todayStr && l.status === 'approved';
       });
       setTodayLeaves(todaysLeaves);
+      setTodayAttendance(attendance);
+      setTodayOffsiteCount((allRequests.offsite ?? []).filter(request => {
+        return request.date.split('T')[0] === todayStr && request.status === 'approved';
+      }).length);
     } catch {
       // backend อาจยังไม่พร้อม
     }
   }
 
-  async function loadEmployeeQuota(userId: string) {
+  async function loadEmployeeQuota(userId: string, isCurrent = () => true) {
     try {
       const currentYear = new Date().getFullYear();
       const [history, quota] = await Promise.all([
         fetchUserHistory(userId),
         fetchUserQuota(userId, currentYear)
       ]);
+      if (!isCurrent()) return;
 
       let sick = 0;
       let personal = 0;
@@ -95,7 +113,7 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
         setMaxVacation(6);
       }
     } catch (err) {
-      console.error('โหลดโควตาวันลาล้มเหลว:', err);
+      if (isCurrent()) console.error('โหลดโควตาวันลาล้มเหลว:', err);
     }
   }
 
@@ -132,6 +150,10 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
     });
   }
 
+  const todayOnTimeCount = todayAttendance.filter(item => item.status === 'on_time').length;
+  const todayLateCount = todayAttendance.filter(item => item.status === 'late').length;
+  const todayAwayCount = todayLeaves.length + todayOffsiteCount;
+
   function renderQuotaBar(label: string, iconClass: string, used: number, max: number, gradient: string) {
     const percent = Math.min((used / max) * 100, 100);
     const isExceeded = used > max;
@@ -161,6 +183,19 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
       <div className="widget" id="quota-widget">
         {selectedUser ? (
           <>
+            <div className="right-panel-selected-user">
+              <span className="right-panel-selected-avatar" aria-hidden="true">
+                {avatarUrl(selectedUser.avatar_url) ? (
+                  <img src={avatarUrl(selectedUser.avatar_url) || undefined} alt="" />
+                ) : (
+                  selectedUser.first_name?.trim().charAt(0).toUpperCase() || 'U'
+                )}
+              </span>
+              <span className="right-panel-selected-copy">
+                <strong>{selectedUser.first_name} {selectedUser.last_name}</strong>
+                <span>{selectedUser.nickname ? `ชื่อเล่น: ${selectedUser.nickname}` : (selectedUser.position || 'พนักงาน')}</span>
+              </span>
+            </div>
             <div className="widget-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>สิทธิวันลาคงเหลือ (ปีปัจจุบัน)</span>
               {!isEditingQuota && (
@@ -260,13 +295,56 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
         ) : (
           <>
             <div className="widget-title">สิทธิวันลาคงเหลือ</div>
-            <div id="quota-content" style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '20px 10px' }}>
-              <i className="fa-solid fa-magnifying-glass-user" style={{ fontSize: '24px', marginBottom: '10px' }}></i>
-              <br />
-              เลือกพนักงานเพื่อดูสิทธิ
+            <div id="quota-content" className="right-panel-employee-picker">
+              <div className="right-panel-picker-heading">
+                <i className="fa-solid fa-user-check" aria-hidden="true"></i>
+                <span>เลือกพนักงานเพื่อดูสิทธิ</span>
+              </div>
+              {employees.length > 0 ? (
+                <div className="right-panel-employee-grid" aria-label="รายชื่อพนักงาน">
+                  {employees.map(user => (
+                    <button
+                      type="button"
+                      key={user.id}
+                      className="right-panel-employee-option"
+                      title={`${user.first_name} ${user.last_name}${user.nickname ? ` (${user.nickname})` : ''}`}
+                      aria-label={`เลือก ${user.first_name} ${user.last_name}${user.nickname ? ` ชื่อเล่น ${user.nickname}` : ''}`}
+                      onClick={() => onSelectUser(user)}
+                    >
+                      <span className="right-panel-picker-avatar" aria-hidden="true">
+                        {avatarUrl(user.avatar_url) ? <img src={avatarUrl(user.avatar_url) || undefined} alt="" /> : (user.first_name?.trim().charAt(0).toUpperCase() || 'U')}
+                      </span>
+                      <span>{user.nickname || user.first_name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="right-panel-picker-empty">ไม่พบรายชื่อพนักงานที่ใช้งานอยู่</p>
+              )}
             </div>
           </>
         )}
+      </div>
+
+      <div className="widget">
+        <div className="widget-title">สรุปวันนี้</div>
+        <div className="right-panel-today-summary" aria-label="สรุปการทำงานวันนี้">
+          <div className="right-panel-today-metric right-panel-today-metric-success">
+            <i className="fa-solid fa-user-check right-panel-today-metric-icon" aria-hidden="true"></i>
+            <strong>{todayOnTimeCount}</strong>
+            <span>เข้างานแล้ว</span>
+          </div>
+          <div className="right-panel-today-metric right-panel-today-metric-warning">
+            <i className="fa-solid fa-clock right-panel-today-metric-icon" aria-hidden="true"></i>
+            <strong>{todayLateCount}</strong>
+            <span>มาสาย</span>
+          </div>
+          <div className="right-panel-today-metric right-panel-today-metric-danger">
+            <i className="fa-solid fa-calendar-xmark right-panel-today-metric-icon" aria-hidden="true"></i>
+            <strong>{todayAwayCount}</strong>
+            <span>ลา/นอกสถานที่</span>
+          </div>
+        </div>
       </div>
 
       <div className="widget">
@@ -286,20 +364,26 @@ export default function RightPanel({ selectedUser }: RightPanelProps) {
         <div id="today-activity">
           {todayLeaves.length === 0 ? (
             <div style={{ color: 'var(--text-gray)', fontSize: '13px', textAlign: 'center' }}>
-              เข้างานครบทุกคน
+              ไม่มีรายการลาวันนี้
             </div>
           ) : (
-            todayLeaves.map((l) => (
-              <div key={l.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0' }}>
-                <div className="avatar-circle" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
-                  {l.user_id ? 'P' : 'A'}
+            todayLeaves.map((l) => {
+              const leaveUser = employees.find(user => user.id === l.user_id);
+              const leaveName = leaveUser
+                ? `${leaveUser.first_name} ${leaveUser.last_name}${leaveUser.nickname ? ` (${leaveUser.nickname})` : ''}`
+                : 'พนักงาน';
+              return (
+                <div key={l.id} className="list-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0' }}>
+                  <span className="right-panel-activity-avatar" aria-hidden="true">
+                    {leaveUser && avatarUrl(leaveUser.avatar_url) ? <img src={avatarUrl(leaveUser.avatar_url) || undefined} alt="" /> : (leaveUser?.first_name?.trim().charAt(0).toUpperCase() || 'U')}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{leaveName}</div>
+                    <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600 }}>{l.leave_type}</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600 }}>พนักงาน</div>
-                  <div style={{ fontSize: '11px', color: 'var(--red)' }}>{l.leave_type}</div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

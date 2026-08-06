@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, GripVertical, Plus, Save, UsersRound } from 'lucide-react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { Check, GripVertical, Plus, Save, UsersRound } from 'lucide-react';
+import { useOutletContext } from 'react-router-dom';
 import { fetchBrands, fetchUsers, reorderBrands, updateBrandResponsibilities } from '../services/adminApi';
 import type { Brand, BrandResponsibility, BrandResponsibilityType, User } from '../types';
 import { avatarUrl } from '../components/tasks/taskUtils';
+import OrganizationSettingsNav from '../components/OrganizationSettingsNav';
 
 const RESPONSIBILITY_TYPES: Array<{ type: BrandResponsibilityType; label: string }> = [
   { type: 'bd', label: 'BD' },
@@ -17,7 +18,6 @@ type LayoutContext = { currentUser?: User | null };
 const displayName = (user: User) => user.nickname || user.first_name || user.email;
 
 export default function BrandResponsibilities() {
-  const navigate = useNavigate();
   const { currentUser } = useOutletContext<LayoutContext>();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -164,21 +164,7 @@ export default function BrandResponsibilities() {
   return (
     <main className="min-h-full bg-slate-50 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-3">
-            <button type="button" onClick={() => navigate('/tasks')} className="mt-1 rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-2xs transition hover:border-indigo-300 hover:text-indigo-600" aria-label="กลับไปจัดการงาน">
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">Task settings</p>
-              <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">ความสัมพันธ์แบรนด์กับผู้รับผิดชอบ</h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">เลือกผู้รับผิดชอบให้แต่ละแบรนด์ตามทีม BD, MKT และ Graphic</p>
-            </div>
-          </div>
-          <button type="button" onClick={() => navigate('/tasks')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700">
-            <ArrowLeft className="h-3.5 w-3.5" />กลับไปจัดการงาน
-          </button>
-        </div>
+        <OrganizationSettingsNav activeTab="brands" />
 
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{error}</div>}
         {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">{success}</div>}

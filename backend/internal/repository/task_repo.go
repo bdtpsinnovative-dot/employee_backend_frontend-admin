@@ -149,7 +149,9 @@ func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([
 		TaskID uuid.UUID `db:"task_id"`
 	}
 	err := r.db.SelectContext(ctx, &subItems, `
-		SELECT id, task_id, title, is_done, sort_order
+		SELECT id, task_id, card_id, title, description, is_done, status,
+		       sort_order, created_at, start_date, due_date,
+		       link_url, attachment_url, verification_notes, admin_comment
 		FROM task_sub_items
 		WHERE card_id IS NULL
 		ORDER BY sort_order ASC, created_at ASC
@@ -166,6 +168,38 @@ func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([
 			tasks[i].SubItems = items
 		} else {
 			tasks[i].SubItems = []domain.TaskSubItem{}
+		}
+	}
+	return tasks, nil
+}
+
+func (r *TaskRepo) populateLists(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
+	if len(tasks) == 0 {
+		return tasks, nil
+	}
+	var lists []struct {
+		domain.TaskList
+		TaskID uuid.UUID `db:"task_id"`
+	}
+	err := r.db.SelectContext(ctx, &lists, `
+		SELECT id, task_id, name, description, sort_order, created_at,
+		       start_date, due_date, deleted_at, priority, status, admin_comment, attachments
+		FROM task_lists
+		WHERE deleted_at IS NULL
+		ORDER BY sort_order ASC, created_at ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to populate task lists: %w", err)
+	}
+	listMap := make(map[uuid.UUID][]domain.TaskList)
+	for _, l := range lists {
+		listMap[l.TaskID] = append(listMap[l.TaskID], l.TaskList)
+	}
+	for i, t := range tasks {
+		if items, ok := listMap[t.ID]; ok {
+			tasks[i].Lists = items
+		} else {
+			tasks[i].Lists = []domain.TaskList{}
 		}
 	}
 	return tasks, nil
@@ -211,7 +245,11 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r.populateSubItems(ctx, tasks)
+	tasks, err = r.populateSubItems(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateLists(ctx, tasks)
 }
 
 func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Task, error) {
@@ -252,7 +290,11 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 	if err != nil {
 		return nil, err
 	}
-	return r.populateSubItems(ctx, tasks)
+	tasks, err = r.populateSubItems(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateLists(ctx, tasks)
 }
 
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
@@ -300,7 +342,11 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	if err != nil {
 		return nil, err
 	}
-	return r.populateSubItems(ctx, tasks)
+	tasks, err = r.populateSubItems(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return r.populateLists(ctx, tasks)
 }
 
 func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, error) {

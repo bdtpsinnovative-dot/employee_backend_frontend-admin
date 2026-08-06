@@ -248,6 +248,7 @@ type Task struct {
 	IsStarred     bool       `db:"is_starred" json:"is_starred"`
 	// Joined fields (not stored in tasks table)
 	SubItems         []TaskSubItem   `db:"-" json:"sub_items,omitempty"`
+	Lists            []TaskList      `db:"-" json:"lists,omitempty"`
 	AssigneeIDs      []uuid.UUID     `db:"-" json:"assignee_ids,omitempty"`
 	AssignedToName   string          `db:"assigned_to_name" json:"assigned_to_name,omitempty"`
 	AssignedByName   string          `db:"assigned_by_name" json:"assigned_by_name,omitempty"`

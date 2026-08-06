@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext, Link, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory, fetchCheckInMode, updateCheckInMode } from '../services/adminApi';
 import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
+import { avatarUrl } from '../components/tasks/taskUtils';
 
 export default function Dashboard() {
   const { selectedUser, setSelectedUser, currentUser } = useOutletContext<{
@@ -94,24 +95,43 @@ export default function Dashboard() {
 
   // เรียกโหลดประวัติพนักงานเมื่อถูกเลือก
   async function handleSelectEmployee(u: User) {
-    setLoading(true);
     setHistoryPage(1);
     setSearchTerm(`${u.first_name} ${u.last_name}`);
     setSelectedUser(u);
-    try {
-      const history = await fetchUserHistory(u.id);
-      setSelectedUserHistory(history);
-    } catch (err) {
-      console.error('โหลดประวัติพนักงานรายบุคคลล้มเหลว:', err);
-      setSelectedUserHistory(null);
-    }
-    setLoading(false);
   }
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setSelectedUserHistory(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setHistoryPage(1);
+    setSearchTerm(`${selectedUser.first_name} ${selectedUser.last_name}`);
+    fetchUserHistory(selectedUser.id)
+      .then(history => {
+        if (!cancelled) setSelectedUserHistory(history);
+      })
+      .catch(err => {
+        console.error('โหลดประวัติพนักงานรายบุคคลล้มเหลว:', err);
+        if (!cancelled) setSelectedUserHistory(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUser]);
 
   function handleClearSearch() {
     setSearchTerm('');
     setSelectedUser(null);
     setSelectedUserHistory(null);
+    setLoading(false);
     setHistoryPage(1);
   }
 
@@ -281,72 +301,11 @@ export default function Dashboard() {
     return stats;
   }, [personalHistoryRows]);
 
-  // ──── ตารางรายวันสำหรับโหมดสรุปภาพรวม ────
-  const userStatusRows = useMemo(() => {
-    return activeUsers.map(user => {
-      const att = attendance.find(a => a.user_id === user.id);
-      const leave = leaves.find(l => l.user_id === user.id && l.date.split('T')[0] === date && l.status === 'approved');
-      const off = offsite.find(o => o.user_id === user.id && o.date.split('T')[0] === date && o.status === 'approved');
-      const isWknd = isWeekend(new Date(date));
-      const holidayName = getHolidayName(date);
-
-      let status = 'ปกติ';
-      let statusClass = 'st-ontime';
-
-      if (att) {
-        switch (att.status) {
-          case 'on_time': status = 'ปกติ'; statusClass = 'st-ontime'; break;
-          case 'late': status = 'มาสาย'; statusClass = 'st-late'; break;
-          case 'offsite': status = 'ออกหน้างาน'; statusClass = 'st-offsite'; break;
-          case 'sick_leave_full': status = 'ลาป่วย (เต็มวัน)'; statusClass = 'st-leave'; break;
-          case 'sick_leave_morning': status = 'ลาป่วย (ครึ่งเช้า)'; statusClass = 'st-leave'; break;
-          case 'sick_leave_afternoon': status = 'ลาป่วย (ครึ่งบ่าย)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_full': status = 'ลากิจ (เต็มวัน)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_morning': status = 'ลากิจ (ครึ่งเช้า)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_afternoon': status = 'ลากิจ (ครึ่งบ่าย)'; statusClass = 'st-leave'; break;
-          case 'annual_leave': status = 'ลาพักร้อน'; statusClass = 'st-leave'; break;
-          case 'shift_swap': status = 'สลับวันหยุด'; statusClass = 'st-weekend'; break;
-          case 'unknown': status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
-          default: status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
-        }
-        
-        // Override for holiday/weekend work
-        if ((isWknd || holidayName) && (att.status === 'on_time' || att.status === 'late')) {
-          status = 'ทำงานวันหยุด';
-          statusClass = 'st-weekend';
-        }
-      } else if (leave) {
-        status = leave.leave_type + (leave.duration !== 'เต็มวัน' ? ` (${leave.duration})` : '');
-        statusClass = 'st-leave';
-      } else if (off) {
-        status = 'ออกหน้างาน';
-        statusClass = 'st-offsite';
-      } else if (holidayName) {
-        status = `วันหยุด: ${holidayName}`;
-        statusClass = 'st-holiday';
-      } else if (isWknd) {
-        status = 'วันหยุด';
-        statusClass = 'st-weekend';
-      } else {
-        status = 'ไม่ทราบสาเหตุ';
-        statusClass = 'st-unknown';
-      }
-
-      return { user, status, statusClass, checkInTime: att?.check_in_at ?? null };
-    });
-  }, [activeUsers, attendance, leaves, offsite, date, holidays]);
-
   const filteredUsers = searchTerm
     ? activeUsers.filter(u =>
         `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : activeUsers;
-
-  const filteredRows = searchTerm && !selectedUser
-    ? userStatusRows.filter(r =>
-        `${r.user.first_name} ${r.user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : userStatusRows;
 
   // ตรวจสอบวันหยุดวันนี้เพื่อเปลี่ยนหัวข้อแดชบอร์ด
   const holidayNameToday = getHolidayName(date);
@@ -429,6 +388,10 @@ export default function Dashboard() {
                 id="empSearchInput"
                 placeholder="ค้นหาชื่อพนักงาน..."
                 autoComplete="off"
+                role="combobox"
+                aria-label="ค้นหาพนักงาน"
+                aria-expanded={dropdownOpen}
+                aria-controls="empDropdownList"
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -457,14 +420,30 @@ export default function Dashboard() {
             <div
               className={`dropdown-menu-dark ${dropdownOpen ? 'show' : ''}`}
               id="empDropdownList"
+              role="listbox"
             >
               {filteredUsers.map((u) => (
                 <div
                   key={u.id}
                   className="dropdown-item"
+                  role="option"
+                  tabIndex={0}
                   onMouseDown={() => handleSelectEmployee(u)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') handleSelectEmployee(u);
+                  }}
                 >
-                  {u.first_name} {u.last_name}
+                  <span className="dashboard-employee-avatar dashboard-employee-avatar-small" aria-hidden="true">
+                    {avatarUrl(u.avatar_url) ? (
+                      <img src={avatarUrl(u.avatar_url) || undefined} alt="" />
+                    ) : (
+                      u.first_name?.trim().charAt(0).toUpperCase() || 'U'
+                    )}
+                  </span>
+                  <span className="dashboard-employee-option-copy">
+                    <strong>{u.first_name} {u.last_name}</strong>
+                    <span>{u.nickname ? `(${u.nickname})` : (u.position || 'พนักงาน')}</span>
+                  </span>
                 </div>
               ))}
               {filteredUsers.length === 0 && (
@@ -488,147 +467,44 @@ export default function Dashboard() {
       </div>
 
       {!selectedUser && (
-        <div className="shortcuts-grid" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '15px',
-          marginBottom: '25px'
-        }}>
-          <Link to="/requests" className="shortcut-card glass-panel" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '16px',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-            textDecoration: 'none',
-            color: 'inherit',
-            border: '1px solid var(--border-color)',
-            transition: 'all 0.2s'
-          }}>
-            <div style={{ background: 'rgba(37, 99, 235, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="fa-solid fa-envelope-open-text" style={{ color: 'var(--primary)', fontSize: '20px' }}></i>
-            </div>
+        <section className="checkin-mode-panel" aria-labelledby="checkin-mode-title">
+          <div className="checkin-mode-heading">
+            <div className="checkin-mode-icon" aria-hidden="true"><i className="fa-solid fa-fingerprint"></i></div>
             <div>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>งานรอดำเนินการ (Inbox)</h4>
-              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>อนุมัติใบลา/ขอออกหน้างาน</span>
+              <h3 id="checkin-mode-title">วิธีลงเวลาเข้างาน</h3>
+              <p>กำหนดวิธีที่พนักงานใช้ยืนยันตัวตนตอนเข้างาน</p>
             </div>
-          </Link>
-
-          <Link to="/employees" className="shortcut-card glass-panel" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '16px',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-            textDecoration: 'none',
-            color: 'inherit',
-            border: '1px solid var(--border-color)',
-            transition: 'all 0.2s'
-          }}>
-            <div style={{ background: 'rgba(22, 163, 74, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="fa-solid fa-list-check" style={{ color: '#16a34a', fontSize: '20px' }}></i>
-            </div>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>มอบหมายงาน / หน้าที่</h4>
-              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>จัดการสิทธิ์และพนักงาน</span>
-            </div>
-          </Link>
-
-          <Link to="/daily-record" className="shortcut-card glass-panel" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '16px',
-            background: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-            textDecoration: 'none',
-            color: 'inherit',
-            border: '1px solid var(--border-color)',
-            transition: 'all 0.2s'
-          }}>
-            <div style={{ background: 'rgba(217, 119, 6, 0.1)', padding: '10px', borderRadius: '8px', marginRight: '12px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="fa-solid fa-map-location-dot" style={{ color: '#d97706', fontSize: '20px' }}></i>
-            </div>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>บันทึกเวลารายวัน</h4>
-              <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>ตรวจพิกัดเช็คอินแผนที่</span>
-            </div>
-          </Link>
-        </div>
-      )}
-
-      {!selectedUser && (
-        <div className="glass-panel" style={{
-          padding: '20px',
-          borderRadius: '16px',
-          background: 'white',
-          border: '1px solid var(--border-color)',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-          marginBottom: '25px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '15px'
-        }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="fa-solid fa-gears" style={{ color: 'var(--primary)' }}></i>
-              ตั้งค่าวิธีการลงเวลาเข้างานของระบบ
-            </h3>
-            <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: 'var(--text-gray)' }}>
-              เลือกโหมดการลงเวลาที่พนักงานต้องใช้งาน (พนักงานจะสแกนเข้างานตามโหมดที่เลือกไว้)
-            </p>
+            <span className={`checkin-mode-status ${updatingMode ? 'is-saving' : ''}`} aria-live="polite">
+              <i className="fa-solid fa-circle" aria-hidden="true"></i>
+              {updatingMode ? 'กำลังบันทึก' : `เปิดใช้: ${checkInMode === 'face' ? 'สแกนใบหน้า' : 'เซลฟี่'}`}
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+
+          <div className="checkin-mode-options" role="group" aria-label="เลือกวิธีลงเวลาเข้างาน">
             <button
+              type="button"
+              className={`checkin-mode-option ${checkInMode === 'face' ? 'active' : ''}`}
               onClick={() => handleToggleCheckInMode('face')}
               disabled={updatingMode}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                borderRadius: '10px',
-                border: checkInMode === 'face' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                background: checkInMode === 'face' ? 'rgba(37, 99, 235, 0.08)' : 'white',
-                color: checkInMode === 'face' ? 'var(--primary)' : 'var(--text-main)',
-                fontWeight: 600,
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                opacity: updatingMode ? 0.7 : 1
-              }}
+              aria-pressed={checkInMode === 'face'}
             >
-              <i className="fa-solid fa-user-shield" style={{ fontSize: '16px' }}></i>
-              สแกนใบหน้า (Face Recognition)
+              <span className="checkin-mode-option-icon"><i className="fa-solid fa-user-shield" aria-hidden="true"></i></span>
+              <span className="checkin-mode-option-copy"><strong>สแกนใบหน้า</strong><small>Face Recognition</small></span>
+              {checkInMode === 'face' && <i className="fa-solid fa-circle-check checkin-mode-check" aria-hidden="true"></i>}
             </button>
             <button
+              type="button"
+              className={`checkin-mode-option ${checkInMode === 'selfie' ? 'active' : ''}`}
               onClick={() => handleToggleCheckInMode('selfie')}
               disabled={updatingMode}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                borderRadius: '10px',
-                border: checkInMode === 'selfie' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                background: checkInMode === 'selfie' ? 'rgba(37, 99, 235, 0.08)' : 'white',
-                color: checkInMode === 'selfie' ? 'var(--primary)' : 'var(--text-main)',
-                fontWeight: 600,
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                opacity: updatingMode ? 0.7 : 1
-              }}
+              aria-pressed={checkInMode === 'selfie'}
             >
-              <i className="fa-solid fa-camera-retro" style={{ fontSize: '16px' }}></i>
-              เซลฟี่กล้องหน้า (Selfie Photo)
+              <span className="checkin-mode-option-icon"><i className="fa-solid fa-camera-retro" aria-hidden="true"></i></span>
+              <span className="checkin-mode-option-copy"><strong>เซลฟี่กล้องหน้า</strong><small>Selfie Photo</small></span>
+              {checkInMode === 'selfie' && <i className="fa-solid fa-circle-check checkin-mode-check" aria-hidden="true"></i>}
             </button>
           </div>
-        </div>
+        </section>
       )}
 
       <div className="dashboard-grid">
@@ -724,36 +600,25 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="table-card glass-panel">
-        <h3 id="dash-table-header" style={{ marginBottom: '15px', color: 'var(--text-main)' }}>
-          {selectedUser ? 'ประวัติการทำงาน' : 'สถานะรายบุคคล'}
-        </h3>
-        <table>
-          <thead id="dash-table-head">
-            {selectedUser ? (
+      {selectedUser && (
+        <div className="table-card glass-panel">
+          <h3 id="dash-table-header" style={{ marginBottom: '15px', color: 'var(--text-main)' }}>
+            ประวัติการทำงาน
+          </h3>
+          <table>
+            <thead id="dash-table-head">
               <tr>
                 <th>วันที่</th>
                 <th>สถานะ</th>
                 <th>เวลาเข้างาน</th>
               </tr>
-            ) : (
-              <tr>
-                <th>ชื่อ-นามสกุล</th>
-                <th>ตำแหน่ง</th>
-                <th>สถานะ</th>
-                <th>เวลาเข้างาน</th>
-              </tr>
-            )}
-          </thead>
-          <tbody id="dash-table">
-            {loading ? (
-              <tr>
-                <td colSpan={selectedUser ? 3 : 4} style={{ textAlign: 'center', padding: '20px' }}>
-                  กำลังโหลดข้อมูล...
-                </td>
-              </tr>
-            ) : selectedUser ? (
-              personalHistoryRows.length === 0 ? (
+            </thead>
+            <tbody id="dash-table">
+              {loading ? (
+                <tr>
+                  <td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>กำลังโหลดข้อมูล...</td>
+                </tr>
+              ) : personalHistoryRows.length === 0 ? (
                 <tr>
                   <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-gray)' }}>
                     ไม่พบประวัติการทำงานของพนักงานท่านนี้
@@ -763,45 +628,14 @@ export default function Dashboard() {
                 pagedHistory.map((row, idx) => (
                   <tr key={idx}>
                     <td data-label="วันที่">{row.displayDate}</td>
-                    <td data-label="สถานะ">
-                      <span className={`status-badge ${row.statusClass}`}>{row.status}</span>
-                    </td>
+                    <td data-label="สถานะ"><span className={`status-badge ${row.statusClass}`}>{row.status}</span></td>
                     <td data-label="เวลาเข้างาน" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{row.timestamp}</td>
                   </tr>
                 ))
-              )
-            ) : (
-              filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-gray)' }}>
-                    ไม่พบข้อมูลพนักงาน
-                  </td>
-                </tr>
-              ) : (
-                filteredRows.map(({ user, status, statusClass, checkInTime }) => (
-                  <tr key={user.id}>
-                    <td data-label="ชื่อ-นามสกุล">
-                      <span
-                        style={{ cursor: 'pointer', color: 'var(--blue)', textDecoration: 'underline' }} 
-                        onClick={() => handleSelectEmployee(user)}
-                      >
-                        {user.first_name} {user.last_name}
-                      </span>
-                    </td>
-                    <td data-label="ตำแหน่ง">{user.position || user.department || '-'}</td>
-                    <td data-label="สถานะ">
-                      <span className={`status-badge ${statusClass}`}>{status}</span>
-                    </td>
-                    <td data-label="เวลาเข้างาน" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>
-                      {checkInTime ? new Date(checkInTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : '-'}
-                    </td>
-                  </tr>
-                ))
-              )
-            )}
-          </tbody>
-        </table>
-        {selectedUser && personalHistoryRows.length > HISTORY_PAGE_SIZE && (
+              )}
+            </tbody>
+          </table>
+          {personalHistoryRows.length > HISTORY_PAGE_SIZE && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px' }}>
             <button
               className="btn-page"
@@ -821,10 +655,9 @@ export default function Dashboard() {
               ถัดไป ›
             </button>
           </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-

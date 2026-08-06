@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, UsersRound } from 'lucide-react';
+import { Plus, UsersRound } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { createPosition, createTeam, fetchPositions, fetchTeams } from '../services/adminApi';
 import type { Position, Team, User } from '../types';
+import OrganizationSettingsNav from '../components/OrganizationSettingsNav';
 
 type LayoutContext = { currentUser?: User | null };
 
@@ -79,13 +80,10 @@ export default function TeamManagement() {
   return (
     <main className="min-h-full bg-slate-50 p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-3">
-            <button type="button" onClick={() => navigate('/brand-responsibilities')} className="mt-1 rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-2xs hover:border-indigo-300 hover:text-indigo-600" aria-label="กลับไปตั้งค่าแบรนด์"><ArrowLeft className="h-4 w-4" /></button>
-            <div><p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">Organization settings</p><h1 className="text-2xl font-extrabold tracking-tight text-slate-900">จัดการทีมและตำแหน่ง</h1><p className="mt-1 text-sm text-slate-500">หนึ่งทีมมีได้หลายตำแหน่ง แล้วนำไปเลือกให้พนักงานในหน้าจัดการพนักงาน</p></div>
-          </div>
-          <button type="button" onClick={() => navigate('/employees')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"><UsersRound className="h-3.5 w-3.5" />จัดการพนักงาน</button>
-        </div>
+        <OrganizationSettingsNav
+          activeTab="teams"
+          action={<button type="button" onClick={() => navigate('/employees')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"><UsersRound className="h-3.5 w-3.5" />จัดการพนักงาน</button>}
+        />
 
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{error}</div>}
         {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">{success}</div>}

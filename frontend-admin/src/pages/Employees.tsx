@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { addProfileTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
 import type { Position, Team, User } from '../types';
+import { avatarUrl } from '../components/tasks/taskUtils';
 
 export default function Employees() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -86,6 +88,7 @@ export default function Employees() {
     try {
       await disableUser(id);
       await loadUsers();
+      if (editUser?.id === id) setEditUser(null);
     } catch (err) {
       console.error('ปิดบัญชีล้มเหลว:', err);
       alert('ปิดบัญชีล้มเหลว');
@@ -149,25 +152,28 @@ export default function Employees() {
     });
   }, [users, searchTerm, filterStatus]);
 
-  const pendingUsers = useMemo(() => {
-    return filteredUsers.filter(u => u.status === 'pending');
-  }, [filteredUsers]);
+  const pendingUsers = useMemo(() => users.filter(user => user.status === 'pending'), [users]);
 
-  const activeUsers = useMemo(() => {
-    return filteredUsers.filter(u => u.status !== 'pending');
-  }, [filteredUsers]);
-
-  const totalPages = Math.max(1, Math.ceil(activeUsers.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
 
   // Auto-correct page if filtering reduces total pages
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
 
+  useEffect(() => {
+    if (!approvalMenuOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setApprovalMenuOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [approvalMenuOpen]);
+
   const pagedUsers = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return activeUsers.slice(start, start + PAGE_SIZE);
-  }, [activeUsers, page]);
+    return filteredUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredUsers, page]);
 
   function statusBadge(status: string) {
     const map: Record<string, { label: string; className: string }> = {
@@ -218,10 +224,21 @@ export default function Employees() {
             userList.map((user) => (
               <tr key={user.id}>
                 <td data-label="ชื่อ-นามสกุล">
-                  <div style={{ fontWeight: 600 }}>
-                    {user.first_name} {user.last_name} {user.nickname ? `(${user.nickname})` : ''}
+                  <div className="employee-person">
+                    <span className="employee-avatar" aria-hidden={avatarUrl(user.avatar_url) ? undefined : true}>
+                      {avatarUrl(user.avatar_url) ? (
+                        <img src={avatarUrl(user.avatar_url) || undefined} alt="" loading="lazy" />
+                      ) : (
+                        <span>{user.first_name?.trim().charAt(0).toUpperCase() || 'U'}</span>
+                      )}
+                    </span>
+                    <span className="employee-person-copy">
+                      <span className="employee-person-name">
+                        {user.first_name} {user.last_name} {user.nickname ? `(${user.nickname})` : ''}
+                      </span>
+                      <span className="employee-person-email">{user.email}</span>
+                    </span>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{user.email}</div>
                 </td>
                 <td data-label="ตำแหน่ง">{user.position || '-'}</td>
                 <td data-label="ทีม">{user.team || '-'}</td>
@@ -275,16 +292,6 @@ export default function Employees() {
                           <i className="fa-solid fa-check"></i> อนุมัติ
                         </button>
                       )}
-                      {user.status === 'active' && user.id !== currentAdminId && (
-                        <button
-                          className="btn-reject"
-                          disabled={actionLoading === user.id}
-                          onClick={() => handleDisable(user.id)}
-                          style={{ fontSize: '12px', padding: '4px 10px' }}
-                        >
-                          <i className="fa-solid fa-ban"></i> ปิด
-                        </button>
-                      )}
                       {user.device_id && (
                         <button
                           className="btn-secondary"
@@ -309,7 +316,63 @@ export default function Employees() {
   return (
     <div id="employees" className="page-section active">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-        <h2>ฐานข้อมูลพนักงาน</h2>
+        <div className="employees-title-group">
+          <h2>ฐานข้อมูลพนักงาน</h2>
+          <div className="employee-approval-anchor">
+            <button
+              type="button"
+              className={`employee-approval-button ${approvalMenuOpen ? 'active' : ''}`}
+              onClick={() => setApprovalMenuOpen(previous => !previous)}
+              aria-label={`บัญชีรออนุมัติ${pendingUsers.length > 0 ? ` ${pendingUsers.length} คน` : ''}`}
+              aria-haspopup="dialog"
+              aria-expanded={approvalMenuOpen}
+              aria-controls="employee-approval-menu"
+              title="บัญชีรออนุมัติ"
+            >
+              <i className="fa-solid fa-bell" aria-hidden="true"></i>
+              {pendingUsers.length > 0 && <span className="employee-approval-badge">{pendingUsers.length > 99 ? '99+' : pendingUsers.length}</span>}
+            </button>
+
+            {approvalMenuOpen && (
+              <div className="employee-approval-menu" id="employee-approval-menu" role="dialog" aria-label="บัญชีรอการอนุมัติ">
+                <div className="employee-approval-menu-header">
+                  <div>
+                    <strong>บัญชีรอการอนุมัติ</strong>
+                    <span>{pendingUsers.length > 0 ? `${pendingUsers.length} คน` : 'ไม่มีรายการใหม่'}</span>
+                  </div>
+                  <i className="fa-solid fa-user-clock" aria-hidden="true"></i>
+                </div>
+
+                {pendingUsers.slice(0, 5).map(user => (
+                  <div className="employee-approval-item" key={user.id}>
+                    <span className="employee-approval-avatar" aria-hidden="true">
+                      {avatarUrl(user.avatar_url) ? (
+                        <img src={avatarUrl(user.avatar_url) || undefined} alt="" />
+                      ) : (
+                        user.first_name?.trim().charAt(0).toUpperCase() || 'U'
+                      )}
+                    </span>
+                    <span className="employee-approval-copy">
+                      <strong>{user.first_name} {user.last_name}</strong>
+                      <span>{user.email}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="employee-approval-action"
+                      disabled={actionLoading === user.id}
+                      onClick={() => handleApprove(user.id)}
+                    >
+                      <i className="fa-solid fa-check" aria-hidden="true"></i>
+                      อนุมัติ
+                    </button>
+                  </div>
+                ))}
+
+                {pendingUsers.length > 5 && <p className="employee-approval-more">ยังมีอีก {pendingUsers.length - 5} คนในรายการสถานะ “รออนุมัติ”</p>}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
           <div className="search-input-wrapper" style={{ flex: '1 1 200px', maxWidth: '300px', position: 'relative' }}>
@@ -342,23 +405,14 @@ export default function Employees() {
         </div>
       </div>
 
-      {pendingUsers.length > 0 && (
-        <div className="table-card glass-panel" style={{ marginBottom: '30px', border: '1px solid var(--gold)', boxShadow: '0 4px 15px rgba(251, 191, 36, 0.15)' }}>
-          <h3 style={{ color: 'var(--gold)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <i className="fa-solid fa-user-clock"></i> บัญชีรอการอนุมัติ ({pendingUsers.length})
-          </h3>
-          {renderTable(pendingUsers, 'ไม่มีบัญชีรออนุมัติ')}
-        </div>
-      )}
-
       <div className="table-card glass-panel">
         {renderTable(pagedUsers, 'ไม่พบข้อมูลพนักงาน')}
 
         {/* Pagination Controls */}
-        {!loading && activeUsers.length > PAGE_SIZE && (
+        {!loading && filteredUsers.length > PAGE_SIZE && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
             <div className="text-xs font-semibold text-slate-500">
-              แสดง {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, activeUsers.length)} จากทั้งหมด {activeUsers.length} รายการ
+              แสดง {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, filteredUsers.length)} จากทั้งหมด {filteredUsers.length} รายการ
             </div>
 
             <div className="flex items-center gap-2">
@@ -520,6 +574,17 @@ export default function Employees() {
             </div>
 
             <div className="employee-edit-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              {editUser.status === 'active' && editUser.id !== currentAdminId && (
+                <button
+                  className="btn-reject"
+                  type="button"
+                  onClick={() => void handleDisable(editUser.id)}
+                  disabled={actionLoading === editUser.id}
+                  style={{ padding: '8px 16px', marginRight: 'auto' }}
+                >
+                  <i className="fa-solid fa-ban"></i> ปิดบัญชี
+                </button>
+              )}
               <button
                 className="btn-secondary"
                 onClick={() => setEditUser(null)}
