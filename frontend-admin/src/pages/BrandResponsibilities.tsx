@@ -173,10 +173,10 @@ export default function BrandResponsibilities() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs md:p-6">
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900"><UsersRound className="h-5 w-5 text-indigo-600" />ความสัมพันธ์แบรนด์กับผู้รับผิดชอบ</h2>
+              <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900"><UsersRound className="h-5 w-5 text-blue-600" />ความสัมพันธ์แบรนด์กับผู้รับผิดชอบ</h2>
               <p className="mt-1 text-xs text-slate-500">กดปุ่มวงกลม + ในแต่ละช่องเพื่อเลือกพนักงานได้มากกว่า 1 คน</p>
             </div>
-            <span className="rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-700">ลากแถวเพื่อจัดลำดับ</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700">ลากแถวเพื่อจัดลำดับ</span>
           </div>
 
           {loading ? (
@@ -195,12 +195,12 @@ export default function BrandResponsibilities() {
                       const memberIds = new Set((brand.responsibilities ?? []).filter(responsibility => responsibility.responsibility_type === item.type).map(responsibility => responsibility.user_id));
                       const members = activeUsers.filter(user => memberIds.has(user.id));
                       return <td key={item.type} className="px-3 py-3 align-top">
-                        <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-transparent p-1.5 transition hover:border-indigo-200 hover:bg-indigo-50/60">
+                        <div className="flex min-h-10 w-full items-center gap-2 rounded-xl border border-transparent p-1.5 transition hover:border-blue-200 hover:bg-blue-50/60">
                           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                             {members.map(member => {
                               const imageUrl = avatarUrl(member.avatar_url);
                               return <span key={member.id} title={displayName(member)} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2 text-[10px] font-bold text-slate-700 shadow-2xs">
-                                <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-[10px] font-extrabold text-indigo-700 ring-1 ring-slate-200">
+                                <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-[10px] font-extrabold text-blue-700 ring-1 ring-slate-200">
                                   {imageUrl ? <img src={imageUrl} alt={displayName(member)} className="h-full w-full object-cover" /> : displayName(member).charAt(0).toUpperCase()}
                                 </span>
                                 <span className="max-w-[120px] truncate">{displayName(member)}</span>
@@ -208,7 +208,7 @@ export default function BrandResponsibilities() {
                             })}
                             {members.length === 0 && <span className="text-[10px] text-slate-400">ยังไม่มีผู้รับผิดชอบ</span>}
                           </div>
-                          <button type="button" onClick={() => openEditor(brand, item.type)} aria-label={`เพิ่มผู้รับผิดชอบ ${item.label} ของ ${brand.name}`} title="เพิ่มผู้รับผิดชอบ" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white text-slate-400 transition hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"><Plus className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => openEditor(brand, item.type)} aria-label={`เพิ่มผู้รับผิดชอบ ${item.label} ของ ${brand.name}`} title="เพิ่มผู้รับผิดชอบ" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white text-slate-400 transition hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30"><Plus className="h-4 w-4" /></button>
                         </div>
                       </td>;
                     })}
@@ -227,10 +227,10 @@ export default function BrandResponsibilities() {
               <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl md:p-6" onClick={event => event.stopPropagation()}>
                 <div className="mb-5 flex items-start justify-between gap-3"><div><p className="m-0 text-sm font-extrabold text-slate-900">{brand.name} · {type.label}</p><p className="m-0 mt-1 text-xs text-slate-500">เลือกผู้รับผิดชอบที่เกี่ยวข้องกับแบรนด์นี้</p></div><button type="button" onClick={() => setEditingCell(null)} className="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800">ปิด</button></div>
                 <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex flex-wrap gap-2">
-                  {activeUsers.map(member => { const selected = draftUserIds.includes(member.id); return <button key={member.id} type="button" onClick={() => setDraftUserIds(current => selected ? current.filter(id => id !== member.id) : [...current, member.id])} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-bold transition ${selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'}`}>{selected && <Check className="h-3.5 w-3.5" />}{displayName(member)}{member.team && <span className={selected ? 'text-indigo-100' : 'text-slate-400'}>({member.team})</span>}</button>; })}
+                  {activeUsers.map(member => { const selected = draftUserIds.includes(member.id); return <button key={member.id} type="button" onClick={() => setDraftUserIds(current => selected ? current.filter(id => id !== member.id) : [...current, member.id])} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-bold transition ${selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300'}`}>{selected && <Check className="h-3.5 w-3.5" />}{displayName(member)}{member.team && <span className={selected ? 'text-blue-100' : 'text-slate-400'}>({member.team})</span>}</button>; })}
                   {activeUsers.length === 0 && <span className="text-xs text-slate-500">ยังไม่มีพนักงาน Active</span>}
                 </div></div>
-                <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-200 pt-4"><button type="button" onClick={() => setEditingCell(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">ยกเลิก</button><button type="button" onClick={() => void saveResponsibilities()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'กำลังบันทึก...' : 'บันทึกผู้รับผิดชอบ'}</button></div>
+                <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-200 pt-4"><button type="button" onClick={() => setEditingCell(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">ยกเลิก</button><button type="button" onClick={() => void saveResponsibilities()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'กำลังบันทึก...' : 'บันทึกผู้รับผิดชอบ'}</button></div>
               </div>
             </div>;
           })()}

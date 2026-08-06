@@ -228,20 +228,20 @@ export default function DailyRecord() {
 
   function getStatusDisplay(status: string) {
     switch (status) {
-      case 'on_time': return { text: 'มาทำงาน (ตรงเวลา)', color: '#15803D', bg: 'rgba(220, 252, 231, 0.75)' };
-      case 'late': return { text: 'มาทำงาน (สาย)', color: '#B45309', bg: 'rgba(254, 243, 199, 0.75)' };
-      case 'offsite': return { text: 'ออกหน้างาน', color: '#0369A1', bg: 'rgba(224, 242, 254, 0.75)' };
-      case 'sick_leave_full': return { text: 'ลาป่วย (เต็มวัน)', color: '#DC2626', bg: 'rgba(254, 226, 226, 0.75)' };
-      case 'sick_leave_morning': return { text: 'ลาป่วย (ครึ่งเช้า)', color: '#DC2626', bg: 'rgba(254, 226, 226, 0.75)' };
-      case 'sick_leave_afternoon': return { text: 'ลาป่วย (ครึ่งบ่าย)', color: '#DC2626', bg: 'rgba(254, 226, 226, 0.75)' };
-      case 'personal_leave_full': return { text: 'ลากิจ (เต็มวัน)', color: '#6D28D9', bg: 'rgba(237, 233, 254, 0.75)' };
-      case 'personal_leave_morning': return { text: 'ลากิจ (ครึ่งเช้า)', color: '#6D28D9', bg: 'rgba(237, 233, 254, 0.75)' };
-      case 'personal_leave_afternoon': return { text: 'ลากิจ (ครึ่งบ่าย)', color: '#6D28D9', bg: 'rgba(237, 233, 254, 0.75)' };
-      case 'annual_leave': return { text: 'ลาพักร้อน', color: '#0D9488', bg: 'rgba(204, 251, 241, 0.75)' };
-      case 'shift_swap': return { text: 'สลับวัน', color: '#64748B', bg: 'rgba(226, 232, 240, 0.7)' };
-      case 'unknown': return { text: 'ไม่ทราบสาเหตุ', color: '#B91C1C', bg: '#fee2e2' };
-      case 'no_record': return { text: 'ไม่มีบันทึกเข้างาน', color: 'var(--text-gray)', bg: '#f1f5f9' };
-      default: return { text: status, color: '#64748B', bg: 'rgba(226, 232, 240, 0.7)' };
+      case 'on_time': return { text: 'มาทำงาน (ตรงเวลา)', color: 'var(--green-text)', bg: 'var(--green-bg)' };
+      case 'late': return { text: 'มาทำงาน (สาย)', color: 'var(--gold)', bg: 'var(--gold-bg)' };
+      case 'offsite': return { text: 'ออกหน้างาน', color: 'var(--blue)', bg: 'var(--blue-light)' };
+      case 'sick_leave_full': return { text: 'ลาป่วย (เต็มวัน)', color: 'var(--red-text)', bg: 'var(--red-bg)' };
+      case 'sick_leave_morning': return { text: 'ลาป่วย (ครึ่งเช้า)', color: 'var(--red-text)', bg: 'var(--red-bg)' };
+      case 'sick_leave_afternoon': return { text: 'ลาป่วย (ครึ่งบ่าย)', color: 'var(--red-text)', bg: 'var(--red-bg)' };
+      case 'personal_leave_full': return { text: 'ลากิจ (เต็มวัน)', color: 'var(--purple)', bg: 'rgba(109, 40, 217, 0.14)' };
+      case 'personal_leave_morning': return { text: 'ลากิจ (ครึ่งเช้า)', color: 'var(--purple)', bg: 'rgba(109, 40, 217, 0.14)' };
+      case 'personal_leave_afternoon': return { text: 'ลากิจ (ครึ่งบ่าย)', color: 'var(--purple)', bg: 'rgba(109, 40, 217, 0.14)' };
+      case 'annual_leave': return { text: 'ลาพักร้อน', color: 'var(--teal)', bg: 'rgba(13, 148, 136, 0.14)' };
+      case 'shift_swap': return { text: 'สลับวัน', color: 'var(--text-secondary)', bg: 'var(--surface-muted)' };
+      case 'unknown': return { text: 'ไม่ทราบสาเหตุ', color: 'var(--red-text)', bg: 'var(--red-bg)' };
+      case 'no_record': return { text: 'ไม่มีบันทึกเข้างาน', color: 'var(--text-gray)', bg: 'var(--surface-muted)' };
+      default: return { text: status, color: 'var(--text-secondary)', bg: 'var(--surface-muted)' };
     }
   }
 
@@ -359,7 +359,7 @@ export default function DailyRecord() {
                           let display = getStatusDisplay(rec.attendance.status);
                           // Override display if it's weekend/holiday work
                           if (isOffDay && (rec.attendance.status === 'on_time' || rec.attendance.status === 'late')) {
-                            display = { text: 'ทำงานวันหยุด', color: '#D97706', bg: 'rgba(253, 230, 138, 0.75)' };
+                            display = { text: 'ทำงานวันหยุด', color: 'var(--gold)', bg: 'var(--gold-bg)' };
                           }
                           return (
                             <span className="status-badge" style={{ color: display.color, background: display.bg, border: '1px solid rgba(255,255,255,0.5)', display: 'inline-flex', alignItems: 'center' }}>
@@ -393,11 +393,11 @@ export default function DailyRecord() {
                           );
                         })()
                       ) : hasApprovedLeave ? (
-                        <span className="status-badge" style={{ color: '#DC2626', background: 'rgba(254, 226, 226, 0.75)', border: '1px solid rgba(255,255,255,0.5)' }}>
+                        <span className="status-badge" style={{ color: 'var(--red-text)', background: 'var(--red-bg)', border: '1px solid var(--red-border)' }}>
                           {rec.leave?.leave_type} {rec.leave?.duration !== 'เต็มวัน' ? `(${rec.leave?.duration})` : ''}
                         </span>
                       ) : hasApprovedOffsite ? (
-                        <span className="status-badge" style={{ color: '#0369A1', background: 'rgba(224, 242, 254, 0.75)', border: '1px solid rgba(255,255,255,0.5)' }}>
+                        <span className="status-badge" style={{ color: 'var(--blue)', background: 'var(--blue-light)', border: '1px solid var(--blue-mid)' }}>
                           ออกหน้างาน (อนุมัติแล้ว)
                         </span>
                       ) : (

@@ -67,8 +67,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const assigneeIds = task && task.assignee_ids && task.assignee_ids.length > 0
     ? task.assignee_ids
     : task?.assigned_to
-    ? [task.assigned_to]
-    : [];
+      ? [task.assigned_to]
+      : [];
   const assignees = assigneeIds.map((id) => userMap[id]).filter(Boolean);
 
   // Subtasks
@@ -113,17 +113,16 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       {/* Drawer Container */}
       <div className="fixed inset-y-0 right-0 max-w-full flex md:pl-10">
         <div className="task-detail-drawer-container w-screen max-w-2xl bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out">
-          
+
           {/* Top Asana Action Bar */}
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
             {/* Mark Complete Toggle Button */}
             <button
               onClick={() => onStatusChange(task, isCompleted ? 'pending' : 'completed')}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs border ${
-                isCompleted
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs border ${isCompleted
                   ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 hover:border-slate-400'
-              }`}
+                }`}
             >
               <CheckCircle2 className={`w-4 h-4 ${isCompleted ? 'text-white' : 'text-emerald-600'}`} />
               <span>{isCompleted ? 'ทำเสร็จเรียบร้อย (Completed)' : 'ทำเสร็จ (Mark Complete)'}</span>
@@ -221,11 +220,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <span>วันกำหนดส่ง (Due Date)</span>
                 </span>
                 <div className="pt-1">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold ${
-                    dueInfo.variant === 'overdue' ? 'bg-red-50 text-red-700 border-red-200' :
-                    dueInfo.variant === 'today' ? 'bg-amber-50 text-amber-800 border-amber-300' :
-                    'bg-white text-slate-700 border-slate-200'
-                  }`}>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold ${dueInfo.variant === 'overdue' ? 'bg-red-50 text-red-700 border-red-200' :
+                      dueInfo.variant === 'today' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                        'bg-white text-slate-700 border-slate-200'
+                    }`}>
                     {dueInfo.variant === 'overdue' && (
                       <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
                     )}
@@ -353,7 +351,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     />
                   </div>
                 ))}
-                
+
                 {/* Add Sub-item Form */}
                 <form
                   onSubmit={async (e) => {

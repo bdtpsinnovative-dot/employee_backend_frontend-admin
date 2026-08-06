@@ -185,7 +185,7 @@ export default function AdminLayout() {
               aria-label="ขยายเมนูด้านข้าง"
               aria-expanded={false}
               aria-controls="sidebar"
-              className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white flex items-center justify-center transition-all shadow-sm shadow-blue-500/25 active:scale-95 cursor-pointer group"
+              className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all shadow-xs active:scale-95 cursor-pointer group"
             >
               <i className="fa-solid fa-bars text-sm group-hover:scale-110 transition-transform"></i>
             </button>
@@ -224,7 +224,7 @@ export default function AdminLayout() {
                 }
               >
                 <i className="fa-solid fa-envelope-open-text"></i>
-                <span className="collapsed-nav-label">อนุมัติคำขอ</span>
+                <span className="collapsed-nav-label">อนุมัติ</span>
                 {pendingCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 min-w-[18px] h-4 px-1 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ring-white">
                     {pendingCount}
@@ -261,7 +261,7 @@ export default function AdminLayout() {
                 }
               >
                 <i className="fa-solid fa-users-gear"></i>
-                <span className="collapsed-nav-label">ทีม/แบรนด์</span>
+                <span className="collapsed-nav-label">แบรนด์</span>
               </NavLink>
             )}
 

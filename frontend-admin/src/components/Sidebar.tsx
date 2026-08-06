@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
 import type { User } from '../types';
 import { avatarUrl } from './tasks/taskUtils';
+import { useTheme } from '../theme/ThemeProvider';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const { mode, resolvedTheme, toggleTheme } = useTheme();
   const isAdmin = currentUser?.role === 'admin';
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
@@ -117,6 +119,18 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
           </NavLink>
           <button
             type="button"
+            className="sidebar-profile-action"
+            onClick={toggleTheme}
+            aria-label={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
+          >
+            <span className="sidebar-profile-action-icon" aria-hidden="true">
+              <i className={`fa-solid ${resolvedTheme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i>
+            </span>
+            <span>{resolvedTheme === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}</span>
+            <small className="theme-mode-hint">{mode === 'system' ? 'อัตโนมัติ' : 'จำค่าไว้'}</small>
+          </button>
+          <button
+            type="button"
             className="sidebar-profile-action sidebar-profile-action-danger"
             onClick={handleLogout}
           >
@@ -136,7 +150,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
 
       {isAdmin && (
         <NavLink to="/requests" className={navLinkClass}>
-          <i className="fa-solid fa-envelope-open-text"></i> อนุมัติคำขอ
+          <i className="fa-solid fa-envelope-open-text"></i> อนุมัติ
           {pendingCount > 0 && (
             <span
               id="noti-badge"

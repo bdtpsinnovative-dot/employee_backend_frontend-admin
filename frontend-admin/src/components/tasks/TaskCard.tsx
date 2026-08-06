@@ -32,8 +32,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const assigneeIds = task.assignee_ids && task.assignee_ids.length > 0
     ? task.assignee_ids
     : task.assigned_to
-    ? [task.assigned_to]
-    : [];
+      ? [task.assigned_to]
+      : [];
 
   const assignees = assigneeIds.map(id => userMap[id]).filter(Boolean);
   const maxVisibleAvatars = 3;
@@ -67,9 +67,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       }}
       onDragEnd={() => setIsDragging(false)}
       onClick={onClick}
-      className={`group relative bg-white rounded-xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all p-4 cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 ${
-        isDragging ? 'opacity-40 scale-95 border-indigo-400 ring-2 ring-indigo-400/30' : ''
-      }`}
+      className={`group relative bg-white rounded-xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all p-4 cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 ${isDragging ? 'opacity-40 scale-95 border-indigo-400 ring-2 ring-indigo-400/30' : ''
+        }`}
     >
       {/* Top Header Row: Brand Badge + Priority + Drag Grip */}
       <div className="flex items-center justify-between gap-2">
@@ -143,7 +142,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               <div key={sub.id} className="flex items-center gap-1.5 text-[11px]">
                 <div className={`w-3 h-3 rounded-sm border flex items-center justify-center shrink-0 ${sub.is_done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
                   {sub.is_done && (
-                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   )}
                 </div>
                 <span className={`truncate ${sub.is_done ? 'line-through text-slate-400' : 'text-slate-600'}`}>

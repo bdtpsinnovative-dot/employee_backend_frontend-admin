@@ -324,8 +324,8 @@ export default function TaskLogs() {
                 padding: '8px 12px',
                 fontSize: '12px',
                 borderRadius: '10px',
-                border: '1px solid rgba(0,0,0,0.12)',
-                background: 'rgba(255,255,255,0.8)',
+                border: '1px solid var(--border-strong)',
+                background: 'var(--surface-muted)',
                 outline: 'none',
                 cursor: 'pointer'
               }}
@@ -362,7 +362,7 @@ export default function TaskLogs() {
 
         {/* Filter Info & Clear */}
         {hasActiveFilters && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-gray)', paddingTop: '8px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-gray)', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
             <span>พบลัพธ์ <strong style={{ color: 'var(--text-main)' }}>{filteredEvents.length}</strong> รายการ</span>
             <button
               onClick={resetFilters}
@@ -445,7 +445,7 @@ export default function TaskLogs() {
                                   fontWeight: 600,
                                   padding: '2px 8px',
                                   borderRadius: '6px',
-                                  background: isSystem ? 'rgba(34, 197, 94, 0.1)' : 'rgba(109, 40, 217, 0.1)',
+                                  background: isSystem ? 'var(--green-bg)' : 'rgba(124, 58, 237, 0.16)',
                                   color: isSystem ? 'var(--green-text)' : 'var(--purple)'
                                 }}
                               >
@@ -500,7 +500,7 @@ export default function TaskLogs() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: 'rgba(0, 0, 0, 0.03)', borderBottom: '1px solid rgba(0, 0, 0, 0.08)', fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-gray)' }}>
+                <tr style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-gray)' }}>
                   <th style={{ padding: '14px 20px', textAlign: 'left' }}>เวลา</th>
                   <th style={{ padding: '14px 20px', textAlign: 'left' }}>ผู้ดำเนินการ</th>
                   <th style={{ padding: '14px 20px', textAlign: 'left' }}>ชื่องาน</th>
@@ -514,7 +514,7 @@ export default function TaskLogs() {
                   const isSystem = event.event_type === 'system';
 
                   return (
-                    <tr key={event.id} style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.04)' }}>
+                    <tr key={event.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '14px 20px', fontSize: '12px', color: 'var(--text-gray)', whiteSpace: 'nowrap' }}>
                         <div>{new Date(event.created_at).toLocaleString('th-TH')}</div>
                         <div style={{ fontSize: '11px', opacity: 0.7 }}>{formatRelativeTime(event.created_at)}</div>
@@ -544,7 +544,7 @@ export default function TaskLogs() {
 
                       <td style={{ padding: '14px 20px', fontSize: '13px' }}>
                         {isSystem ? (
-                          <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.06)' }}>
+                          <div style={{ background: 'var(--surface-muted)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             <div>{event.content || getActivityActionLabel(event.action)}</div>
                             {event.action && (
                               <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--text-gray)' }}>
@@ -553,7 +553,7 @@ export default function TaskLogs() {
                             )}
                           </div>
                         ) : (
-                          <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.06)' }}>
+                          <div style={{ background: 'var(--surface-muted)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             {event.content}
                           </div>
                         )}
@@ -566,7 +566,7 @@ export default function TaskLogs() {
                             fontWeight: 600,
                             padding: '3px 10px',
                             borderRadius: '12px',
-                            background: isSystem ? 'rgba(34, 197, 94, 0.12)' : 'rgba(109, 40, 217, 0.12)',
+                            background: isSystem ? 'var(--green-bg)' : 'rgba(124, 58, 237, 0.18)',
                             color: isSystem ? 'var(--green-text)' : 'var(--purple)'
                           }}
                         >

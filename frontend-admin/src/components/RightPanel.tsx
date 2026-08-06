@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchAllAttendance, fetchAllRequests, fetchUserHistory, fetchUserQuota, updateUserQuota, fetchUsers } from '../services/adminApi';
 import type { Attendance, LeaveRequest, User } from '../types';
 import { avatarUrl } from './tasks/taskUtils';
@@ -13,6 +13,9 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
   const [todayAttendance, setTodayAttendance] = useState<Attendance[]>([]);
   const [todayOffsiteCount, setTodayOffsiteCount] = useState(0);
   const [employees, setEmployees] = useState<User[]>([]);
+  const employeeScrollerRef = useRef<HTMLDivElement>(null);
+  const [canScrollEmployeesLeft, setCanScrollEmployeesLeft] = useState(false);
+  const [canScrollEmployeesRight, setCanScrollEmployeesRight] = useState(false);
 
   // สิทธิวันลาสะสมสำหรับพนักงานที่ถูกเลือก
   const [usedSick, setUsedSick] = useState(0);
@@ -37,6 +40,32 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
       .then(users => setEmployees(users.filter(user => user.status === 'active')))
       .catch(() => setEmployees([]));
   }, []);
+
+  useEffect(() => {
+    const scroller = employeeScrollerRef.current;
+    if (!scroller) return;
+
+    const syncScrollButtons = () => {
+      setCanScrollEmployeesLeft(scroller.scrollLeft > 4);
+      setCanScrollEmployeesRight(scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 4);
+    };
+
+    syncScrollButtons();
+    scroller.addEventListener('scroll', syncScrollButtons, { passive: true });
+    window.addEventListener('resize', syncScrollButtons);
+
+    return () => {
+      scroller.removeEventListener('scroll', syncScrollButtons);
+      window.removeEventListener('resize', syncScrollButtons);
+    };
+  }, [employees.length, selectedUser]);
+
+  function scrollEmployees(direction: 'left' | 'right') {
+    employeeScrollerRef.current?.scrollBy({
+      left: direction === 'right' ? 168 : -168,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -276,10 +305,10 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
                 </div>
               ) : (
                 <>
-                  {renderQuotaBar('ลาป่วย (ใช้ไป)', 'fa-notes-medical', usedSick, maxSick, 'linear-gradient(90deg, #93C5FD, #2563EB)')}
-                  {renderQuotaBar('ลากิจ (ใช้ไป)', 'fa-briefcase', usedPersonal, maxPersonal, 'linear-gradient(90deg, #67E8F9, #0EA5E9)')}
-                  {renderQuotaBar('พักร้อน (ใช้ไป)', 'fa-plane-departure', usedVacation, maxVacation, 'linear-gradient(90deg, #A5B4FC, #4F46E5)')}
-                  
+                  {renderQuotaBar('ลาป่วย (ใช้ไป)', 'fa-notes-medical', usedSick, maxSick, 'var(--blue)')}
+                  {renderQuotaBar('ลากิจ (ใช้ไป)', 'fa-briefcase', usedPersonal, maxPersonal, 'var(--teal)')}
+                  {renderQuotaBar('พักร้อน (ใช้ไป)', 'fa-plane-departure', usedVacation, maxVacation, 'var(--purple)')}
+
                   <div className="quota-item" style={{ marginTop: '15px', borderTop: '1px dashed rgba(0,0,0,0.1)', paddingTop: '15px' }}>
                     <div className="quota-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
                       <span style={{ color: '#595959', display: 'flex', alignItems: 'center', fontSize: '13px' }}>
@@ -301,22 +330,42 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
                 <span>เลือกพนักงานเพื่อดูสิทธิ</span>
               </div>
               {employees.length > 0 ? (
-                <div className="right-panel-employee-grid" aria-label="รายชื่อพนักงาน">
-                  {employees.map(user => (
-                    <button
-                      type="button"
-                      key={user.id}
-                      className="right-panel-employee-option"
-                      title={`${user.first_name} ${user.last_name}${user.nickname ? ` (${user.nickname})` : ''}`}
-                      aria-label={`เลือก ${user.first_name} ${user.last_name}${user.nickname ? ` ชื่อเล่น ${user.nickname}` : ''}`}
-                      onClick={() => onSelectUser(user)}
-                    >
-                      <span className="right-panel-picker-avatar" aria-hidden="true">
-                        {avatarUrl(user.avatar_url) ? <img src={avatarUrl(user.avatar_url) || undefined} alt="" /> : (user.first_name?.trim().charAt(0).toUpperCase() || 'U')}
-                      </span>
-                      <span>{user.nickname || user.first_name}</span>
-                    </button>
-                  ))}
+                <div className="right-panel-employee-carousel" role="group" aria-label="รายชื่อพนักงาน">
+                  <button
+                    type="button"
+                    className="right-panel-employee-scroll-button"
+                    aria-label="เลื่อนรายชื่อพนักงานไปทางซ้าย"
+                    onClick={() => scrollEmployees('left')}
+                    disabled={!canScrollEmployeesLeft}
+                  >
+                    <i className="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                  </button>
+                  <div className="right-panel-employee-grid" ref={employeeScrollerRef}>
+                    {employees.map(user => (
+                      <button
+                        type="button"
+                        key={user.id}
+                        className="right-panel-employee-option"
+                        title={`${user.first_name} ${user.last_name}${user.nickname ? ` (${user.nickname})` : ''}`}
+                        aria-label={`เลือก ${user.first_name} ${user.last_name}${user.nickname ? ` ชื่อเล่น ${user.nickname}` : ''}`}
+                        onClick={() => onSelectUser(user)}
+                      >
+                        <span className="right-panel-picker-avatar" aria-hidden="true">
+                          {avatarUrl(user.avatar_url) ? <img src={avatarUrl(user.avatar_url) || undefined} alt="" /> : (user.first_name?.trim().charAt(0).toUpperCase() || 'U')}
+                        </span>
+                        <span>{user.nickname || user.first_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="right-panel-employee-scroll-button"
+                    aria-label="เลื่อนรายชื่อพนักงานไปทางขวา"
+                    onClick={() => scrollEmployees('right')}
+                    disabled={!canScrollEmployeesRight}
+                  >
+                    <i className="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                  </button>
                 </div>
               ) : (
                 <p className="right-panel-picker-empty">ไม่พบรายชื่อพนักงานที่ใช้งานอยู่</p>

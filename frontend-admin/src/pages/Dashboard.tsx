@@ -511,7 +511,7 @@ export default function Dashboard() {
         {/* การ์ด 1: พนักงานทั้งหมด / ลาสะสม */}
         <div
           className="stat-card glass-panel"
-          style={selectedUser ? {} : { background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: 'white', borderColor: 'transparent' }}
+          style={selectedUser ? {} : { background: 'var(--primary-gradient)', color: 'white', borderColor: 'transparent' }}
         >
           <div className="stat-icon" style={selectedUser ? { color: 'var(--blue)' } : { background: 'rgba(255, 255, 255, 0.2)', color: 'white' }}>
             <i className={`fa-solid ${cardData.total.icon}`}></i>

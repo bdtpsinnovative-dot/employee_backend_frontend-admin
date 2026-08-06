@@ -593,7 +593,7 @@ export default function Holidays() {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 flex items-center justify-center text-base">
+              <span className="w-10 h-10 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 flex items-center justify-center text-base">
                 <i className="fa-solid fa-calendar-days"></i>
               </span>
               ปฏิทินวันหยุดบริษัท
@@ -653,7 +653,7 @@ export default function Holidays() {
           {/* Add Holiday Button (Admin only) */}
           {isAdmin && (
             <button
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
               onClick={() => setShowAddModal(true)}
             >
               <i className="fa-solid fa-plus text-xs"></i>
@@ -1267,12 +1267,12 @@ export default function Holidays() {
         </div>
       )}
 
-      {/* Day Activity Details Modal (Quiet Luxury Glassmorphism Modal) */}
+      {/* Day Activity Details Modal */}
       {selectedDayDetails && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 text-white relative shrink-0">
+            <div className="bg-slate-900 p-6 text-white relative shrink-0">
               <button
                 onClick={() => setSelectedDayDetails(null)}
                 aria-label="ปิดรายละเอียดกิจกรรมประจำวัน"
@@ -1501,7 +1501,7 @@ export default function Holidays() {
       {selectedHoliday && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white relative">
+            <div className="bg-blue-600 p-6 text-white relative">
               <button
                 onClick={() => setSelectedHoliday(null)}
                 aria-label="ปิดรายละเอียดวันหยุด"
@@ -1509,7 +1509,7 @@ export default function Holidays() {
               >
                 <i className="fa-solid fa-xmark text-sm"></i>
               </button>
-              <div className="text-xs font-semibold text-amber-100 uppercase tracking-wider mb-1">รายละเอียดวันหยุด</div>
+              <div className="text-xs font-semibold text-blue-100 uppercase tracking-wider mb-1">รายละเอียดวันหยุด</div>
               <h3 className="text-xl font-extrabold">{selectedHoliday.name}</h3>
             </div>
 
