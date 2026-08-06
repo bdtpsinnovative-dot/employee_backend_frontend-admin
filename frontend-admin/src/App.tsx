@@ -21,6 +21,10 @@ const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 
 import { fetchMe } from './services/adminApi';
 
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import TermsOfService from './pages/legal/TermsOfService';
+import DataCollection from './pages/legal/DataCollection';
+import DataDeletion from './pages/legal/DataDeletion';
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
@@ -100,6 +104,10 @@ export default function App() {
         }
       >
         <Routes>
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/data-collection" element={<DataCollection />} />
+          <Route path="/data-deletion" element={<DataDeletion />} />
           <Route path="/login" element={<Login />} />
 
           <Route
