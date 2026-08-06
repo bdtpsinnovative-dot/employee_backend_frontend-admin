@@ -65,15 +65,21 @@ func (s *FirebaseService) SendNotification(ctx context.Context, fcmToken string,
 			Body:  body,
 		},
 		Android: &messaging.AndroidConfig{
+			Priority: "high",
 			Notification: &messaging.AndroidNotification{
 				Sound:     "custom_notification",
 				ChannelID: "custom_sound_channel",
 			},
 		},
 		APNS: &messaging.APNSConfig{
+			Headers: map[string]string{
+				"apns-push-type": "alert",
+				"apns-priority":  "10",
+			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
-					Sound: "custom_notification.caf",
+					Sound:            "default",
+					ContentAvailable: true,
 				},
 			},
 		},
