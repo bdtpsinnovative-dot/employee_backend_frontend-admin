@@ -78,7 +78,7 @@ func (s *FirebaseService) SendNotification(ctx context.Context, fcmToken string,
 			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
-					Sound:            "default",
+					Sound:            "custom_notification.caf",
 					ContentAvailable: true,
 				},
 			},
