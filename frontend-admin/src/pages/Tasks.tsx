@@ -496,6 +496,7 @@ export default function Tasks() {
         onClearFilters={handleClearFilters}
         hasUnreadMainNotif={hasUnreadMainNotif}
         onOpenMainNotif={handleOpenMainNotif}
+        onOpenDailyTasks={() => navigate('/tasks/daily')}
       />
 
       {/* Loading & Error States */}

@@ -563,6 +563,11 @@ export async function fetchTaskTrello(taskId: string): Promise<TaskList[]> {
   return data.data ?? [];
 }
 
+export async function fetchDailyTaskLists(): Promise<TaskList[]> {
+  const { data } = await api.get<ApiResponse<TaskList[]>>('/api/tasks/daily-lists');
+  return data.data ?? [];
+}
+
 export async function createCardSubItem(cardId: string, title: string): Promise<any> {
   const { data } = await api.post<ApiResponse<any>>(`/api/tasks/cards/${cardId}/sub-items`, { title });
   return data.data;

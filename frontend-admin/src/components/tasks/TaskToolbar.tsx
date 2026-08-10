@@ -36,6 +36,7 @@ interface TaskToolbarProps {
   onClearFilters: () => void;
   hasUnreadMainNotif: boolean;
   onOpenMainNotif: () => void;
+  onOpenDailyTasks?: () => void;
 }
 
 export const TaskToolbar: React.FC<TaskToolbarProps> = ({
@@ -64,6 +65,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   onClearFilters,
   hasUnreadMainNotif,
   onOpenMainNotif,
+  onOpenDailyTasks,
 }) => {
   return (
     <div className="task-toolbar-wrapper bg-white border-b border-slate-200 px-4 md:px-6 py-4 shadow-2xs space-y-4">
@@ -129,8 +131,10 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
 
       {/* Second Row: View Switcher Tabs + Search & Filters */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
-        {/* View Switcher Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit overflow-x-auto">
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {/* View Switcher Tabs */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit overflow-x-auto">
           {/* 
             [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
             คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลและปิดใช้งานฟีเจอร์ "หัวข้องาน (Overview)" นี้ไว้
@@ -181,6 +185,16 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             <span>งานที่ติดดาว</span>
           </button>
         </div>
+
+        <button
+          onClick={onOpenDailyTasks}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 hover:border-indigo-200 shadow-xs font-semibold text-xs"
+          title="ดูกระดานงานรายวันรวม"
+        >
+          <i className="fa-solid fa-calendar-day text-xs text-indigo-600"></i>
+          <span>งานรายวัน</span>
+        </button>
+      </div>
 
         {/* Search & Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">

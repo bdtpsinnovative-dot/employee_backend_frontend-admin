@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell,
   ArrowLeft,
@@ -40,6 +40,7 @@ import {
   fetchTrashTaskLists,
   restoreTaskList,
   markNotificationRead,
+  fetchDailyTaskLists,
 } from '../../services/adminApi';
 
 const isValidUUID = (id: string): boolean => {
@@ -312,7 +313,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         const lists = await fetchTrashTaskLists(task.id).catch(() => []);
         setTrashLists(lists);
       } else {
-        const lists = await fetchTaskTrello(task.id).catch(() => []);
+        const lists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
         setTrelloLists(lists);
       }
     } catch (err) {
@@ -375,7 +376,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         admin_comment: cardAdminCommentInput || undefined,
       });
 
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
       setTrelloLists(updatedLists);
       
       const updatedList = updatedLists.find(l => l.id === editingList?.id);
@@ -404,7 +405,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     try {
       await createCardSubItem(editingCardSubView.id, newSubItemTitle.trim());
       setNewSubItemTitle('');
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList?.id);
       if (updatedList) {
@@ -427,7 +428,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       onConfirm: async () => {
         try {
           await deleteTaskSubItem(itemId);
-          const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+          const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
           setTrelloLists(updatedLists);
           const updatedList = updatedLists.find(l => l.id === editingList?.id);
           if (updatedList) {
@@ -459,7 +460,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         status: modalSelectVal,
         verification_notes: modalInputVal1.trim(),
       });
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList?.id);
       if (updatedList) {
@@ -510,7 +511,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           url: modalInputVal1.trim(),
           type: 'link',
         });
-        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
         setTrelloLists(updatedLists);
         const updatedList = updatedLists.find(l => l.id === editingList?.id);
         if (updatedList) {
@@ -539,7 +540,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       if (!confirm('ต้องการลบไฟล์แนบนี้ใช่หรือไม่?')) return;
       try {
         await deleteCardAttachment(attId);
-        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
         setTrelloLists(updatedLists);
         const updatedList = updatedLists.find(l => l.id === editingList?.id);
         if (updatedList) {
@@ -573,7 +574,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       try {
         await updateCardAttachment(modalTargetId, { name, url });
 
-        const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+        const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
         setTrelloLists(updatedLists);
         const updatedList = updatedLists.find(l => l.id === editingList?.id);
         if (updatedList) {
@@ -600,7 +601,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       onConfirm: async () => {
         try {
           await deleteTaskCard(cardId);
-          const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+          const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
           setTrelloLists(updatedLists);
           if (editingList) {
             const updatedList = updatedLists.find(l => l.id === editingList.id);
@@ -627,7 +628,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         } else {
           if (editingCardSubView) {
             await createCardAttachment(editingCardSubView.id, { name, url: res.url, type: 'file' });
-            const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+            const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
             setTrelloLists(updatedLists);
             const updatedList = updatedLists.find(l => l.id === editingList?.id);
             if (updatedList) {
@@ -664,7 +665,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         title: modalInputVal1.trim(),
         priority: 'medium',
       });
-      const updatedLists = await fetchTaskTrello(task.id).catch(() => []);
+      const updatedLists = await (task.id === 'daily' ? fetchDailyTaskLists() : fetchTaskTrello(task.id)).catch(() => []);
       setTrelloLists(updatedLists);
       const updatedList = updatedLists.find(l => l.id === editingList.id);
       if (updatedList) setEditingList(updatedList);
