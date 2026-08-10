@@ -190,6 +190,55 @@ func (h *TaskHandler) ListAllTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
+// ListAllDailyTaskLists GET /admin/daily-task-lists
+func (h *TaskHandler) ListAllDailyTaskLists(c *gin.Context) {
+	ctx := c.Request.Context()
+	userIDRaw, exists := c.Get(middleware.ContextKeyUserID)
+	userID, ok := userIDRaw.(uuid.UUID)
+	if !exists || !ok || userID == uuid.Nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "ไม่พบข้อมูลผู้ใช้งาน"})
+		return
+	}
+
+	lists, err := h.listRepo.ListAllPending(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch daily task lists"})
+		return
+	}
+
+	// The repository already restricts the lists to the current user's
+	// list_assignees. Load active tasks only to resolve the parent title.
+	tasks, err := h.taskSvc.ListAllTasks(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tasks for mapping"})
+		return
+	}
+
+	taskMap := make(map[uuid.UUID]string)
+	for _, t := range tasks {
+		taskMap[t.ID] = t.Title
+	}
+
+	type dailyListResponse struct {
+		domain.TaskList
+		ProjectName string `json:"project_name"`
+	}
+
+	var res []dailyListResponse
+	for _, l := range lists {
+		pName, visible := taskMap[l.TaskID]
+		if !visible {
+			continue
+		}
+		res = append(res, dailyListResponse{
+			TaskList:    l,
+			ProjectName: pName,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": res})
+}
+
 // DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id (Creator only)
 func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

@@ -306,9 +306,17 @@ func (h *BrandCategoryHandler) requireTaskAccess(c *gin.Context, taskID uuid.UUI
 			  AND (
 			    t.assigned_to = $2
 			    OR t.assigned_by = $2
-			    OR EXISTS (
+			OR EXISTS (
 			      SELECT 1 FROM task_assignees ta
 			      WHERE ta.task_id = t.id AND ta.user_id = $2
+			    )
+			    OR EXISTS (
+			      SELECT 1
+			      FROM task_lists tl
+			      JOIN list_assignees la ON la.list_id = tl.id
+			      WHERE tl.task_id = t.id
+			        AND tl.deleted_at IS NULL
+			        AND la.user_id = $2
 			    )
 			  )
 		)
@@ -2409,21 +2417,45 @@ func (h *BrandCategoryHandler) GetTaskMembers(c *gin.Context) {
 	if projectID != nil {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
 			SELECT DISTINCT u.id, u.first_name, u.last_name, u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
-			FROM project_members pm
-			JOIN users u ON u.id = pm.user_id
+			FROM users u
+			LEFT JOIN project_members pm ON pm.user_id = u.id AND pm.project_id = $1
 			LEFT JOIN teams t ON t.id = u.team_id
 			LEFT JOIN positions p ON p.id = u.position_id
-			WHERE pm.project_id = $1 AND u.status = 'active'
+			WHERE u.status = 'active'
+			  AND (
+				pm.user_id IS NOT NULL
+				OR EXISTS (
+					SELECT 1
+					FROM task_lists tl
+					JOIN list_assignees la ON la.list_id = tl.id
+					WHERE tl.task_id = $2
+					  AND tl.deleted_at IS NULL
+					  AND la.user_id = u.id
+				)
+			  )
 			ORDER BY u.first_name, u.last_name
-		`, *projectID)
+		`, *projectID, taskID)
 	} else {
 		err = h.cardRepo.GetDB().SelectContext(c.Request.Context(), &members, `
 			SELECT DISTINCT u.id, u.first_name, u.last_name, u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
-			FROM task_assignees ta
-			JOIN users u ON u.id = ta.user_id
+			FROM users u
 			LEFT JOIN teams t ON t.id = u.team_id
 			LEFT JOIN positions p ON p.id = u.position_id
-			WHERE ta.task_id = $1 AND u.status = 'active'
+			WHERE u.status = 'active'
+			  AND (
+				EXISTS (
+					SELECT 1 FROM task_assignees ta
+					WHERE ta.task_id = $1 AND ta.user_id = u.id
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM task_lists tl
+					JOIN list_assignees la ON la.list_id = tl.id
+					WHERE tl.task_id = $1
+					  AND tl.deleted_at IS NULL
+					  AND la.user_id = u.id
+				)
+			  )
 			ORDER BY u.first_name, u.last_name
 		`, taskID)
 	}

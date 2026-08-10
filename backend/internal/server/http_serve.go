@@ -254,6 +254,7 @@ func registerRoutes(
 
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                                       // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.GET("/tasks/daily-lists", taskH.ListAllDailyTaskLists)                 // ดูรายการงานทั้งหมด (รายวัน)
 		api.GET("/tasks/trash", taskH.ListTrashTasks)                              // ดูงานในถังขยะ
 		api.POST("/tasks", taskH.CreateTask)                                       // เพิ่มงานใหม่
 		api.POST("/tasks/:id/restore", taskH.RestoreTask)                          // กู้คืนงานจากถังขยะ

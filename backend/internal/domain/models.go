@@ -365,6 +365,7 @@ type TaskList struct {
 	Attachments  json.RawMessage `db:"attachments" json:"attachments"`
 	Cards        []TaskCard      `db:"-" json:"cards"`
 	AssigneeIDs  []uuid.UUID     `db:"-" json:"assignee_ids"`
+	Assignees    []UserSummary   `db:"-" json:"assignees"`
 }
 
 // CardAttachment represents a file/image/link attachment on a task card.

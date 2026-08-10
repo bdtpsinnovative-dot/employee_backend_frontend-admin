@@ -426,12 +426,44 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 		var listAssignees []struct {
 			ListID uuid.UUID `db:"list_id"`
 			UserID uuid.UUID `db:"user_id"`
+			FirstName string `db:"first_name"`
+			LastName  string `db:"last_name"`
+			Nickname  *string `db:"nickname"`
+			AvatarURL *string `db:"avatar_url"`
+			Position  string `db:"position"`
 		}
-		err = r.db.SelectContext(ctx, &listAssignees, `SELECT list_id, user_id FROM list_assignees`)
+		listIDs := make([]uuid.UUID, len(lists))
+		for i, list := range lists {
+			listIDs[i] = list.ID
+		}
+		query, args, queryErr := sqlx.In(`
+			SELECT la.list_id, u.id AS user_id, u.first_name, u.last_name,
+			       u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
+			FROM list_assignees la
+			JOIN users u ON u.id = la.user_id
+			LEFT JOIN positions p ON p.id = u.position_id
+			WHERE la.list_id IN (?)
+			ORDER BY la.list_id, u.first_name, u.last_name
+		`, listIDs)
+		if queryErr == nil {
+			query = r.db.Rebind(query)
+			err = r.db.SelectContext(ctx, &listAssignees, query, args...)
+		} else {
+			err = queryErr
+		}
 		if err == nil {
 			listMap := make(map[uuid.UUID][]uuid.UUID)
+			assigneeMap := make(map[uuid.UUID][]domain.UserSummary)
 			for _, la := range listAssignees {
 				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
+				assigneeMap[la.ListID] = append(assigneeMap[la.ListID], domain.UserSummary{
+					ID:        la.UserID,
+					FirstName: la.FirstName,
+					LastName:  la.LastName,
+					Nickname:  la.Nickname,
+					AvatarURL: la.AvatarURL,
+					Position:  la.Position,
+				})
 			}
 			for i, l := range lists {
 				ids := listMap[l.ID]
@@ -439,6 +471,106 @@ func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]doma
 					ids = []uuid.UUID{}
 				}
 				lists[i].AssigneeIDs = ids
+				assignees := assigneeMap[l.ID]
+				if assignees == nil {
+					assignees = []domain.UserSummary{}
+				}
+				lists[i].Assignees = assignees
+			}
+		}
+	}
+	return lists, nil
+}
+
+func (r *TaskListRepo) ListAllPending(ctx context.Context, userID uuid.UUID) ([]domain.TaskList, error) {
+	var lists []domain.TaskList
+	err := r.db.SelectContext(ctx, &lists, `
+		SELECT tl.id, tl.task_id, tl.name, tl.description, tl.sort_order, tl.created_at,
+		       tl.start_date, tl.due_date, tl.priority, tl.status, tl.admin_comment,
+		       tl.attachments, tl.deleted_at
+		FROM task_lists tl
+		INNER JOIN tasks t ON t.id = tl.task_id
+		WHERE tl.status != 'completed'
+		  AND tl.deleted_at IS NULL
+		  AND t.deleted_at IS NULL
+		  AND (
+			t.assigned_by = $1
+			OR t.assigned_to = $1
+			OR EXISTS (
+				SELECT 1
+				FROM task_assignees ta
+				WHERE ta.task_id = t.id AND ta.user_id = $1
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM list_assignees la_access
+				WHERE la_access.list_id = tl.id AND la_access.user_id = $1
+			)
+		  )
+		  AND EXISTS (
+			SELECT 1
+			FROM list_assignees la_owner
+			WHERE la_owner.list_id = tl.id AND la_owner.user_id = $1
+		  )
+		ORDER BY tl.due_date ASC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(lists) > 0 {
+		var listAssignees []struct {
+			ListID    uuid.UUID `db:"list_id"`
+			UserID    uuid.UUID `db:"user_id"`
+			FirstName string    `db:"first_name"`
+			LastName  string    `db:"last_name"`
+			Nickname  *string   `db:"nickname"`
+			AvatarURL *string   `db:"avatar_url"`
+			Position  string    `db:"position"`
+		}
+		listIDs := make([]uuid.UUID, len(lists))
+		for i, list := range lists {
+			listIDs[i] = list.ID
+		}
+		query, args, queryErr := sqlx.In(`
+			SELECT la.list_id, u.id AS user_id, u.first_name, u.last_name,
+			       u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
+			FROM list_assignees la
+			JOIN users u ON u.id = la.user_id
+			LEFT JOIN positions p ON p.id = u.position_id
+			WHERE la.list_id IN (?)
+			ORDER BY la.list_id, u.first_name, u.last_name
+		`, listIDs)
+		if queryErr == nil {
+			query = r.db.Rebind(query)
+			err = r.db.SelectContext(ctx, &listAssignees, query, args...)
+		} else {
+			err = queryErr
+		}
+		if err == nil {
+			listMap := make(map[uuid.UUID][]uuid.UUID)
+			assigneeMap := make(map[uuid.UUID][]domain.UserSummary)
+			for _, la := range listAssignees {
+				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
+				assigneeMap[la.ListID] = append(assigneeMap[la.ListID], domain.UserSummary{
+					ID:        la.UserID,
+					FirstName: la.FirstName,
+					LastName:  la.LastName,
+					Nickname:  la.Nickname,
+					AvatarURL: la.AvatarURL,
+					Position:  la.Position,
+				})
+			}
+			for i, l := range lists {
+				ids := listMap[l.ID]
+				if ids == nil {
+					ids = []uuid.UUID{}
+				}
+				lists[i].AssigneeIDs = ids
+				assignees := assigneeMap[l.ID]
+				if assignees == nil {
+					assignees = []domain.UserSummary{}
+				}
+				lists[i].Assignees = assignees
 			}
 		}
 	}
