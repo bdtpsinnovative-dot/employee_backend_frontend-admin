@@ -49,6 +49,7 @@ function saveSidebarPref(open: boolean) {
 }
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
+  const [lastTasksSearch, setLastTasksSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentUserLoaded, setCurrentUserLoaded] = useState(false);
@@ -59,6 +60,15 @@ export default function AdminLayout() {
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
   const isAdmin = currentUser?.role === 'admin';
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
+  const isTasksPage = location.pathname === '/tasks'
+    || location.pathname === '/tasks/'
+    || (location.pathname.startsWith('/tasks/') && location.pathname !== '/tasks/daily');
+
+  useEffect(() => {
+    if (isTasksPage) {
+      setLastTasksSearch(location.search);
+    }
+  }, [isTasksPage, location.search]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -171,7 +181,7 @@ export default function AdminLayout() {
         onClick={toggleSidebar}
       ></div>
 
-      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} />
+      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} tasksSearch={lastTasksSearch} />
 
       {/* Collapsed Left Rail for Desktop */}
       {/* Collapsed Left Rail for Desktop */}
@@ -280,7 +290,7 @@ export default function AdminLayout() {
             </NavLink>
 
             <NavLink
-              to="/tasks"
+                to={`/tasks${lastTasksSearch}`}
               title="จัดการงาน (Tasks)"
               className={({ isActive }) =>
                 `collapsed-nav-link ${isActive

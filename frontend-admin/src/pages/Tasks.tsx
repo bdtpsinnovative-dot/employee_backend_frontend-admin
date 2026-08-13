@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trash2, X, Bell, CheckCircle2 } from 'lucide-react';
 import {
   fetchAdminTasks,
@@ -39,9 +39,50 @@ import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
 */
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
 
+type TasksViewState = {
+  searchQuery: string;
+  selectedBrand: string;
+  selectedCategory: string;
+  selectedAssignee: string;
+  selectedPriority: string;
+  ownershipMode: 'all' | 'created_by_me' | 'assigned_to_me';
+  tabFilter: 'all' | 'completed' | 'starred';
+};
+
+const TASKS_VIEW_QUERY_KEYS = {
+  searchQuery: 'search',
+  selectedBrand: 'brand',
+  selectedCategory: 'category',
+  selectedAssignee: 'assignee',
+  selectedPriority: 'priority',
+  ownershipMode: 'owner',
+  tabFilter: 'tab',
+} as const;
+
+function getTasksViewStateFromParams(searchParams: URLSearchParams): TasksViewState {
+  const ownershipMode = searchParams.get(TASKS_VIEW_QUERY_KEYS.ownershipMode);
+  const tabFilter = searchParams.get(TASKS_VIEW_QUERY_KEYS.tabFilter);
+
+  return {
+    searchQuery: searchParams.get(TASKS_VIEW_QUERY_KEYS.searchQuery) || '',
+    selectedBrand: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedBrand) || '',
+    selectedCategory: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedCategory) || '',
+    selectedAssignee: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedAssignee) || '',
+    selectedPriority: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedPriority) || '',
+    ownershipMode: ownershipMode === 'created_by_me' || ownershipMode === 'assigned_to_me'
+      ? ownershipMode
+      : 'all',
+    tabFilter: tabFilter === 'completed' || tabFilter === 'starred'
+      ? tabFilter
+      : 'all',
+  };
+}
+
 export default function Tasks() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
+  const taskFilterQuery = searchParams.toString();
 
   const hasUnreadMainNotif = notifications.some(n => {
     if (n.is_read) return false;
@@ -113,13 +154,47 @@ export default function Tasks() {
 
 
   // ─── Search & Filter State ───
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedAssignee, setSelectedAssignee] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState('');
-  const [ownershipMode, setOwnershipMode] = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
-  const [tabFilter, setTabFilter] = useState<'all' | 'completed' | 'starred'>('all');
+  const {
+    searchQuery,
+    selectedBrand,
+    selectedCategory,
+    selectedAssignee,
+    selectedPriority,
+    ownershipMode,
+    tabFilter,
+  } = getTasksViewStateFromParams(searchParams);
+
+  const updateTasksViewState = useCallback((patch: Partial<TasksViewState>) => {
+    setSearchParams((currentParams) => {
+      const nextState = {
+        ...getTasksViewStateFromParams(currentParams),
+        ...patch,
+      };
+      const nextParams = new URLSearchParams(currentParams);
+
+      (Object.keys(TASKS_VIEW_QUERY_KEYS) as Array<keyof TasksViewState>).forEach((stateKey) => {
+        const queryKey = TASKS_VIEW_QUERY_KEYS[stateKey];
+        const value = nextState[stateKey];
+        const isDefault = value === '' || value === 'all';
+
+        if (isDefault) {
+          nextParams.delete(queryKey);
+        } else {
+          nextParams.set(queryKey, value);
+        }
+      });
+
+      return nextParams;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSearchQuery = (value: string) => updateTasksViewState({ searchQuery: value });
+  const setSelectedBrand = (value: string) => updateTasksViewState({ selectedBrand: value });
+  const setSelectedCategory = (value: string) => updateTasksViewState({ selectedCategory: value });
+  const setSelectedAssignee = (value: string) => updateTasksViewState({ selectedAssignee: value });
+  const setSelectedPriority = (value: string) => updateTasksViewState({ selectedPriority: value });
+  const setOwnershipMode = (value: TasksViewState['ownershipMode']) => updateTasksViewState({ ownershipMode: value });
+  const setTabFilter = (value: TasksViewState['tabFilter']) => updateTasksViewState({ tabFilter: value });
 
   // ─── Modals & Drawers ───
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -168,6 +243,14 @@ export default function Tasks() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  const refreshTasksInBackground = useCallback(() => {
+    void fetchAdminTasks()
+      .then(setTasks)
+      .catch((err) => {
+        console.error('Failed to sync tasks after mutation', err);
+      });
+  }, []);
 
   // ─── Load Task Events when task selected ───
   useEffect(() => {
@@ -305,17 +388,19 @@ export default function Tasks() {
     });
 
     if (data.boards && data.boards.length > 0) {
-      for (const board of data.boards) {
-        await createTaskList(newTask.id, {
-          name: board.name,
-          due_date: board.due_date,
-          priority: board.priority,
-          description: board.description,
-          assignee_ids: data.assignee_ids,
-        });
-      }
+      await Promise.all(data.boards.map((board) => createTaskList(newTask.id, {
+        name: board.name,
+        due_date: board.due_date,
+        priority: board.priority,
+        description: board.description,
+        assignee_ids: data.assignee_ids,
+      })));
+
+      // Board-derived progress may not be included in the create response.
+      refreshTasksInBackground();
     }
-    await loadAll(true);
+
+    setTasks((prev) => [newTask, ...prev]);
   };
 
   const handleUpdateTask = async (data: {
@@ -329,7 +414,7 @@ export default function Tasks() {
     status?: string;
   }) => {
     if (!editingTask) return;
-    await updateAdminTask(editingTask.id, {
+    const updatedTask = await updateAdminTask(editingTask.id, {
       title: data.title,
       description: data.description,
       due_date: data.due_date,
@@ -339,8 +424,14 @@ export default function Tasks() {
       priority: data.priority,
       status: data.status,
     });
+
+    setTasks((prev) => prev.map((task) => (
+      task.id === updatedTask.id ? updatedTask : task
+    )));
+    setSelectedTask((prev) => (
+      prev?.id === updatedTask.id ? updatedTask : prev
+    ));
     setEditingTask(null);
-    await loadAll(true);
   };
 
   const handleAddComment = async () => {
@@ -456,12 +547,14 @@ export default function Tasks() {
   ].filter(Boolean).length;
 
   const handleClearFilters = () => {
-    setSearchQuery('');
-    setSelectedBrand('');
-    setSelectedCategory('');
-    setSelectedAssignee('');
-    setSelectedPriority('');
-    setOwnershipMode('all');
+    updateTasksViewState({
+      searchQuery: '',
+      selectedBrand: '',
+      selectedCategory: '',
+      selectedAssignee: '',
+      selectedPriority: '',
+      ownershipMode: 'all',
+    });
   };
 
   return (
@@ -538,7 +631,7 @@ export default function Tasks() {
             onSelectTask={setSelectedTask}
             onEditTask={setEditingTask}
             onSelectProjectSheet={(task) => {
-              navigate(`/tasks/${task.id}`);
+              navigate(`/tasks/${task.id}${taskFilterQuery ? `?${taskFilterQuery}` : ''}`);
             }}
             onStatusChange={handleStatusChange}
             onOpenCreateModal={(status) => {

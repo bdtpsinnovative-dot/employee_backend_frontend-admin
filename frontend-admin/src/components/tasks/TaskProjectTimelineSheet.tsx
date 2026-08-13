@@ -1081,11 +1081,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   return (
     <>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="task-timeline-sheet p-4 md:p-6 space-y-6">
 
         {/* Spreadsheet Header Banner */}
-        <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-xs overflow-hidden">
-          <div className="bg-slate-50 p-6 text-slate-800 border-b border-slate-200">
+        <div className="task-timeline-banner bg-white border-2 border-slate-300 rounded-2xl shadow-xs overflow-hidden">
+          <div className="task-timeline-banner-head bg-slate-50 p-6 text-slate-800 border-b border-slate-200">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h1 className="text-xl md:text-2xl font-black tracking-wider uppercase text-slate-800">
@@ -1218,7 +1218,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           </div>
 
           {/* Table Container */}
-          <div className="overflow-x-auto">
+          <div className="task-timeline-table-wrap overflow-x-auto">
             <table className={`w-full text-left border-collapse text-xs font-sans ${showNoteColumn ? 'min-w-[950px]' : 'min-w-[860px]'}`}>
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
@@ -1257,8 +1257,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
       {/* Edit List Drawer */}
       {editingList && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
-          <div className="bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
+        <div className="task-timeline-edit-overlay fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
+          <div className="task-timeline-edit-drawer bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
 {editingCardSubView ? (
               <div className="bg-slate-50 text-slate-800 p-5 flex items-center gap-3 border-b border-slate-200">
                 <button

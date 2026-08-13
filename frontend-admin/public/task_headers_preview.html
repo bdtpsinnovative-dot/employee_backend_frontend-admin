@@ -86,73 +86,75 @@
         <!-- Bento Outer Container -->
         <div class="space-y-3">
           
-          <!-- Bento Row 1: Title Header + Live Telemetry + Quick Search & Master Actions -->
+          <!-- Bento Row 1: Title Header + Absolute Top-Right CTA + Sub Telemetry & Utility Actions -->
           <div class="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
             
-            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <!-- Top Line: Title & Brand on Left <-------------------------> Primary CTA on Absolute Right -->
+            <div class="flex items-center justify-between gap-4 pb-3 border-b border-slate-100 dark:border-slate-800/80">
               
-              <!-- Left: Brand Icon + Title + Status Telemetry Badges -->
-              <div class="flex flex-wrap items-center gap-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                  </div>
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">การจัดการงาน</h3>
-                      <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800/60">BENTO 2-ROW</span>
-                    </div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">ติดตามและมอบหมายงานประจำวันสไตล์ Project Overview & Sheet</p>
-                  </div>
+              <!-- Left: Brand Icon + Page Title -->
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20 shrink-0">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                 </div>
-
-                <!-- Status Telemetry Badges -->
-                <div class="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-200 dark:border-slate-800 text-xs">
-                  <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>ซิงค์ระบบแล้ว (42 งาน)</span>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">การจัดการงาน</h3>
+                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800/60">BENTO 2-ROW</span>
                   </div>
-
-                  <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-semibold">
-                    <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>เกินกำหนด 3 งาน</span>
-                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:block">ติดตามและมอบหมายงานประจำวันสไตล์ Project Overview & Sheet</p>
                 </div>
               </div>
 
-              <!-- Right: Quick Search Box + Action Buttons + Top-Right Primary CTA -->
-              <div class="flex flex-wrap items-center gap-2.5">
-                
-                <!-- Quick Search Input Bar -->
+              <!-- ABSOLUTE TOP-RIGHT PRIMARY CTA BUTTON -->
+              <button class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition flex items-center gap-2 active:scale-95 hover:scale-102 shrink-0 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                <span>+ มอบหมายงานใหม่</span>
+              </button>
+            </div>
+
+            <!-- Sub Line: Live Telemetry Badges on Left + Search Box & Secondary Actions on Right -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              
+              <!-- Telemetry Badges -->
+              <div class="flex items-center gap-2 text-xs">
+                <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>ซิงค์ระบบแล้ว (42 งาน)</span>
+                </div>
+
+                <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-semibold">
+                  <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  <span>เกินกำหนด 3 งาน</span>
+                </div>
+              </div>
+
+              <!-- Quick Search + Utility Actions -->
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- Search Box -->
                 <div class="relative w-full sm:w-56">
                   <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                  <input type="text" placeholder="ค้นหากระดานงาน... (Cmd + K)" class="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition">
+                  <input type="text" placeholder="ค้นหากระดานงาน... (Cmd + K)" class="w-full pl-9 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition">
                   <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono border border-slate-200 dark:border-slate-800 px-1 rounded bg-white dark:bg-slate-900">⌘K</span>
                 </div>
 
-                <!-- Notifications Button with Pulse Indicator -->
-                <button class="px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs relative" title="การแจ้งเตือน">
+                <!-- Notifications Button -->
+                <button class="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs relative" title="การแจ้งเตือน">
                   <svg class="w-4 h-4 text-rose-600 dark:text-rose-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
                   <span>แจ้งเตือน</span>
                   <span class="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">2</span>
                 </button>
 
                 <!-- Trash Bin Button -->
-                <button class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="ดูถังขยะ">
+                <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="ดูถังขยะ">
                   <svg class="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                  <span class="hidden sm:inline">ถังขยะ</span>
+                  <span>ถังขยะ</span>
                 </button>
 
                 <!-- Settings Button -->
-                <button class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="ตั้งค่าระบบ">
+                <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="ตั้งค่าระบบ">
                   <svg class="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                  <span class="hidden sm:inline">ตั้งค่า</span>
-                </button>
-
-                <!-- Prominent Top-Right Primary CTA -->
-                <button class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/30 transition flex items-center gap-2 active:scale-95 hover:scale-102">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                  <span>+ มอบหมายงานใหม่</span>
+                  <span>ตั้งค่า</span>
                 </button>
               </div>
 

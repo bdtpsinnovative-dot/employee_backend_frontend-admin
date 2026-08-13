@@ -10,9 +10,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
+  tasksSearch?: string;
 }
 
-export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = '' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
@@ -184,7 +185,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       <NavLink to="/holidays" className={navLinkClass}>
         <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
       </NavLink>
-      <NavLink to="/tasks" className={navLinkClass}>
+      <NavLink to={`/tasks${tasksSearch}`} className={navLinkClass}>
         <i className="fa-solid fa-clipboard-list"></i> จัดการงาน
       </NavLink>
       <div className="menu-category">การปฏิบัติงาน</div>

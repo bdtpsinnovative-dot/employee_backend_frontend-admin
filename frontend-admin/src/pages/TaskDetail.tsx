@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useOutletContext } from 'react-router-dom';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -31,6 +31,8 @@ import {
 export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const tasksListPath = `/tasks${location.search}`;
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
 
   // ─── Main Data State ───
@@ -151,7 +153,7 @@ export default function TaskDetail() {
     if (!confirm('คุณต้องการลบงานนี้หรือไม่?')) return;
     try {
       await deleteAdminTask(id);
-      navigate('/tasks');
+      navigate(tasksListPath);
     } catch (e: any) {
       alert(e.message || 'ลบงานล้มเหลว');
     }
@@ -252,7 +254,7 @@ export default function TaskDetail() {
           </div>
           <h2 className="text-lg font-bold text-slate-900">{error || 'ไม่พบงานที่ระบุ'}</h2>
           <button
-            onClick={() => navigate('/tasks')}
+            onClick={() => navigate(tasksListPath)}
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95"
           >
             ← กลับไปรายการงาน
@@ -263,15 +265,15 @@ export default function TaskDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
+    <div className="task-detail-page min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* ═══════════ Header Bar ═══════════ */}
-      <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 shadow-2xs">
+      <div className="task-detail-header bg-white border-b border-slate-200 px-4 md:px-6 py-4 shadow-2xs">
         {/* Top Row: Back + Task Info */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {/* Back Button */}
             <button
-              onClick={() => navigate('/tasks')}
+              onClick={() => navigate(tasksListPath)}
               className="flex-shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 flex items-center justify-center text-slate-600 hover:text-blue-600 transition-all active:scale-95"
               title="กลับไปรายการงาน"
             >

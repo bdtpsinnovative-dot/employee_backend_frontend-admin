@@ -875,7 +875,7 @@ export default function Holidays() {
                   <i className="fa-solid fa-list-check text-[10px] text-indigo-600" aria-hidden="true"></i>
                   <span className="truncate">งานใกล้ครบกำหนด: {upcomingTaskLabel} · {formatDateThai(upcomingTaskInfo.dueDate || '')}</span>
                   {upcomingTaskInfo.priority && upcomingTaskInfo.priority !== 'low' && (
-                    <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${TASK_PRIORITY_META[upcomingTaskInfo.priority].className}`}>
+                    <span className={`holiday-priority-pill shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${TASK_PRIORITY_META[upcomingTaskInfo.priority].className}`}>
                       {TASK_PRIORITY_META[upcomingTaskInfo.priority].label}
                     </span>
                   )}
@@ -1106,10 +1106,10 @@ export default function Holidays() {
                             return (
                               <div
                                 key={item.key}
-                                className={`px-1.5 py-1 rounded-lg border text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:brightness-95 transition-all ${priorityMeta.className}`}
+                                className={`holiday-task-priority px-1.5 py-1 rounded-lg border text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:brightness-95 transition-all ${priorityMeta.className}`}
                                 title={`${priorityMeta.label}: ${item.isSubItem && item.parentTitle ? `งานหลัก ${item.parentTitle} › ` : ''}${item.title}`}
                               >
-                                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white/70 px-1 py-0.5 text-[9px] font-extrabold">
+                                <span className="holiday-task-priority-label inline-flex shrink-0 items-center gap-1 rounded-md bg-white/70 px-1 py-0.5 text-[9px] font-extrabold">
                                   <i className={`fa-solid ${priorityMeta.icon} text-[9px]`} aria-hidden="true"></i>
                                   {priorityMeta.label}
                                 </span>
@@ -1269,8 +1269,8 @@ export default function Holidays() {
 
       {/* Day Activity Details Modal */}
       {selectedDayDetails && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+        <div className="holiday-day-details-overlay fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="holiday-day-details-modal bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="bg-slate-900 p-6 text-white relative shrink-0">
               <button
@@ -1290,7 +1290,7 @@ export default function Holidays() {
             </div>
 
             {/* Content List */}
-            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            <div className="holiday-day-details-content p-6 space-y-5 overflow-y-auto custom-scrollbar">
               {/* Holidays section */}
               {selectedDayDetails.holidayMatches.length > 0 && (
                 <div className="space-y-2.5">
@@ -1353,7 +1353,7 @@ export default function Holidays() {
                               )}
                             </div>
 
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            <span className={`holiday-priority-status text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                               item.priority === 'high' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}>
@@ -1485,7 +1485,7 @@ export default function Holidays() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+            <div className="holiday-day-details-footer p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
               <button
                 onClick={() => setSelectedDayDetails(null)}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"

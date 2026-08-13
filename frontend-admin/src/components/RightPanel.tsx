@@ -253,7 +253,7 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
             </div>
             <div id="quota-content">
               {isEditingQuota ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(255, 255, 255, 0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.05)' }}>
+                <div className="quota-editor-panel" style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(255, 255, 255, 0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '13px', fontWeight: 500 }}><i className="fa-solid fa-notes-medical" style={{ marginRight: '6px', color: 'var(--blue)' }}></i> ลาป่วย (วัน)</span>
                     <input
@@ -309,9 +309,9 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
                   {renderQuotaBar('ลากิจ (ใช้ไป)', 'fa-briefcase', usedPersonal, maxPersonal, 'var(--teal)')}
                   {renderQuotaBar('พักร้อน (ใช้ไป)', 'fa-plane-departure', usedVacation, maxVacation, 'var(--purple)')}
 
-                  <div className="quota-item" style={{ marginTop: '15px', borderTop: '1px dashed rgba(0,0,0,0.1)', paddingTop: '15px' }}>
+                  <div className="quota-item quota-swap-item" style={{ marginTop: '15px', borderTop: '1px dashed rgba(0,0,0,0.1)', paddingTop: '15px' }}>
                     <div className="quota-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
-                      <span style={{ color: '#595959', display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                      <span className="quota-swap-label" style={{ color: '#595959', display: 'flex', alignItems: 'center', fontSize: '13px' }}>
                         <i className="fa-solid fa-rotate" style={{ marginRight: '8px', color: 'var(--text-gray)' }}></i> สลับวันหยุด (ใช้ไป)
                       </span>
                       <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '13px' }}>{usedSwap} ครั้ง</span>
@@ -428,7 +428,7 @@ export default function RightPanel({ selectedUser, onSelectUser }: RightPanelPro
                   </span>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 600 }}>{leaveName}</div>
-                    <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600 }}>{l.leave_type}</div>
+                    <div className="right-panel-activity-type" style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600 }}>{l.leave_type}</div>
                   </div>
                 </div>
               );
