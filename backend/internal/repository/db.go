@@ -81,6 +81,8 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS admin_comment TEXT NOT NULL DEFAULT '';
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb;
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+		ALTER TABLE task_lists DROP CONSTRAINT IF EXISTS task_lists_status_check;
+		ALTER TABLE task_lists ADD CONSTRAINT task_lists_status_check CHECK (status IN ('waiting', 'pending', 'in_progress', 'in_review', 'completed', 'revision'));
 
 		CREATE TABLE IF NOT EXISTS card_assignees (
 			card_id UUID REFERENCES task_cards(id) ON DELETE CASCADE,

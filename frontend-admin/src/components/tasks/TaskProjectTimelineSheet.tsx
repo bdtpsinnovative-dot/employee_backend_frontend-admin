@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Bell,
   ArrowLeft,
@@ -18,6 +18,8 @@ import {
   Users,
   Clock3,
   RefreshCw,
+  RotateCcw,
+  Star,
 } from 'lucide-react';
 import type { AdminTask, User, Brand, TaskCategory, TaskList, TaskEvent } from '../../types';
 import { avatarUrl } from './taskUtils';
@@ -59,6 +61,7 @@ const BOARD_ACTIVITY_LABELS: Record<string, string> = {
   board_due_date_changed: 'เปลี่ยนกำหนดส่ง',
   board_priority_changed: 'เปลี่ยนความสำคัญ',
   board_status_changed: 'เปลี่ยนสถานะ',
+  board_revision_requested: 'ส่งแก้ไขงาน',
   board_note_changed: 'แก้ไขหมายเหตุ',
   board_attachment_added: 'เพิ่มเอกสาร',
   board_attachment_removed: 'ลบเอกสาร',
@@ -110,6 +113,12 @@ const SUB_TASK_STATUS_CONFIG: Record<string, { label: string; bg: string; text: 
     text: 'text-blue-700',
     border: 'border-blue-200'
   },
+  revision: {
+    label: 'แก้ไข',
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    border: 'border-rose-200'
+  },
   completed: {
     label: 'เสร็จสิ้น',
     bg: 'bg-emerald-50',
@@ -123,6 +132,7 @@ import type { AppNotification } from '../../services/adminApi';
 
 interface TaskProjectTimelineSheetProps {
   task: AdminTask;
+  tasks?: AdminTask[];
   userMap: Record<string, User>;
   brandMap: Record<string, Brand>;
   categoryMap: Record<string, TaskCategory>;
@@ -134,6 +144,7 @@ interface TaskProjectTimelineSheetProps {
 
 export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> = ({
   task,
+  tasks = [],
   userMap,
   brandMap,
   categoryMap,
@@ -143,7 +154,35 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   setNotifications,
 }) => {
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
-  const users = Object.values(userMap);
+
+  const allTasksMap = useMemo(() => {
+    return Object.fromEntries(tasks.map((t) => [t.id, t]));
+  }, [tasks]);
+
+  // Candidate assignees for subtasks/lists/cards are strictly limited to
+  // members assigned to this parent project/task (unless viewing the aggregated daily board).
+  const projectAssigneeIds = useMemo(() => {
+    if (task.id === 'daily') {
+      return Object.keys(userMap);
+    }
+    const ids = new Set<string>();
+    if (task.assignee_ids && task.assignee_ids.length > 0) {
+      task.assignee_ids.forEach((id) => ids.add(id));
+    }
+    if (task.assigned_to) {
+      ids.add(task.assigned_to);
+    }
+    return Array.from(ids);
+  }, [task.id, task.assignee_ids, task.assigned_to, userMap]);
+
+  const projectMemberUsers = useMemo(() => {
+    if (task.id === 'daily') {
+      return Object.values(userMap).filter((u) => u.status === 'active');
+    }
+    return projectAssigneeIds
+      .map((id) => userMap[id])
+      .filter((u): u is User => Boolean(u && u.status === 'active'));
+  }, [task.id, projectAssigneeIds, userMap]);
   const hasUnreadMainTaskNotif = notifications.some(n => {
     if (n.is_read) return false;
     let tId: string | null = null;
@@ -158,7 +197,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         tId = meta.task_id || null;
       }
     }
-    return tId === task.id;
+    return task.id === 'daily' ? true : tId === task.id;
   });
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
@@ -181,6 +220,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [activityEvents, setActivityEvents] = useState<TaskEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [mainTaskNotifModalOpen, setMainTaskNotifModalOpen] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionReasonInput, setRevisionReasonInput] = useState('');
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
   const handleOpenMainTaskNotif = async () => {
     setMainTaskNotifModalOpen(true);
@@ -199,7 +241,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           tId = meta.task_id || null;
         }
       }
-      return tId === task.id;
+      return task.id === 'daily' ? true : tId === task.id;
     });
 
     if (unreadMatching.length > 0 && setNotifications) {
@@ -227,7 +269,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     setActivityEvents([]);
     setActivityLoading(true);
     try {
-      const events = await fetchTaskEvents(task.id, { listId: list.id });
+      const parentTaskId = list.task_id || task.id;
+      const events = await fetchTaskEvents(parentTaskId, { listId: list.id });
       setActivityEvents(events);
     } catch (error) {
       console.error('Failed to load board activity:', error);
@@ -259,7 +302,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [drawerAttachments, setDrawerAttachments] = useState<{ name: string; url: string; type: 'file' | 'link' }[]>([]);
   const [drawerDueDate, setDrawerDueDate] = useState('');
   const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed'>('waiting');
+  const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision'>('waiting');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -269,7 +312,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [createListName, setCreateListName] = useState('');
   const [createListDueDate, setCreateListDueDate] = useState('');
   const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [createListStatus, setCreateListStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed'>('waiting');
+  const [createListStatus, setCreateListStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision'>('waiting');
   const [createListFirstCardName, setCreateListFirstCardName] = useState('');
   const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
 
@@ -704,6 +747,35 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
   };
 
+  const handleSubmitRevision = async (reason: string) => {
+    if (!editingList) return;
+    setIsSubmittingRevision(true);
+    try {
+      const finalComment = reason.trim() || drawerAdminComment;
+      await updateTaskList(editingList.id, {
+        name: drawerTitle,
+        due_date: drawerDueDate || undefined,
+        priority: drawerPriority,
+        status: 'revision',
+        description: drawerComment,
+        assignee_ids: drawerAssignees,
+        admin_comment: finalComment,
+        attachments: drawerAttachments,
+      });
+      setShowRevisionModal(false);
+      setEditingList(null);
+      await loadSubItems();
+      onRefreshTask(true);
+      showCustomAlert('ส่งแก้ไขงานย่อยสำเร็จ', 'success');
+    } catch (err: any) {
+      console.error('Failed to submit revision', err);
+      const errMsg = err?.response?.data?.error || err?.message || 'ส่งแก้ไขงานย่อยล้มเหลว';
+      showCustomAlert(errMsg, 'error');
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
+
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createListName.trim()) return;
@@ -922,52 +994,96 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           {dueBadge}
         </td>
 
-        {/* 2. PROJECT */}
-        <td
-          className="px-4 py-3 border-r border-slate-200 align-middle font-bold text-blue-900 bg-blue-50/40 transition-colors"
-        >
-          <span className="bg-amber-100/50 text-amber-900 px-2 py-1 rounded-md text-xs font-bold leading-tight truncate">
-            {list.name}
-          </span>
+        {/* 1.5 MAIN TASK (เฉพาะหน้างานรายวันรวม) */}
+        {task.id === 'daily' && (
+          <td className="px-3 py-3 border-r border-slate-200 align-middle">
+            {(() => {
+              const parentTask = list.task_id ? allTasksMap[list.task_id] : null;
+              const mainTitle = list.task_title || list.project_name || parentTask?.title || '';
+              return (
+                <span className="font-bold text-slate-800 text-xs leading-snug break-words line-clamp-2" title={mainTitle}>
+                  {mainTitle || '-'}
+                </span>
+              );
+            })()}
+          </td>
+        )}
+
+        {/* 2. รายละเอียดงาน (PROJECT / SUBTASK) */}
+        <td className="px-4 py-3 border-r border-slate-200 align-middle">
+          {(() => {
+            const parentTask = list.task_id ? allTasksMap[list.task_id] : null;
+            const brandId = list.brand_id || parentTask?.brand_id || task.brand_id || null;
+            const rowBrand = (brandId ? brandMap[brandId] : null) ||
+                             (list.brand_name ? { id: brandId || '', name: list.brand_name, sort_order: 0, created_at: '' } : null);
+            const brandName = rowBrand?.name || list.brand_name || '';
+
+            return (
+              <div className="flex items-start gap-2.5">
+                <Star className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="font-bold text-slate-850 text-xs leading-snug break-words" title={list.name}>
+                    {list.name}
+                  </span>
+
+                  {task.id === 'daily' && brandName ? (
+                    <span className="inline-flex items-center gap-1 w-fit rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      <Tag className="h-2.5 w-2.5 shrink-0 text-blue-600" />
+                      <span className="truncate max-w-[160px]" title={brandName}>{brandName}</span>
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })()}
         </td>
 
-        {/* 3. PRIORITY */}
+        {/* 5. PRIORITY */}
         <td className="px-3 py-2 border-r border-slate-200 text-center align-middle">
           <div className="flex items-center justify-center">
             <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
-              listPriority === 'high' ? 'bg-red-50 text-red-800 border-red-200' :
+              listPriority === 'high' || listPriority === 'urgent' ? 'bg-red-50 text-red-800 border-red-200' :
               listPriority === 'medium' ? 'bg-amber-50 text-amber-800 border-amber-200' :
               'bg-emerald-50 text-emerald-800 border-emerald-200'
             }`}>
-              {listPriority.charAt(0).toUpperCase() + listPriority.slice(1)}
+              {listPriority === 'urgent' ? 'Urgent' : listPriority.charAt(0).toUpperCase() + listPriority.slice(1)}
             </span>
           </div>
         </td>
 
-        {/* 4. DETAILS */}
+        {/* 6. DETAILS */}
         <td className="px-4 py-3 border-r border-slate-200 align-middle text-slate-700 text-xs max-w-[250px]">
           <div className="line-clamp-2" title={listDetails}>{listDetails || '-'}</div>
         </td>
 
-        {/* 5. ASSIGNMENT */}
+        {/* 7. ASSIGNMENT */}
         <td className="px-3 py-2 border-r border-slate-200 text-center align-middle">
-          <div className="flex items-center justify-center -space-x-1">
+          <div className="flex items-center justify-center -space-x-1.5 overflow-hidden">
             {list.assignee_ids && list.assignee_ids.length > 0 ? (
               list.assignee_ids.map((uid) => {
                 const u = userMap[uid];
-                if (!u) return null;
-                return (
+                const dispName = u ? (u.nickname ? `${u.first_name} (${u.nickname})` : u.first_name) : 'พนักงาน';
+                const avatar = u?.avatar_url ? avatarUrl(u.avatar_url) : null;
+                return avatar ? (
                   <img
-                    key={u.id}
-                    src={avatarUrl(u.avatar_url) || undefined}
-                    alt={u.nickname || u.first_name}
-                    className="w-6 h-6 rounded-full object-cover border border-white shadow-2xs"
-                    title={`${u.nickname || u.first_name} (${u.department})`}
+                    key={uid}
+                    src={avatar}
+                    alt={dispName}
+                    className="w-6 h-6 rounded-full object-cover border-2 border-white shadow-2xs shrink-0"
+                    title={`${dispName}${u?.department ? ` - ${u.department}` : ''}`}
                   />
+                ) : (
+                  <div
+                    key={uid}
+                    className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-blue-700 font-bold text-[9px] shadow-2xs shrink-0"
+                    title={`${dispName}${u?.department ? ` - ${u.department}` : ''}`}
+                  >
+                    {u?.first_name?.charAt(0) || 'U'}
+                  </div>
                 );
               })
             ) : (
-              <span className="text-slate-400">-</span>
+              <span className="text-slate-400 text-xs italic">-</span>
             )}
           </div>
         </td>
@@ -1219,11 +1335,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
           {/* Table Container */}
           <div className="task-timeline-table-wrap overflow-x-auto">
-            <table className={`w-full text-left border-collapse text-xs font-sans ${showNoteColumn ? 'min-w-[950px]' : 'min-w-[860px]'}`}>
+            <table className={`w-full text-left border-collapse text-xs font-sans ${task.id === 'daily' ? (showNoteColumn ? 'min-w-[1100px]' : 'min-w-[1000px]') : (showNoteColumn ? 'min-w-[950px]' : 'min-w-[860px]')}`}>
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">DUE DATE</th>
-                  <th className="px-2 py-3 border-r border-slate-200 w-32 min-w-[120px] text-center">PROJECT</th>
+                  {task.id === 'daily' && (
+                    <th className="px-3 py-3 border-r border-slate-200 w-44 min-w-[150px] text-left">งานหลัก</th>
+                  )}
+                  <th className="px-4 py-3 border-r border-slate-200 min-w-[200px] text-left">รายละเอียดงาน</th>
                   <th className="px-3 py-3 w-24 text-center border-r border-slate-200">PRIORITY</th>
                   <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">DETAILS</th>
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">ASSIGNMENT</th>
@@ -1244,7 +1363,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   renderedRows
                 ) : (
                   <tr>
-                    <td colSpan={showNoteColumn ? 9 : 8} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
+                    <td colSpan={task.id === 'daily' ? (showNoteColumn ? 10 : 9) : (showNoteColumn ? 9 : 8)} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
                       ยังไม่ได้เพิ่มงานย่อย
                     </td>
                   </tr>
@@ -1475,7 +1594,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   </label>
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     {cardAssigneesInput.map(uid => {
-                      const u = users.find(x => x.id === uid);
+                      const u = userMap[uid];
                       return (
                         <div key={uid} className="relative group cursor-pointer" onClick={() => setCardAssigneesInput(cardAssigneesInput.filter(x => x !== uid))}>
                           <img
@@ -1494,6 +1613,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       type="button"
                       onClick={() => setShowCardAssigneePopover(!showCardAssigneePopover)}
                       className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                      title="เลือกผู้รับผิดชอบการ์ด"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -1501,29 +1621,35 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
                   {showCardAssigneePopover && (
                     <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                      {users.map(u => {
-                        const isAssigned = cardAssigneesInput.includes(u.id);
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => {
-                              if (isAssigned) {
-                                setCardAssigneesInput(cardAssigneesInput.filter(id => id !== u.id));
-                              } else {
-                                setCardAssigneesInput([...cardAssigneesInput, u.id]);
-                              }
-                            }}
-                            className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                              <span>{u.nickname || u.first_name}</span>
-                            </div>
-                            {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                          </button>
-                        );
-                      })}
+                      {projectMemberUsers.length > 0 ? (
+                        projectMemberUsers.map(u => {
+                          const isAssigned = cardAssigneesInput.includes(u.id);
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                if (isAssigned) {
+                                  setCardAssigneesInput(cardAssigneesInput.filter(id => id !== u.id));
+                                } else {
+                                  setCardAssigneesInput([...cardAssigneesInput, u.id]);
+                                }
+                              }}
+                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                <span>{u.nickname || u.first_name}</span>
+                              </div>
+                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                          ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1622,6 +1748,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <option value="pending">รอทำ</option>
                       <option value="in_progress">กำลังทำ</option>
                       <option value="in_review">รอตรวจ</option>
+                      <option value="revision">แก้ไข</option>
                       <option value="completed">เสร็จสิ้น</option>
                     </select>
                   </div>
@@ -1631,7 +1758,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     <label className="text-xs font-bold text-slate-700">มอบหมายให้ (Assignees)</label>
                     <div className="flex flex-wrap items-center gap-2">
                       {drawerAssignees.map(uid => {
-                        const u = users.find(x => x.id === uid);
+                        const u = userMap[uid];
                         return (
                           <div key={uid} className="relative group cursor-pointer" onClick={() => setDrawerAssignees(drawerAssignees.filter(x => x !== uid))}>
                             <img
@@ -1650,35 +1777,42 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         type="button"
                         onClick={() => setShowDrawerInvitePopover(!showDrawerInvitePopover)}
                         className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                        title="เลือกผู้รับผิดชอบ"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
                     {showDrawerInvitePopover && (
                       <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                        {users.map(u => {
-                          const isAssigned = drawerAssignees.includes(u.id);
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => {
-                                if (isAssigned) {
-                                  setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
-                                } else {
-                                  setDrawerAssignees([...drawerAssignees, u.id]);
-                                }
-                              }}
-                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                                <span>{u.nickname || u.first_name}</span>
-                              </div>
-                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                            </button>
-                          );
-                        })}
+                        {projectMemberUsers.length > 0 ? (
+                          projectMemberUsers.map(u => {
+                            const isAssigned = drawerAssignees.includes(u.id);
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isAssigned) {
+                                    setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
+                                  } else {
+                                    setDrawerAssignees([...drawerAssignees, u.id]);
+                                  }
+                                }}
+                                className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                  <span>{u.nickname || u.first_name}</span>
+                                </div>
+                                {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                            ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1845,44 +1979,66 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
               </>
             )}
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
               {editingCardSubView ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => setEditingCardSubView(null)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveCardSubView}
-                    disabled={isSavingCard}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{isSavingCard ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
-                  </button>
+                  <div />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCardSubView(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveCardSubView}
+                      disabled={isSavingCard}
+                      className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{isSavingCard ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleCloseDrawer}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveDrawer}
-                    disabled={isSavingDrawer}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{isSavingDrawer ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
-                  </button>
+                  {/* ปุ่ม ส่งแก้ไข ไว้ซ้ายล่างสุด เฉพาะเมื่อสถานะเป็น in_review (รอตรวจ) หรือ completed (เสร็จสิ้น) */}
+                  {drawerStatus === 'in_review' || drawerStatus === 'completed' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRevisionReasonInput(drawerAdminComment || '');
+                        setShowRevisionModal(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
+                    >
+                      <RotateCcw className="w-4 h-4 text-rose-600" />
+                      <span>ส่งแก้ไข</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseDrawer}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDrawer}
+                      disabled={isSavingDrawer}
+                      className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{isSavingDrawer ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -1975,6 +2131,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <option value="pending">รอทำ</option>
                       <option value="in_progress">กำลังทำ</option>
                       <option value="in_review">รอตรวจ</option>
+                      <option value="revision">แก้ไข</option>
                       <option value="completed">เสร็จสิ้น</option>
                     </select>
                   </div>
@@ -1985,7 +2142,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   <label className="text-xs font-bold text-slate-700">มอบหมายให้</label>
                   <div className="flex flex-wrap items-center gap-2">
                     {createListAssigneeIds.map(uid => {
-                      const u = users.find(x => x.id === uid);
+                      const u = userMap[uid];
                       return (
                         <div key={uid} className="relative group cursor-pointer" onClick={() => setCreateListAssigneeIds(createListAssigneeIds.filter(x => x !== uid))}>
                           <img
@@ -2004,35 +2161,42 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       type="button"
                       onClick={() => setShowInvitePopover(!showInvitePopover)}
                       className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                      title="เลือกผู้รับผิดชอบ"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
                   {showInvitePopover && (
                     <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                      {users.map(u => {
-                        const isAssigned = createListAssigneeIds.includes(u.id);
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => {
-                              if (isAssigned) {
-                                setCreateListAssigneeIds(createListAssigneeIds.filter(id => id !== u.id));
-                              } else {
-                                setCreateListAssigneeIds([...createListAssigneeIds, u.id]);
-                              }
-                            }}
-                            className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                              <span>{u.nickname || u.first_name}</span>
-                            </div>
-                            {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                          </button>
-                        );
-                      })}
+                      {projectMemberUsers.length > 0 ? (
+                        projectMemberUsers.map(u => {
+                          const isAssigned = createListAssigneeIds.includes(u.id);
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                if (isAssigned) {
+                                  setCreateListAssigneeIds(createListAssigneeIds.filter(id => id !== u.id));
+                                } else {
+                                  setCreateListAssigneeIds([...createListAssigneeIds, u.id]);
+                                }
+                              }}
+                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                <span>{u.nickname || u.first_name}</span>
+                              </div>
+                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                          ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2511,7 +2675,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       tId = meta.task_id || null;
                     }
                   }
-                  return tId === task.id;
+                  return task.id === 'daily' ? true : tId === task.id;
                 });
 
                 if (listNotifs.length === 0) {
@@ -2548,6 +2712,79 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 className="w-full sm:w-auto px-5 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-xl transition-all cursor-pointer text-center"
               >
                 ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revision Modal (ระบุเหตุผลส่งแก้ไข) */}
+      {showRevisionModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                <RotateCcw className="w-5 h-5" />
+                <span>ส่งแก้ไขงานย่อย</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRevisionModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-slate-500 font-medium">
+                รายการงานย่อย: <span className="font-bold text-slate-800">{editingList?.name}</span>
+              </p>
+              <p className="text-[11px] text-slate-400">
+                เมื่อส่งแก้ไข ระบบจะปรับสถานะงานเป็น <span className="font-bold text-rose-600">"แก้ไข"</span> และแจ้งเตือนผู้รับผิดชอบงานนี้ทันที
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                เหตุผล / รายละเอียดที่ต้องแก้ไข <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows={4}
+                value={revisionReasonInput}
+                onChange={(e) => setRevisionReasonInput(e.target.value)}
+                placeholder="ระบุจุดที่ต้องปรับปรุง หรือข้อเสนอแนะเพิ่มเติม..."
+                autoFocus
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-slate-800 resize-none font-normal"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowRevisionModal(false)}
+                disabled={isSubmittingRevision}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitRevision(revisionReasonInput)}
+                disabled={isSubmittingRevision}
+                className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                {isSubmittingRevision ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>กำลังส่งแก้ไข...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>ยืนยันส่งแก้ไข</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

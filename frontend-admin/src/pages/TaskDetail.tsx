@@ -73,6 +73,9 @@ export default function TaskDetail() {
       setCategories(c);
       setCurrentUser(me);
 
+      const u = await fetchUsers();
+      setUsers(u.filter((usr) => usr.status === 'active'));
+
       if (taskId === 'daily') {
         const dailyTask: AdminTask = {
           id: 'daily',
@@ -84,14 +87,10 @@ export default function TaskDetail() {
           created_at: new Date().toISOString(),
         };
         setTask(dailyTask);
-        setUsers([me!]);
       } else {
         const found = t.find((x) => x.id === taskId);
         if (found) {
           setTask(found);
-          const assigneeIds = found.assignee_ids && found.assignee_ids.length > 0 ? found.assignee_ids : [found.assigned_to];
-          const u = await fetchUsers(assigneeIds);
-          setUsers(u.filter((usr) => usr.status === 'active'));
         } else {
           setError('ไม่พบงานที่ระบุ');
         }
@@ -383,6 +382,7 @@ export default function TaskDetail() {
         <div style={{ display: viewMode === 'sheet' ? 'block' : 'none' }}>
           <TaskProjectTimelineSheet
             task={task}
+            tasks={tasks}
             userMap={userMap}
             brandMap={brandMap}
             categoryMap={categoryMap}

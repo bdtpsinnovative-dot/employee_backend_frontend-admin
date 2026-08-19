@@ -138,7 +138,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	if !isAdmin && !isCreator {
 		return nil, fmt.Errorf("permission denied: only the task owner can edit this task")
 	}
-	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, task.ProjectID); err != nil {
+	if err := s.taskRepo.ValidateActiveAssignees(ctx, assigneeIDs); err != nil {
 		return nil, fmt.Errorf("invalid assignees: %w", err)
 	}
 

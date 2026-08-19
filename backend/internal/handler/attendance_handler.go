@@ -22,7 +22,7 @@ func NewAttendanceHandler(svc *service.AttendanceService) *AttendanceHandler {
 type checkInBody struct {
 	Lat        float64   `json:"lat" binding:"required"`       // พิกัดละติจูด
 	Lng        float64   `json:"lng" binding:"required"`       // พิกัดลองจิจูด
-	DeviceID   string    `json:"device_id" binding:"required"` // UUID ของเครื่องมือถือ
+	DeviceID   string    `json:"device_id"`                    // UUID ของเครื่องมือถือ (optional)
 	PhotoURL   *string   `json:"photo_url"`                    // URL รูปถ่าย (ถ้ามี)
 	FaceVector []float64 `json:"face_vector" binding:"required"`
 }

@@ -214,25 +214,47 @@ func (h *TaskHandler) ListAllDailyTaskLists(c *gin.Context) {
 		return
 	}
 
-	taskMap := make(map[uuid.UUID]string)
+	taskMap := make(map[uuid.UUID]domain.Task)
 	for _, t := range tasks {
-		taskMap[t.ID] = t.Title
+		taskMap[t.ID] = t
+	}
+
+	var brandRows []struct {
+		ID   uuid.UUID `db:"id"`
+		Name string    `db:"name"`
+	}
+	_ = h.cardRepo.GetDB().SelectContext(ctx, &brandRows, `SELECT id, name FROM brands`)
+	brandMap := make(map[uuid.UUID]string)
+	for _, b := range brandRows {
+		brandMap[b.ID] = b.Name
 	}
 
 	type dailyListResponse struct {
 		domain.TaskList
-		ProjectName string `json:"project_name"`
+		ProjectName string     `json:"project_name"`
+		TaskTitle   string     `json:"task_title"`
+		BrandID     *uuid.UUID `json:"brand_id,omitempty"`
+		BrandName   string     `json:"brand_name,omitempty"`
+		CategoryID  *uuid.UUID `json:"category_id,omitempty"`
 	}
 
 	var res []dailyListResponse
 	for _, l := range lists {
-		pName, visible := taskMap[l.TaskID]
+		parentTask, visible := taskMap[l.TaskID]
 		if !visible {
 			continue
 		}
+		var bName string
+		if parentTask.BrandID != nil {
+			bName = brandMap[*parentTask.BrandID]
+		}
 		res = append(res, dailyListResponse{
 			TaskList:    l,
-			ProjectName: pName,
+			ProjectName: parentTask.Title,
+			TaskTitle:   parentTask.Title,
+			BrandID:     parentTask.BrandID,
+			BrandName:   bName,
+			CategoryID:  parentTask.CategoryID,
 		})
 	}
 

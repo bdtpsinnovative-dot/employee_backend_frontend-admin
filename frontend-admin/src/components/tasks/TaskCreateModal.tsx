@@ -17,6 +17,7 @@ interface TaskCreateModalProps {
   categories: TaskCategory[];
   initialData?: AdminTask;
   currentUser?: UserType | null;
+  onRefreshUsers?: () => Promise<void>;
   taskEvents?: TaskEvent[];
   eventsLoading?: boolean;
   onDelete?: (id: string) => void;
@@ -54,6 +55,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   categories,
   initialData,
   currentUser,
+  onRefreshUsers,
   taskEvents = [],
   eventsLoading = false,
   onDelete,
@@ -84,6 +86,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   
   // Assignee Popover state
   const [showInvitePopover, setShowInvitePopover] = useState(false);
+  const [refreshingUsers, setRefreshingUsers] = useState(false);
   
   // Custom Alert inside modal to avoid native alert
   const [modalAlert, setModalAlert] = useState<string | null>(null);
@@ -204,6 +207,20 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   // Candidates are all users that are not already selected
   const candidates = users
     .filter(u => !selectedAssignees.includes(u.id));
+
+  const handleOpenAssigneePicker = async () => {
+    setShowInvitePopover(true);
+    if (!onRefreshUsers) return;
+
+    setRefreshingUsers(true);
+    try {
+      await onRefreshUsers();
+    } catch (error: any) {
+      setModalAlert(error?.message || 'โหลดรายชื่อพนักงานล้มเหลว');
+    } finally {
+      setRefreshingUsers(false);
+    }
+  };
 
   const selectedBrand = brands.find(brand => brand.id === brandId);
   const brandResponsibilityGroups = getVisibleBrandResponsibilityGroups(selectedBrand, users, currentUser);
@@ -344,7 +361,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 {/* Add Assignee Button */}
                 <button
                   type="button"
-                  onClick={() => setShowInvitePopover(!showInvitePopover)}
+                  onClick={() => {
+                    if (showInvitePopover) {
+                      setShowInvitePopover(false);
+                      return;
+                    }
+                    void handleOpenAssigneePicker();
+                  }}
+                  disabled={refreshingUsers}
                   className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all cursor-pointer"
                   title="เลือกผู้รับผิดชอบ"
                 >
@@ -356,7 +380,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               {showInvitePopover && (
                 <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 max-h-40 overflow-y-auto">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    เลือกมอบหมายผู้รับผิดชอบงาน:
+                    {refreshingUsers ? 'กำลังโหลดรายชื่อพนักงาน...' : 'เลือกมอบหมายผู้รับผิดชอบงาน:'}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {candidates.length > 0 ? (
@@ -379,7 +403,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                       ))
                     ) : (
                       <span className="text-[11px] text-slate-400 italic">
-                        ไม่มีรายชื่อพนักงานอื่นให้เลือกเพิ่มเติม
+                        ไม่พบรายชื่อพนักงานเพิ่มเติม
                       </span>
                     )}
                   </div>

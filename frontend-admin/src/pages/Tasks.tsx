@@ -252,6 +252,11 @@ export default function Tasks() {
       });
   }, []);
 
+  const refreshUsers = useCallback(async () => {
+    const freshUsers = await fetchUsers();
+    setUsers(freshUsers.filter((usr) => usr.status === 'active'));
+  }, []);
+
   // ─── Load Task Events when task selected ───
   useEffect(() => {
     if (selectedTask) {
@@ -684,6 +689,7 @@ export default function Tasks() {
         categories={categories}
         initialData={editingTask || undefined}
         currentUser={currentUser}
+        onRefreshUsers={refreshUsers}
         taskEvents={editTaskEvents}
         eventsLoading={editEventsLoading}
         onDelete={(id) => {

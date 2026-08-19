@@ -666,6 +666,23 @@ func (r *TaskListRepo) SyncParentTaskStatus(ctx context.Context, taskID uuid.UUI
 	return err
 }
 
+// SyncParentTaskDueDate keeps the parent task date aligned with the latest
+// active sub-task date. If no sub-task has a date, retain the existing parent
+// date so creating an undated sub-task does not erase a manually set deadline.
+func (r *TaskListRepo) SyncParentTaskDueDate(ctx context.Context, taskID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE tasks AS t
+		SET due_date = COALESCE((
+			SELECT MAX(tl.due_date)
+			FROM task_lists tl
+			WHERE tl.task_id = t.id
+			  AND tl.deleted_at IS NULL
+		), t.due_date)
+		WHERE t.id = $1
+	`, taskID)
+	return err
+}
+
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	// Deliverables are soft-deleted so legacy cards and sub-items remain
 	// recoverable if this hidden hierarchy is restored in the future.

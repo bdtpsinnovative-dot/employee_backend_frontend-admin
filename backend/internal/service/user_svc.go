@@ -89,19 +89,11 @@ func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID
 	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, nickname, department, teamID, positionID, legacyTeam, role)
 }
 
-// BindDevice ผูกเครื่องมือถือกับบัญชี (Device Binding - ADR 0003)
+// BindDevice บันทึก device_id ของเครื่องมือถือ (ไม่บล็อคหรือล็อคเครื่อง)
 func (s *UserService) BindDevice(ctx context.Context, userID uuid.UUID, deviceID string) error {
-	user, err := s.userRepo.FindByID(ctx, userID)
-	if err != nil {
+	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
 		return errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
-
-	// ถ้าผูกเครื่องไว้แล้ว และ device_id ไม่ตรงกัน → บล็อค
-	if user.DeviceID != nil && *user.DeviceID != deviceID {
-		return errors.New("บัญชีนี้ถูกผูกกับเครื่องอื่นแล้ว กรุณาติดต่อแอดมินเพื่อปลดล็อค")
-	}
-
-	// ผูกเครื่องใหม่ (หรือยืนยันเครื่องเดิม)
 	return s.userRepo.UpdateDeviceID(ctx, userID, &deviceID)
 }
 

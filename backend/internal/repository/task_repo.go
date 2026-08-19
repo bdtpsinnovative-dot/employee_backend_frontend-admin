@@ -22,6 +22,22 @@ func (r *TaskRepo) ValidateAssignees(
 	assigneeIDs []uuid.UUID,
 	projectID *uuid.UUID,
 ) error {
+	return r.validateAssignees(ctx, assigneeIDs, projectID)
+}
+
+// ValidateActiveAssignees validates assignment targets during task updates.
+// The update transaction adds them to the project when needed, so requiring
+// project membership before that transaction would make adding a new person
+// impossible.
+func (r *TaskRepo) ValidateActiveAssignees(ctx context.Context, assigneeIDs []uuid.UUID) error {
+	return r.validateAssignees(ctx, assigneeIDs, nil)
+}
+
+func (r *TaskRepo) validateAssignees(
+	ctx context.Context,
+	assigneeIDs []uuid.UUID,
+	projectID *uuid.UUID,
+) error {
 	if len(assigneeIDs) == 0 {
 		return fmt.Errorf("at least one assignee is required")
 	}
@@ -498,6 +514,17 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		`, t.ID, userID)
 		if err != nil {
 			return err
+		}
+
+		if t.ProjectID != nil {
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO project_members (project_id, user_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, *t.ProjectID, userID)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

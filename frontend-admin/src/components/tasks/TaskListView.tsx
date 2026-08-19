@@ -142,7 +142,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
             <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Due Date</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Assigned</th>
-              <th className="px-3 py-2 border-r border-slate-200 w-[17.5%]">รายละเอียดงาน</th>
+              <th className="px-3 py-2 border-r border-slate-200 w-[20%]">รายละเอียดงาน</th>
               <th className="px-3 py-2 w-32 border-r border-slate-200 text-center">หมวดหมู่</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Assigned To</th>
               <th className="px-2 py-2 w-28 border-r border-slate-200 text-center">Status</th>
@@ -220,8 +220,8 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   </td>
 
                   {/* 2. Task Details Column */}
-                  <td data-label="รายละเอียดงาน" className="px-3 py-2 border-r border-slate-200/80 align-middle max-w-[200px]">
-                    <div className="flex items-center gap-2">
+                  <td data-label="รายละเอียดงาน" className="px-3 py-2 border-r border-slate-200/80 align-middle max-w-[240px]">
+                    <div className="flex items-start gap-2.5">
                       {/* Star Button */}
                       <button
                         onClick={(e) => {
@@ -230,7 +230,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                             onToggleStar(task.id, !task.is_starred);
                           }
                         }}
-                        className="transition-all p-0.5 cursor-pointer shrink-0 focus:outline-none flex items-center justify-center"
+                        className="transition-all p-0.5 mt-0.5 cursor-pointer shrink-0 focus:outline-none flex items-center justify-center"
                         title={task.is_starred ? "ถอนการติดดาว" : "ติดดาวงานนี้"}
                       >
                         <Star 
@@ -242,30 +242,33 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                         />
                       </button>
 
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onSelectProjectSheet) {
-                            onSelectProjectSheet(task);
-                          } else {
-                            onSelectTask(task);
-                          }
-                        }}
-                        className={`font-semibold text-slate-800 hover:text-blue-600 cursor-pointer transition-colors text-xs leading-tight line-clamp-2 ${isDone ? 'line-through text-slate-400' : ''}`} 
-                        title={`${task.title} (คลิกเพื่อเปิดเข้าจัดการในโครงการ)`}
-                      >
-                        {task.title}
-                      </span>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectProjectSheet) {
+                              onSelectProjectSheet(task);
+                            } else {
+                              onSelectTask(task);
+                            }
+                          }}
+                          className={`font-semibold text-slate-850 hover:text-blue-600 cursor-pointer transition-colors text-xs leading-snug break-words ${isDone ? 'line-through text-slate-400' : ''}`} 
+                          title={`${task.title} (คลิกเพื่อเปิดเข้าจัดการในโครงการ)`}
+                        >
+                          {task.title}
+                        </span>
+
+                        {brand ? (
+                          <span className="inline-flex items-center gap-1 w-fit rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                            <Tag className="h-2.5 w-2.5 shrink-0 text-blue-600" aria-hidden="true" />
+                            <span className="truncate max-w-[160px]" title={brand.name}>{brand.name}</span>
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                    {brand && (
-                      <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md whitespace-nowrap">
-                        <Tag className="w-2.5 h-2.5 text-blue-600" />
-                        <span className="truncate max-w-[80px]">{brand.name}</span>
-                      </span>
-                    )}
                   </td>
 
-                  {/* 3. Category Column */}
+                  {/* 4. Category Column */}
                   <td data-label="หมวดหมู่" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle">
                     {category ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 rounded-full whitespace-nowrap">
@@ -277,7 +280,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                     )}
                   </td>
 
-                  {/* 4. Assigned To Column */}
+                  {/* 5. Assigned To Column */}
                   <td data-label="Assigned To" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle">
                     {firstAssignee ? (
                       <div className="flex items-center justify-center gap-1.5">
@@ -302,7 +305,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                     )}
                   </td>
 
-                  {/* 5. Status Column */}
+                  {/* 6. Status Column */}
                   <td
                     data-label="Status"
                     className="px-2 py-2 border-r border-slate-200/80 text-center align-middle"
@@ -330,7 +333,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                     </div>
                   </td>
 
-                  {/* 6. Priority Column */}
+                  {/* 7. Priority Column */}
                   <td data-label="Priority" className="px-2 py-2 border-r border-slate-200/80 text-center align-middle">
                     {priority === 'urgent' && (
                       <div className="mx-auto inline-flex items-center justify-center w-full max-w-[95px] px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-extrabold rounded-full text-[10px] animate-pulse">
