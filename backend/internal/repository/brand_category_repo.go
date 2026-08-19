@@ -507,11 +507,6 @@ func (r *TaskListRepo) ListAllPending(ctx context.Context, userID uuid.UUID) ([]
 				WHERE la_access.list_id = tl.id AND la_access.user_id = $1
 			)
 		  )
-		  AND EXISTS (
-			SELECT 1
-			FROM list_assignees la_owner
-			WHERE la_owner.list_id = tl.id AND la_owner.user_id = $1
-		  )
 		ORDER BY tl.due_date ASC
 	`, userID)
 	if err != nil {
