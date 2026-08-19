@@ -355,7 +355,10 @@ export default function AdminLayout() {
             <button className="btn-hamburger" onClick={toggleSidebar}>
               <i className="fa-solid fa-bars"></i>
             </button>
-            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>HR</div>
+            <div className="flex items-center gap-2" style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+              <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-6 h-6 rounded-md object-contain" />
+              <span>HR System</span>
+            </div>
             <div
               className="avatar-circle"
               style={{

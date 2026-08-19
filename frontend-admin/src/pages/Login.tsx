@@ -86,7 +86,7 @@ export default function Login() {
           <div className={`absolute inset-0 p-8 md:p-12 flex flex-col justify-center transition-all duration-[600ms] ${isSignUp ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div className="mb-8 text-center">
               <div className="mb-4 flex justify-center">
-                <img src="/favicon.png" alt="Logo" className="w-16 h-16 rounded-xl object-contain shadow-md" />
+                <img src="/app_icon_v2.svg" alt="Logo" className="w-16 h-16 rounded-2xl object-contain shadow-md" />
               </div>
               <h2 className="text-3xl font-bold text-gray-800 mb-2">Create Account</h2>
               <p className="text-gray-500">Register to HR System</p>
@@ -112,7 +112,7 @@ export default function Login() {
           <div className={`absolute inset-0 p-8 md:p-12 flex flex-col justify-center transition-all duration-[600ms] ${isSignUp ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
             <div className="mb-8 text-center">
               <div className="mb-4 flex justify-center">
-                <img src="/favicon.png" alt="Logo" className="w-16 h-16 rounded-xl object-contain shadow-md" />
+                <img src="/app_icon_v2.svg" alt="Logo" className="w-16 h-16 rounded-2xl object-contain shadow-md" />
               </div>
               <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
               <p className="text-gray-500 font-medium">Sign in to your HR Dashboard</p>

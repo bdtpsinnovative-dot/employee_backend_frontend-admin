@@ -358,9 +358,14 @@ export async function deleteTaskCategory(id: string): Promise<void> {
 
 // ────────────────── Admin Tasks ──────────────────
 
-export async function fetchAdminTasks(): Promise<AdminTask[]> {
-  // The task page is scoped to work owned by or assigned to the signed-in user,
-  // including for Admins. Admin privileges apply to actions, not visibility.
+export async function fetchAdminTasks(scope: 'mine' | 'all' = 'mine'): Promise<AdminTask[]> {
+  // The task page remains scoped to work owned by or assigned to the signed-in user.
+  // Calendar admins can explicitly request the existing admin-wide read endpoint.
+  if (scope === 'all') {
+    const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
+    return data.data ?? [];
+  }
+
   const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
   return data.data ?? [];
 }

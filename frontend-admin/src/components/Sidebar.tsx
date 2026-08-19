@@ -57,9 +57,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       {/* Header: App Brand Logo & Close Action */}
       <div className="sidebar-header">
         <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">
-            <i className="fa-solid fa-layer-group"></i>
-          </div>
+          <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
           <span className="sidebar-brand-title">HR System</span>
         </div>
         <button
