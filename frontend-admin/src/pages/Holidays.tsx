@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchHolidays, createHoliday, deleteHoliday, fetchAdminTasks, fetchBrands, fetchUsers } from '../services/adminApi';
 import type { Holiday, User, AdminTask, Brand } from '../types';
 import { getTaskPriority, type TaskPriority } from '../components/tasks/taskUtils';
+import { queryKeys } from '../lib/queryKeys';
 
 interface LayoutContext {
   currentUser: User | null;
@@ -90,6 +92,7 @@ export default function Holidays() {
   const navigate = useNavigate();
   const { currentUser } = useOutletContext<LayoutContext>() || {};
   const isAdmin = currentUser?.role === 'admin';
+  const queryClient = useQueryClient();
 
   const today = useMemo(() => {
     const d = new Date();
@@ -108,6 +111,33 @@ export default function Holidays() {
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  const taskScope = isAdmin ? 'all' : 'mine';
+  const holidaysQuery = useQuery({
+    queryKey: queryKeys.holidays(year),
+    queryFn: () => fetchHolidays(year),
+    staleTime: 30 * 60_000,
+  });
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.tasks(taskScope),
+    queryFn: () => fetchAdminTasks(taskScope),
+    enabled: Boolean(currentUser?.id),
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    enabled: Boolean(currentUser?.id && isAdmin),
+    staleTime: 5 * 60_000,
+  });
+
   // Modals state
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
@@ -125,55 +155,41 @@ export default function Holidays() {
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [hData, tData, bData, userData] = await Promise.all([
-        fetchHolidays(year).catch(err => {
-          console.error('โหลดวันหยุดล้มเหลว:', err);
-          return [];
-        }),
-        currentUser?.id
-          ? fetchAdminTasks(isAdmin ? 'all' : 'mine').catch(err => {
-            console.error('โหลดงานที่ได้รับมอบหมายล้มเหลว:', err);
-            return [];
-          })
-          : Promise.resolve<AdminTask[]>([]),
-        fetchBrands().catch(err => {
-          console.error('โหลดแบรนด์ล้มเหลว:', err);
-          return [];
-        }),
-        isAdmin
-          ? fetchUsers().catch(err => {
-            console.error('โหลดรายชื่อผู้รับผิดชอบล้มเหลว:', err);
-            return [] as User[];
-          })
-          : Promise.resolve<User[]>([]),
-      ]);
-
-      const sortedHolidays = (hData ?? []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setHolidays(sortedHolidays);
-      setTasks((tData ?? []).filter(task => isAdmin || isTaskVisibleToUser(task, currentUser?.id)));
-      setTaskUsers(userData);
-      setBrands(bData ?? []);
-    } catch (err) {
-      console.error('โหลดข้อมูลล้มเหลว:', err);
-    }
-    setLoading(false);
-  }, [year, currentUser?.id, isAdmin]);
-
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (holidaysQuery.data) {
+      setHolidays([...holidaysQuery.data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    }
+    if (tasksQuery.data) {
+      setTasks(tasksQuery.data.filter(task => isAdmin || isTaskVisibleToUser(task, currentUser?.id)));
+    }
+    if (usersQuery.data) setTaskUsers(usersQuery.data);
+    if (brandsQuery.data) setBrands(brandsQuery.data);
+
+    if (holidaysQuery.error) console.error('โหลดวันหยุดล้มเหลว:', holidaysQuery.error);
+    if (tasksQuery.error) console.error('โหลดงานที่ได้รับมอบหมายล้มเหลว:', tasksQuery.error);
+    if (brandsQuery.error) console.error('โหลดแบรนด์ล้มเหลว:', brandsQuery.error);
+    if (usersQuery.error) console.error('โหลดรายชื่อผู้รับผิดชอบล้มเหลว:', usersQuery.error);
+
+    // Holiday data controls the page shell. Tasks are allowed to arrive in
+    // the background so the calendar can paint immediately from cache.
+    setLoading(holidaysQuery.isPending);
+  }, [
+    brandsQuery.data,
+    brandsQuery.error,
+    currentUser?.id,
+    holidaysQuery.data,
+    holidaysQuery.error,
+    holidaysQuery.isPending,
+    isAdmin,
+    tasksQuery.data,
+    tasksQuery.error,
+    tasksQuery.isPending,
+    usersQuery.data,
+    usersQuery.error,
+  ]);
 
   async function loadHolidays() {
-    try {
-      const data = await fetchHolidays(year);
-      (data ?? []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setHolidays(data ?? []);
-    } catch (err) {
-      console.error('โหลดวันหยุดล้มเหลว:', err);
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.holidays(year) });
   }
 
   const brandsMap = useMemo(() => {
@@ -651,6 +667,12 @@ export default function Holidays() {
               ? 'ตรวจสอบวันหยุดประจำปี เพิ่มหรือจัดการวันหยุดสำหรับพนักงานในระบบ'
               : ''}
           </p>
+          {tasksQuery.isFetching ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-600" role="status" aria-live="polite">
+              <i className="fa-solid fa-rotate fa-spin" aria-hidden="true"></i>
+              กำลังซิงค์งานล่าสุด...
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">

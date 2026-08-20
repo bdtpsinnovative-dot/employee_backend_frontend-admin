@@ -21,6 +21,7 @@ const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 
 import { fetchMe } from './services/adminApi';
 import { clearQueryCache } from './lib/queryCache';
+import { queryClient } from './lib/queryClient';
 
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
@@ -67,7 +68,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') clearQueryCache();
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        clearQueryCache();
+        queryClient.clear();
+      }
       if (!session) {
         setAuthenticated(false);
         setHasProfile(false);

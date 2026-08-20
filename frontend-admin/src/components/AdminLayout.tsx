@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import type { User } from '../types';
 import { fetchMe, fetchPendingRequests, fetchNotifications, type AppNotification } from '../services/adminApi';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
 const ADMIN_ONLY_ROUTES = [
@@ -55,6 +57,8 @@ export default function AdminLayout() {
   const [currentUserLoaded, setCurrentUserLoaded] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const previousNotificationIdsRef = useRef<Set<string> | null>(null);
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
@@ -94,12 +98,34 @@ export default function AdminLayout() {
       try {
         const data = await fetchNotifications();
         setNotifications(data);
+
+        const previousIds = previousNotificationIdsRef.current;
+        if (previousIds) {
+          const hasNewTaskNotification = data.some((notification) => {
+            if (previousIds.has(notification.id) || !notification.metadata) return false;
+            const metadata = typeof notification.metadata === 'string'
+              ? (() => {
+                try { return JSON.parse(notification.metadata as string); } catch { return null; }
+              })()
+              : notification.metadata;
+            return Boolean(metadata && typeof metadata === 'object' && (metadata.task_id || metadata.list_id));
+          });
+
+          if (hasNewTaskNotification) {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') }),
+            ]);
+          }
+        }
+
+        previousNotificationIdsRef.current = new Set(data.map((notification) => notification.id));
       } catch { }
     }
     loadNotifications();
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [queryClient]);
 
 
 

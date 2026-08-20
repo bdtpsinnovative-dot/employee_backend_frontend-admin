@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, X, Bell, CheckCircle2 } from 'lucide-react';
 import {
   fetchAdminTasks,
@@ -38,6 +39,7 @@ import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
 */
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
+import { queryKeys } from '../lib/queryKeys';
 
 type TasksViewState = {
   searchQuery: string;
@@ -81,8 +83,37 @@ function getTasksViewStateFromParams(searchParams: URLSearchParams): TasksViewSt
 export default function Tasks() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
   const taskFilterQuery = searchParams.toString();
+
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.tasks('mine'),
+    queryFn: () => fetchAdminTasks(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    staleTime: 5 * 60_000,
+  });
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.taskCategories,
+    queryFn: () => fetchTaskCategories(),
+    staleTime: 15 * 60_000,
+  });
+  const meQuery = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: () => fetchMe(),
+    staleTime: 5 * 60_000,
+  });
 
   const hasUnreadMainNotif = notifications.some(n => {
     if (n.is_read) return false;
@@ -216,46 +247,50 @@ export default function Tasks() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [commentText, setCommentText] = useState('');
 
-  // ─── Load Initial Data ───
-  const loadAll = useCallback(async (silent?: boolean) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const [t, u, b, c, me] = await Promise.all([
-        fetchAdminTasks(),
-        fetchUsers(),
-        fetchBrands(),
-        fetchTaskCategories(),
-        fetchMe(),
-      ]);
-      setTasks(t);
-      setUsers(u.filter((usr) => usr.status === 'active'));
-      setBrands(b);
-      setCategories(c);
-      setCurrentUser(me);
-    } catch (e: any) {
-      setError(e.message || 'โหลดข้อมูลงานล้มเหลว');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (tasksQuery.data) setTasks(tasksQuery.data);
+    if (usersQuery.data) setUsers(usersQuery.data.filter((usr) => usr.status === 'active'));
+    if (brandsQuery.data) setBrands(brandsQuery.data);
+    if (categoriesQuery.data) setCategories(categoriesQuery.data);
+    if (meQuery.data) setCurrentUser(meQuery.data);
+
+    const queryError = tasksQuery.error || usersQuery.error || brandsQuery.error || categoriesQuery.error || meQuery.error;
+    if (queryError) setError(queryError instanceof Error ? queryError.message : 'โหลดข้อมูลงานล้มเหลว');
+
+    setLoading(
+      tasksQuery.isPending || usersQuery.isPending || brandsQuery.isPending || categoriesQuery.isPending || meQuery.isPending,
+    );
+  }, [
+    brandsQuery.data,
+    brandsQuery.error,
+    brandsQuery.isPending,
+    categoriesQuery.data,
+    categoriesQuery.error,
+    categoriesQuery.isPending,
+    meQuery.data,
+    meQuery.error,
+    meQuery.isPending,
+    tasksQuery.data,
+    tasksQuery.error,
+    tasksQuery.isPending,
+    usersQuery.data,
+    usersQuery.error,
+    usersQuery.isPending,
+  ]);
+
+  const refreshTaskData = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
+  }, [queryClient]);
 
   const refreshTasksInBackground = useCallback(() => {
-    void fetchAdminTasks()
-      .then(setTasks)
-      .catch((err) => {
-        console.error('Failed to sync tasks after mutation', err);
-      });
-  }, []);
+    void refreshTaskData().catch((err) => {
+      console.error('Failed to sync tasks after mutation', err);
+    });
+  }, [refreshTaskData]);
 
   const refreshUsers = useCallback(async () => {
-    const freshUsers = await fetchUsers();
-    setUsers(freshUsers.filter((usr) => usr.status === 'active'));
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.users() });
+  }, [queryClient]);
 
   // ─── Load Task Events when task selected ───
   useEffect(() => {
@@ -306,6 +341,9 @@ export default function Tasks() {
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status } : t))
       );
+      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+        current?.map((t) => (t.id === task.id ? { ...t, status } : t)),
+      );
       if (selectedTask?.id === task.id) {
         setSelectedTask((prev) => (prev ? { ...prev, status } : null));
       }
@@ -351,6 +389,9 @@ export default function Tasks() {
     try {
       await deleteAdminTask(taskToDelete);
       setTasks((prev) => prev.filter((t) => t.id !== taskToDelete));
+      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+        current?.filter((task) => task.id !== taskToDelete),
+      );
       if (selectedTask?.id === taskToDelete) setSelectedTask(null);
       setTaskToDelete(null);
     } catch (e: any) {
@@ -361,7 +402,7 @@ export default function Tasks() {
   const handleRestoreTask = async (id: string) => {
     try {
       await restoreTask(id);
-      await loadAll(true);
+      await refreshTaskData();
       if (showTrashModal) {
         await loadTrash();
       }
@@ -406,6 +447,7 @@ export default function Tasks() {
     }
 
     setTasks((prev) => [newTask, ...prev]);
+    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) => [newTask, ...(current || [])]);
   };
 
   const handleUpdateTask = async (data: {
@@ -433,6 +475,9 @@ export default function Tasks() {
     setTasks((prev) => prev.map((task) => (
       task.id === updatedTask.id ? updatedTask : task
     )));
+    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+      current?.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
+    );
     setSelectedTask((prev) => (
       prev?.id === updatedTask.id ? updatedTask : prev
     ));
@@ -462,7 +507,7 @@ export default function Tasks() {
     try {
       await approveTask(taskToApprove.id);
       setTaskToApprove(null);
-      await loadAll(true);
+      await refreshTaskData();
     } catch (e: any) {
       alert(e.message || 'อนุมัติงานล้มเหลว');
     }
@@ -667,7 +712,7 @@ export default function Tasks() {
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
         onRefresh={() => {
-          loadAll(true);
+          void refreshTaskData();
           // Also optionally reload the selected task if we have an endpoint for it.
           // Since loadAll fetches all tasks, it will refresh the data, but we might want to manually sync the selectedTask.
           // For now, loadAll() is okay if the user reopens the drawer or the drawer re-renders based on updated tasks array.

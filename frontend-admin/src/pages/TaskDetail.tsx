@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation, useOutletContext } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAdminTasks,
   fetchTaskCategories,
@@ -27,13 +28,44 @@ import {
   formatRelativeDueDate,
   type TaskStatus,
 } from '../components/tasks/taskUtils';
+import { queryKeys } from '../lib/queryKeys';
 
 export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const tasksListPath = `/tasks${location.search}`;
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
+
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.tasks('mine'),
+    queryFn: () => fetchAdminTasks(),
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    staleTime: 5 * 60_000,
+  });
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.taskCategories,
+    queryFn: () => fetchTaskCategories(),
+    staleTime: 15 * 60_000,
+  });
+  const meQuery = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: () => fetchMe(),
+    staleTime: 5 * 60_000,
+  });
 
   // ─── Main Data State ───
   const [tasks, setTasks]           = useState<AdminTask[]>([]);
@@ -57,54 +89,57 @@ export default function TaskDetail() {
   // ─── Edit Modal ───
   const [editingTask, setEditingTask] = useState<AdminTask | null>(null);
 
-  // ─── Load Initial Data ───
-  const loadAll = useCallback(async (silent?: boolean) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const [t, b, c, me] = await Promise.all([
-        fetchAdminTasks(),
-        fetchBrands(),
-        fetchTaskCategories(),
-        fetchMe(),
-      ]);
-      setTasks(t);
-      setBrands(b);
-      setCategories(c);
-      setCurrentUser(me);
-
-      const u = await fetchUsers();
-      setUsers(u.filter((usr) => usr.status === 'active'));
-
-      if (taskId === 'daily') {
-        const dailyTask: AdminTask = {
-          id: 'daily',
-          title: 'กระดานงานรายวันรวม',
-          description: 'รวมรายการงานที่ยังไม่เสร็จจากทุกโปรเจกต์ของคุณ',
-          status: 'in_progress',
-          due_date: new Date().toISOString(),
-          assigned_to: me?.id || '',
-          created_at: new Date().toISOString(),
-        };
-        setTask(dailyTask);
-      } else {
-        const found = t.find((x) => x.id === taskId);
-        if (found) {
-          setTask(found);
-        } else {
-          setError('ไม่พบงานที่ระบุ');
-        }
-      }
-    } catch (e: any) {
-      setError(e.message || 'โหลดข้อมูลงานล้มเหลว');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [taskId]);
-
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (tasksQuery.data) setTasks(tasksQuery.data);
+    if (usersQuery.data) setUsers(usersQuery.data.filter((usr) => usr.status === 'active'));
+    if (brandsQuery.data) setBrands(brandsQuery.data);
+    if (categoriesQuery.data) setCategories(categoriesQuery.data);
+    if (meQuery.data) setCurrentUser(meQuery.data);
+
+    if (taskId === 'daily' && meQuery.data) {
+      setTask({
+        id: 'daily',
+        title: 'กระดานงานรายวันรวม',
+        description: 'รวมรายการงานที่ยังไม่เสร็จจากทุกโปรเจกต์ของคุณ',
+        status: 'in_progress',
+        due_date: new Date().toISOString(),
+        assigned_to: meQuery.data.id,
+        created_at: new Date().toISOString(),
+      });
+    } else if (taskId && taskId !== 'daily' && tasksQuery.data) {
+      const found = tasksQuery.data.find((item) => item.id === taskId);
+      setTask(found || null);
+      if (!found) setError('ไม่พบงานที่ระบุ');
+    }
+
+    const queryError = tasksQuery.error || usersQuery.error || brandsQuery.error || categoriesQuery.error || meQuery.error;
+    if (queryError) setError(queryError instanceof Error ? queryError.message : 'โหลดข้อมูลงานล้มเหลว');
+
+    setLoading(
+      tasksQuery.isPending || usersQuery.isPending || brandsQuery.isPending || categoriesQuery.isPending || meQuery.isPending,
+    );
+  }, [
+    brandsQuery.data,
+    brandsQuery.error,
+    brandsQuery.isPending,
+    categoriesQuery.data,
+    categoriesQuery.error,
+    categoriesQuery.isPending,
+    meQuery.data,
+    meQuery.error,
+    meQuery.isPending,
+    taskId,
+    tasksQuery.data,
+    tasksQuery.error,
+    tasksQuery.isPending,
+    usersQuery.data,
+    usersQuery.error,
+    usersQuery.isPending,
+  ]);
+
+  const refreshTaskData = useCallback(async (_silent?: boolean) => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
+  }, [queryClient]);
 
   // ─── Sync task with tasks list ───
   useEffect(() => {
@@ -140,6 +175,9 @@ export default function TaskDetail() {
       setTasks((prev) =>
         prev.map((x) => (x.id === t.id ? { ...x, status } : x))
       );
+      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+        current?.map((x) => (x.id === t.id ? { ...x, status } : x)),
+      );
       if (selectedTask?.id === t.id) {
         setSelectedTask((prev) => (prev ? { ...prev, status } : null));
       }
@@ -152,6 +190,7 @@ export default function TaskDetail() {
     if (!confirm('คุณต้องการลบงานนี้หรือไม่?')) return;
     try {
       await deleteAdminTask(id);
+      await refreshTaskData();
       navigate(tasksListPath);
     } catch (e: any) {
       alert(e.message || 'ลบงานล้มเหลว');
@@ -178,7 +217,7 @@ export default function TaskDetail() {
     if (!window.confirm('ยืนยันการอนุมัติผลงาน?')) return;
     try {
       await approveSubmission(t.id, t.latest_submission.id);
-      await loadAll();
+      await refreshTaskData();
     } catch (e: any) {
       alert(e.message || 'อนุมัติผลงานล้มเหลว');
     }
@@ -215,7 +254,7 @@ export default function TaskDetail() {
       category_id: data.category_id,
     });
     setEditingTask(null);
-    await loadAll();
+    await refreshTaskData();
   };
 
   // ─── Derived data for header ───
@@ -388,7 +427,7 @@ export default function TaskDetail() {
             categoryMap={categoryMap}
             notifications={notifications}
             setNotifications={setNotifications}
-            onRefreshTask={(silent) => loadAll(silent)}
+    onRefreshTask={(silent) => refreshTaskData(silent)}
             currentUser={currentUser}
           />
         </div>
@@ -402,7 +441,7 @@ export default function TaskDetail() {
             userMap={userMap}
             brandMap={brandMap}
             categoryMap={categoryMap}
-            onRefreshTask={(silent) => loadAll(silent)}
+            onRefreshTask={(silent) => refreshTaskData(silent)}
             currentUser={currentUser}
           />
         </div>
@@ -424,7 +463,7 @@ export default function TaskDetail() {
         onStatusChange={handleStatusChange}
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
-        onRefresh={() => loadAll(true)}
+        onRefresh={() => void refreshTaskData(true)}
         currentUser={currentUser}
       />
 

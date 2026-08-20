@@ -24,6 +24,11 @@ import {
 import type { AdminTask, User, Brand, TaskCategory, TaskList, TaskEvent } from '../../types';
 import { avatarUrl } from './taskUtils';
 import {
+  TaskAttachmentPanel,
+  type AttachmentUploadState,
+  type TaskAttachment,
+} from './TaskAttachmentPanel';
+import {
   fetchTaskTrello,
   updateTaskList,
   deleteTaskList,
@@ -299,7 +304,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [editingList, setEditingList] = useState<TaskList | null>(null);
   const [drawerTitle, setDrawerTitle] = useState('');
   const [drawerAdminComment, setDrawerAdminComment] = useState('');
-  const [drawerAttachments, setDrawerAttachments] = useState<{ name: string; url: string; type: 'file' | 'link' }[]>([]);
+  const [drawerAttachments, setDrawerAttachments] = useState<TaskAttachment[]>([]);
+  const [drawerUploadState, setDrawerUploadState] = useState<AttachmentUploadState>({
+    uploadingCount: 0,
+    failedCount: 0,
+  });
   const [drawerDueDate, setDrawerDueDate] = useState('');
   const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision'>('waiting');
@@ -725,6 +734,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const handleSaveDrawer = async () => {
     if (!editingList) return;
+    if (drawerUploadState.uploadingCount > 0) {
+      showCustomAlert('กรุณารอให้อัปโหลดไฟล์เสร็จก่อนบันทึก', 'error');
+      return;
+    }
+    if (drawerUploadState.failedCount > 0) {
+      showCustomAlert('มีไฟล์อัปโหลดไม่สำเร็จ กรุณาลองใหม่หรือนำไฟล์นั้นออกก่อนบันทึก', 'error');
+      return;
+    }
     setIsSavingDrawer(true);
     try {
       await updateTaskList(editingList.id, {
@@ -749,6 +766,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   const handleSubmitRevision = async (reason: string) => {
     if (!editingList) return;
+    if (drawerUploadState.uploadingCount > 0 || drawerUploadState.failedCount > 0) {
+      showCustomAlert('กรุณาจัดการไฟล์ที่กำลังอัปโหลดหรืออัปโหลดไม่สำเร็จก่อนส่งแก้ไข', 'error');
+      return;
+    }
     setIsSubmittingRevision(true);
     try {
       const finalComment = reason.trim() || drawerAdminComment;
@@ -860,6 +881,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     setDrawerAssignees(list.assignee_ids || []);
     setDrawerAdminComment(list.admin_comment || '');
     setDrawerAttachments(list.attachments || []);
+    setDrawerUploadState({ uploadingCount: 0, failedCount: 0 });
   };
 
   const drawerHasUnsavedChanges = (): boolean => {
@@ -876,10 +898,15 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     const origAtt = JSON.stringify(editingList.attachments || []);
     const currAtt = JSON.stringify(drawerAttachments);
     if (origAtt !== currAtt) return true;
+    if (drawerUploadState.uploadingCount > 0 || drawerUploadState.failedCount > 0) return true;
     return false;
   };
 
   const handleCloseDrawer = () => {
+    if (drawerUploadState.uploadingCount > 0) {
+      showCustomAlert('กำลังอัปโหลดไฟล์ กรุณารอให้อัปโหลดเสร็จก่อนปิดหน้าต่าง', 'error');
+      return;
+    }
     if (drawerHasUnsavedChanges()) {
       setShowUnsavedModal(true);
     } else {
@@ -1376,8 +1403,16 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
       {/* Edit List Drawer */}
       {editingList && (
-        <div className="task-timeline-edit-overlay fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end">
-          <div className="task-timeline-edit-drawer bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
+        <div
+          className="task-timeline-edit-overlay fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex justify-end"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleCloseDrawer();
+          }}
+        >
+          <div
+            className="task-timeline-edit-drawer bg-white w-full max-w-lg h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
 {editingCardSubView ? (
               <div className="bg-slate-50 text-slate-800 p-5 flex items-center gap-3 border-b border-slate-200">
                 <button
@@ -1416,8 +1451,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         setEditingList(null);
                       }
                     }}
-                    className="p-1 text-slate-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                    title="ลบงานย่อยนี้"
+                    disabled={drawerUploadState.uploadingCount > 0}
+                    className="p-1 text-slate-500 hover:text-red-600 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={drawerUploadState.uploadingCount > 0 ? 'กรุณารอให้อัปโหลดไฟล์เสร็จก่อน' : 'ลบงานย่อยนี้'}
+                    aria-label="ลบงานย่อยนี้"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -1899,79 +1936,44 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     />
                   </div>
 
-                  {/* เอกสารแนบ & ลิงก์ไฟล์งาน */}
-                  <div className="space-y-3 pt-2 border-t border-slate-200">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Paperclip className="w-4 h-4 text-indigo-600" />
-                      <span>เอกสารแนบ & ลิงก์ไฟล์งาน (Attachments)</span>
-                    </label>
-                    
-                    {drawerAttachments.length > 0 ? (
-                      <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                        {drawerAttachments.map((att, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                            <div className="flex items-center gap-2 truncate min-w-0">
-                              {att.type === 'link' ? <Link2 className="w-4 h-4 text-indigo-600 shrink-0" /> : <Paperclip className="w-4 h-4 text-blue-600 shrink-0" />}
-                              <span className="truncate font-semibold text-slate-800">{att.name || att.url}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenExternalUrl(att.url)}
-                                className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer"
-                              >
-                                เปิด
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setModalTitle(att.type === 'link' ? 'แก้ไขลิงก์แนบ' : 'แก้ไขไฟล์แนบ');
-                                  setModalInputVal1(att.url);
-                                  setModalInputVal2(att.name || '');
-                                  setModalTargetId(String(idx));
-                                  setModalScope('list');
-                                  setActiveModal('edit_link');
-                                }}
-                                className="text-slate-500 hover:text-indigo-600 p-1 cursor-pointer transition-all active:scale-95"
-                                title="แก้ไขไฟล์แนบ/ลิงก์"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">ยังไม่มีเอกสารแนบในคอร์สงานนี้</p>
-                    )}
+                  <TaskAttachmentPanel
+                    attachments={drawerAttachments}
+                    disabled={isSavingDrawer}
+                    onAddAttachment={(attachment) => {
+                      setDrawerAttachments((current) => [...current, attachment]);
+                    }}
+                    onRemoveAttachment={(index) => {
+                      const attachment = drawerAttachments[index];
+                      if (!attachment) return;
 
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModalScope('list');
-                          fileInputRef.current?.click();
-                        }}
-                        className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-indigo-50/20"
-                      >
-                        <Paperclip className="w-4 h-4 text-indigo-600" />
-                        <span>แนบไฟล์ (ลิงก์)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModalTitle('แนบลิงก์ภายนอก');
-                          setModalInputVal1('');
-                          setModalScope('list');
-                          setActiveModal('attach_link');
-                        }}
-                        className="flex items-center justify-center gap-1.5 p-2 border border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl text-emerald-700 text-xs font-bold transition-all active:scale-95 cursor-pointer bg-emerald-50/20"
-                      >
-                        <Link2 className="w-4 h-4 text-emerald-600" />
-                        <span>แนบลิงก์</span>
-                      </button>
-                    </div>
-                  </div>
+                      setConfirmModal({
+                        isOpen: true,
+                        title: 'ลบไฟล์แนบ?',
+                        description: `ต้องการลบ "${attachment.name || 'ไฟล์แนบ'}" ออกจากรายการนี้ใช่หรือไม่?`,
+                        confirmText: 'ลบไฟล์',
+                        onConfirm: () => {
+                          setDrawerAttachments((current) => current.filter((_, currentIndex) => currentIndex !== index));
+                        },
+                      });
+                    }}
+                    onEditAttachment={(index, attachment) => {
+                      setModalTitle(attachment.type === 'link' ? 'แก้ไขลิงก์แนบ' : 'แก้ไขไฟล์แนบ');
+                      setModalInputVal1(attachment.url);
+                      setModalInputVal2(attachment.name || '');
+                      setModalTargetId(String(index));
+                      setModalScope('list');
+                      setActiveModal('edit_link');
+                    }}
+                    onOpenAttachment={handleOpenExternalUrl}
+                    onAddLink={() => {
+                      setModalTitle('แนบลิงก์ภายนอก');
+                      setModalInputVal1('');
+                      setModalInputVal2('');
+                      setModalScope('list');
+                      setActiveModal('attach_link');
+                    }}
+                    onUploadStateChange={setDrawerUploadState}
+                  />
                 </div>
               )}
             </div>
@@ -2012,7 +2014,9 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                         setRevisionReasonInput(drawerAdminComment || '');
                         setShowRevisionModal(true);
                       }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
+                      disabled={drawerUploadState.uploadingCount > 0 || drawerUploadState.failedCount > 0}
+                      title={drawerUploadState.uploadingCount > 0 || drawerUploadState.failedCount > 0 ? 'กรุณาจัดการไฟล์แนบให้เรียบร้อยก่อน' : undefined}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <RotateCcw className="w-4 h-4 text-rose-600" />
                       <span>ส่งแก้ไข</span>
@@ -2032,11 +2036,20 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     <button
                       type="button"
                       onClick={handleSaveDrawer}
-                      disabled={isSavingDrawer}
-                      className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                      disabled={isSavingDrawer || drawerUploadState.uploadingCount > 0 || drawerUploadState.failedCount > 0}
+                      title={drawerUploadState.failedCount > 0 ? 'กรุณาลองอัปโหลดใหม่หรือนำไฟล์ที่ล้มเหลวออก' : undefined}
+                      className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
                     >
                       <Save className="w-4 h-4" />
-                      <span>{isSavingDrawer ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
+                      <span>
+                        {isSavingDrawer
+                          ? 'กำลังบันทึก...'
+                          : drawerUploadState.uploadingCount > 0
+                            ? `กำลังอัปโหลด ${drawerUploadState.uploadingCount} ไฟล์`
+                            : drawerUploadState.failedCount > 0
+                              ? 'มีไฟล์อัปโหลดไม่สำเร็จ'
+                              : 'บันทึกข้อมูล'}
+                      </span>
                     </button>
                   </div>
                 </>

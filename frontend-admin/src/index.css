@@ -4598,6 +4598,822 @@ td {
   }
 }
 
+/* Task attachments: immediate feedback, retryable uploads and inline image previews. */
+.task-attachment-panel {
+  --attachment-accent: var(--blue);
+  --attachment-accent-soft: var(--blue-light);
+  --attachment-success: var(--green);
+  --attachment-danger: var(--red);
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.task-attachment-heading,
+.task-attachment-upload-title,
+.task-attachment-file-actions,
+.task-attachment-ready-note {
+  display: flex;
+  align-items: center;
+}
+
+.task-attachment-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-attachment-heading h3 {
+  margin: 2px 0 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.task-attachment-eyebrow {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.task-attachment-count {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.task-attachment-dropzone {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 88px;
+  padding: 14px;
+  border: 1.5px dashed var(--blue-mid);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--attachment-accent-soft) 58%, var(--surface));
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.task-attachment-dropzone:hover:not(:disabled),
+.task-attachment-dropzone.is-dragging {
+  border-color: var(--attachment-accent);
+  background: color-mix(in srgb, var(--attachment-accent-soft) 82%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--attachment-accent) 12%, transparent);
+}
+
+.task-attachment-dropzone:focus-visible,
+.task-attachment-file-actions button:focus-visible,
+.task-attachment-file-thumbnail:focus-visible,
+.task-attachment-file-thumbnail.is-error button:focus-visible,
+.task-attachment-upload-actions button:focus-visible,
+.task-attachment-link-button:focus-visible {
+  outline: 2px solid var(--attachment-accent);
+  outline-offset: 2px;
+}
+
+.task-attachment-dropzone:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.task-attachment-dropzone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--attachment-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--attachment-accent) 12%, transparent);
+}
+
+.task-attachment-dropzone-copy {
+  min-width: 0;
+}
+
+.task-attachment-dropzone-copy strong,
+.task-attachment-dropzone-copy small {
+  display: block;
+}
+
+.task-attachment-dropzone-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-dropzone-copy small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.task-attachment-browse-label {
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--attachment-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.task-attachment-file-input {
+  display: none;
+}
+
+.task-attachment-upload-list,
+.task-attachment-file-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-attachment-upload-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+}
+
+.task-attachment-upload-item.is-failed {
+  border-color: color-mix(in srgb, var(--attachment-danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--red-bg) 48%, var(--surface));
+}
+
+.task-attachment-upload-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.task-attachment-upload-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.task-attachment-upload-copy,
+.task-attachment-file-copy {
+  min-width: 0;
+}
+
+.task-attachment-upload-title {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-attachment-upload-title strong,
+.task-attachment-file-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-upload-title span,
+.task-attachment-file-copy span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.task-attachment-progress-track {
+  height: 4px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.task-attachment-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--attachment-accent);
+  transition: width 180ms ease;
+}
+
+.task-attachment-upload-status,
+.task-attachment-upload-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.task-attachment-upload-status {
+  color: var(--attachment-accent);
+}
+
+.task-attachment-upload-error {
+  color: var(--red-text);
+}
+
+.task-attachment-spin {
+  animation: task-attachment-spin 0.85s linear infinite;
+}
+
+.task-attachment-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-attachment-upload-actions button,
+.task-attachment-file-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, transform 100ms ease;
+}
+
+.task-attachment-upload-actions button:hover,
+.task-attachment-file-actions button:hover {
+  background: var(--surface-muted);
+  color: var(--attachment-accent);
+}
+
+.task-attachment-file-thumbnail {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 62px;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  cursor: zoom-in;
+  transition: border-color 150ms ease, transform 100ms ease;
+}
+
+.task-attachment-file-thumbnail > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 160ms ease;
+}
+
+.task-attachment-file-thumbnail:hover > img {
+  filter: brightness(0.88);
+}
+
+.task-attachment-file-thumbnail.is-error {
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  cursor: default;
+  font-size: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.task-attachment-file-thumbnail.is-error button {
+  border: 0;
+  background: transparent;
+  color: var(--attachment-accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.task-attachment-file-thumbnail:active,
+.task-attachment-upload-actions button:active,
+.task-attachment-file-actions button:active,
+.task-attachment-link-button:active {
+  transform: translateY(1px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .task-attachment-file-thumbnail:hover {
+    border-color: var(--attachment-accent);
+  }
+}
+
+.task-attachment-file-thumbnail-hint {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #fff;
+  opacity: 0.72;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.task-attachment-file-thumbnail:hover .task-attachment-file-thumbnail-hint,
+.task-attachment-file-thumbnail:focus-visible .task-attachment-file-thumbnail-hint {
+  background: rgba(15, 23, 42, 0.9);
+  opacity: 1;
+}
+
+.task-attachment-preview-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--surface-muted) 20%, var(--surface) 38%, var(--surface-muted) 56%);
+  background-size: 220% 100%;
+  animation: task-attachment-shimmer 1.2s ease-in-out infinite;
+}
+
+.task-attachment-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.86);
+  backdrop-filter: blur(10px);
+  animation: task-attachment-lightbox-enter 180ms ease-out both;
+}
+
+.task-attachment-lightbox {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1080px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: var(--surface-elevated);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.48);
+}
+
+.task-attachment-lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 68px;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.task-attachment-lightbox-header > div:first-child {
+  min-width: 0;
+}
+
+.task-attachment-lightbox-header span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.task-attachment-lightbox-header h2 {
+  max-width: min(66vw, 720px);
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-lightbox-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.task-attachment-lightbox-header-actions > span {
+  min-width: 54px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.task-attachment-lightbox-header button,
+.task-attachment-lightbox-nav,
+.task-attachment-lightbox-thumbnails button {
+  border: 0;
+  cursor: pointer;
+}
+
+.task-attachment-lightbox-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.task-attachment-lightbox-header button:hover {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.task-attachment-lightbox-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: min(68vh, 680px);
+  overflow: hidden;
+  background: #050914;
+}
+
+.task-attachment-lightbox-stage > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: min(68vh, 680px);
+  object-fit: contain;
+}
+
+.task-attachment-lightbox-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #080d19 20%, #111827 38%, #080d19 56%);
+  background-size: 220% 100%;
+  animation: task-attachment-shimmer 1.2s ease-in-out infinite;
+}
+
+.task-attachment-lightbox-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.task-attachment-lightbox-error strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.task-attachment-lightbox-error span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.task-attachment-lightbox-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-top: 6px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.task-attachment-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  transform: translateY(-50%);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.task-attachment-lightbox-nav:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(37, 99, 235, 0.92);
+}
+
+.task-attachment-lightbox-nav.is-previous {
+  left: 16px;
+}
+
+.task-attachment-lightbox-nav.is-next {
+  right: 16px;
+}
+
+.task-attachment-lightbox-header button:focus-visible,
+.task-attachment-lightbox-nav:focus-visible,
+.task-attachment-lightbox-thumbnails button:focus-visible,
+.task-attachment-lightbox-error button:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.task-attachment-lightbox-thumbnails {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 78px;
+  overflow-x: auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-elevated);
+  scrollbar-width: thin;
+}
+
+.task-attachment-lightbox-thumbnails button {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 52px;
+  overflow: hidden;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  opacity: 0.62;
+  transition: border-color 150ms ease, opacity 150ms ease;
+}
+
+.task-attachment-lightbox-thumbnails button:hover,
+.task-attachment-lightbox-thumbnails button.is-active {
+  border-color: var(--blue);
+  opacity: 1;
+}
+
+.task-attachment-lightbox-thumbnails img {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+@keyframes task-attachment-lightbox-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.task-attachment-file-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 58px;
+  padding: 6px 7px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.task-attachment-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.task-attachment-file-icon.is-link {
+  background: var(--green-bg);
+  color: var(--green-text);
+}
+
+.task-attachment-file-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.task-attachment-file-actions button.is-danger:hover {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.task-attachment-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.task-attachment-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.task-attachment-link-button:hover:not(:disabled) {
+  border-color: var(--attachment-accent);
+  background: var(--attachment-accent-soft);
+  color: var(--attachment-accent);
+}
+
+.task-attachment-link-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.task-attachment-ready-note {
+  justify-content: center;
+  gap: 5px;
+  margin: -2px 0 0;
+  color: var(--green-text);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+@keyframes task-attachment-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes task-attachment-shimmer {
+  to { background-position-x: -220%; }
+}
+
+:root[data-theme='dark'] .task-attachment-panel {
+  --attachment-accent-soft: var(--status-blue-bg);
+}
+
+:root[data-theme='dark'] .task-attachment-dropzone,
+:root[data-theme='dark'] .task-attachment-file-row,
+:root[data-theme='dark'] .task-attachment-upload-item,
+:root[data-theme='dark'] .task-attachment-link-button,
+:root[data-theme='dark'] .task-attachment-file-thumbnail {
+  border-color: var(--border);
+}
+
+@media (max-width: 520px) {
+  .task-attachment-dropzone {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .task-attachment-browse-label {
+    display: none;
+  }
+
+  .task-attachment-file-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .task-attachment-file-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    border-top: 1px solid var(--border);
+    padding-top: 4px;
+  }
+
+  .task-attachment-lightbox-backdrop {
+    padding: 0;
+  }
+
+  .task-attachment-lightbox {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .task-attachment-lightbox-header {
+    padding-inline: 12px;
+  }
+
+  .task-attachment-lightbox-header h2 {
+    max-width: 54vw;
+  }
+
+  .task-attachment-lightbox-stage,
+  .task-attachment-lightbox-stage > img {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .task-attachment-lightbox-nav {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+  }
+
+  .task-attachment-lightbox-nav.is-previous {
+    left: 10px;
+  }
+
+  .task-attachment-lightbox-nav.is-next {
+    right: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-attachment-spin,
+  .task-attachment-preview-skeleton,
+  .task-attachment-lightbox-skeleton,
+  .task-attachment-lightbox-backdrop {
+    animation: none;
+  }
+
+  .task-attachment-dropzone,
+  .task-attachment-progress-track span,
+  .task-attachment-upload-actions button,
+  .task-attachment-file-actions button,
+  .task-attachment-link-button {
+    transition: none;
+  }
+
+  .task-attachment-file-thumbnail > img,
+  .task-attachment-file-thumbnail-hint,
+  .task-attachment-lightbox-nav,
+  .task-attachment-lightbox-thumbnails button {
+    transition: none;
+  }
+
+  .task-attachment-file-thumbnail,
+  .task-attachment-upload-actions button,
+  .task-attachment-file-actions button,
+  .task-attachment-link-button {
+    transition: none;
+  }
+}
+
 /* Hallmark · holidays calendar details · theme: Midnight Cobalt · dark-mode repair */
 :root[data-theme='dark'] #holidays .holiday-day-details-modal {
   background: var(--surface-elevated) !important;

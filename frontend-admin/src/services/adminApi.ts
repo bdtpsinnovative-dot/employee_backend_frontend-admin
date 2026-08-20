@@ -621,12 +621,23 @@ export async function createSubItemVerification(subItemId: string, body: { statu
   return data.data;
 }
 
-export async function uploadFile(file: File): Promise<{ ok: boolean; url: string }> {
+interface UploadFileOptions {
+  onProgress?: (progress: number) => void;
+  signal?: AbortSignal;
+}
+
+export async function uploadFile(file: File, options: UploadFileOptions = {}): Promise<{ ok: boolean; url: string }> {
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await api.post('/api/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
+    },
+    signal: options.signal,
+    onUploadProgress: (event) => {
+      if (!options.onProgress || !event.total) return;
+      const progress = Math.min(100, Math.round((event.loaded * 100) / event.total));
+      options.onProgress(progress);
     },
   });
   return data;
