@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // OffsiteRepo จัดการ SQL queries สำหรับตาราง offsite_requests (คำขอออกหน้างาน)
@@ -41,6 +42,7 @@ func (r *OffsiteRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domai
 
 // ListPending ดึงคำขอที่รออนุมัติ ทุกคน (สำหรับ Admin)
 func (r *OffsiteRepo) ListPending(ctx context.Context) ([]domain.OffsiteRequest, error) {
+	defer perf.MeasureDB(ctx, "db.pending.offsite")()
 	var requests []domain.OffsiteRequest
 	err := r.db.SelectContext(ctx, &requests, `
 		SELECT * FROM offsite_requests WHERE status = 'pending' ORDER BY created_at DESC
@@ -97,6 +99,17 @@ func (r *OffsiteRepo) HasApprovedForDate(ctx context.Context, userID uuid.UUID, 
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *OffsiteRepo) HasPendingForDate(ctx context.Context, userID uuid.UUID, date time.Time) (bool, error) {
+	var exists bool
+	err := r.db.GetContext(ctx, &exists, `
+		SELECT EXISTS (
+			SELECT 1 FROM offsite_requests
+			WHERE user_id = $1 AND date = $2 AND status = 'pending'
+		)
+	`, userID, date.Format("2006-01-02"))
+	return exists, err
 }
 
 // GetByID ดึงคำขอออกหน้างานตาม ID

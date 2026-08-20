@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -129,101 +131,50 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 	return tasks, nil
 }
 
-func (r *TaskRepo) populateLatestSubmissions(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
-	if len(tasks) == 0 {
-		return tasks, nil
-	}
-	// Just fetch the latest submission for each task
-	// This could be optimized, but N queries for N tasks is okay if N is small, or we can use DISTINCT ON
-	var allSubs []domain.TaskSubmission
-	err := r.db.SelectContext(ctx, &allSubs, `
-		SELECT DISTINCT ON (task_id) *
-		FROM task_submissions
-		ORDER BY task_id, submitted_at DESC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to populate latest submissions: %w", err)
-	}
-	subMap := make(map[uuid.UUID]domain.TaskSubmission)
-	for _, s := range allSubs {
-		subMap[s.TaskID] = s
-	}
-	for i, t := range tasks {
-		if sub, ok := subMap[t.ID]; ok {
-			tasks[i].LatestSubmission = &sub
-		}
-	}
-	return tasks, nil
+type taskQueryRow struct {
+	domain.Task
+	AssigneeIDsJSON      []byte `db:"assignee_ids_json"`
+	LatestSubmissionJSON []byte `db:"latest_submission_json"`
+	SubItemsJSON         []byte `db:"sub_items_json"`
+	ListsJSON            []byte `db:"lists_json"`
 }
 
-func (r *TaskRepo) populateSubItems(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
-	if len(tasks) == 0 {
-		return tasks, nil
-	}
-	var subItems []struct {
-		domain.TaskSubItem
-		TaskID uuid.UUID `db:"task_id"`
-	}
-	err := r.db.SelectContext(ctx, &subItems, `
-		SELECT id, task_id, card_id, title, description, is_done, status,
-		       sort_order, created_at, start_date, due_date,
-		       link_url, attachment_url, verification_notes, admin_comment
-		FROM task_sub_items
-		WHERE card_id IS NULL
-		ORDER BY sort_order ASC, created_at ASC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to populate sub-items: %w", err)
-	}
-	subMap := make(map[uuid.UUID][]domain.TaskSubItem)
-	for _, s := range subItems {
-		subMap[s.TaskID] = append(subMap[s.TaskID], s.TaskSubItem)
-	}
-	for i, t := range tasks {
-		if items, ok := subMap[t.ID]; ok {
-			tasks[i].SubItems = items
-		} else {
-			tasks[i].SubItems = []domain.TaskSubItem{}
-		}
-	}
-	return tasks, nil
-}
+func decodeTaskRows(rows []taskQueryRow) ([]domain.Task, error) {
+	tasks := make([]domain.Task, len(rows))
+	for i := range rows {
+		task := rows[i].Task
+		task.AssigneeIDs = []uuid.UUID{}
+		task.SubItems = []domain.TaskSubItem{}
+		task.Lists = []domain.TaskList{}
 
-func (r *TaskRepo) populateLists(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
-	if len(tasks) == 0 {
-		return tasks, nil
-	}
-	var lists []struct {
-		domain.TaskList
-		TaskID uuid.UUID `db:"task_id"`
-	}
-	err := r.db.SelectContext(ctx, &lists, `
-		SELECT id, task_id, name, description, sort_order, created_at,
-		       start_date, due_date, deleted_at, priority, status, admin_comment, attachments
-		FROM task_lists
-		WHERE deleted_at IS NULL
-		ORDER BY sort_order ASC, created_at ASC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to populate task lists: %w", err)
-	}
-	listMap := make(map[uuid.UUID][]domain.TaskList)
-	for _, l := range lists {
-		listMap[l.TaskID] = append(listMap[l.TaskID], l.TaskList)
-	}
-	for i, t := range tasks {
-		if items, ok := listMap[t.ID]; ok {
-			tasks[i].Lists = items
-		} else {
-			tasks[i].Lists = []domain.TaskList{}
+		if err := json.Unmarshal(rows[i].AssigneeIDsJSON, &task.AssigneeIDs); err != nil {
+			return nil, fmt.Errorf("decode task assignees: %w", err)
 		}
+		if len(rows[i].LatestSubmissionJSON) > 0 && string(rows[i].LatestSubmissionJSON) != "null" {
+			var submission domain.TaskSubmission
+			if err := json.Unmarshal(rows[i].LatestSubmissionJSON, &submission); err != nil {
+				return nil, fmt.Errorf("decode latest task submission: %w", err)
+			}
+			task.LatestSubmission = &submission
+		}
+		if err := json.Unmarshal(rows[i].SubItemsJSON, &task.SubItems); err != nil {
+			return nil, fmt.Errorf("decode task sub-items: %w", err)
+		}
+		if err := json.Unmarshal(rows[i].ListsJSON, &task.Lists); err != nil {
+			return nil, fmt.Errorf("decode task lists: %w", err)
+		}
+		if len(task.AssigneeIDs) == 0 && task.AssignedTo != nil && *task.AssignedTo != uuid.Nil {
+			task.AssigneeIDs = append(task.AssigneeIDs, *task.AssignedTo)
+		}
+		tasks[i] = task
 	}
 	return tasks, nil
 }
 
 func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
-	var tasks []domain.Task
-	err := r.db.SelectContext(ctx, &tasks, `
+	var rows []taskQueryRow
+	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
+	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority,
 		       CASE
@@ -239,7 +190,11 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0) AS card_done,
-		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
+		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -250,27 +205,17 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 			t.due_date ASC NULLS LAST,
 			t.created_at DESC
 	`)
+	measureDB()
 	if err != nil {
 		return nil, err
 	}
-	tasks, err = r.populateAssigneeIDs(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateLatestSubmissions(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateSubItems(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	return r.populateLists(ctx, tasks)
+	return decodeTaskRows(rows)
 }
 
 func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Task, error) {
-	var tasks []domain.Task
-	err := r.db.SelectContext(ctx, &tasks, `
+	var rows []taskQueryRow
+	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
+	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority,
 		       CASE
@@ -284,7 +229,11 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
-		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
+		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -295,27 +244,17 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 			t.due_date ASC NULLS LAST,
 			t.created_at DESC
 	`, projectID)
+	measureDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tasks by project: %w", err)
 	}
-	tasks, err = r.populateAssigneeIDs(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateLatestSubmissions(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateSubItems(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	return r.populateLists(ctx, tasks)
+	return decodeTaskRows(rows)
 }
 
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
-	var tasks []domain.Task
-	err := r.db.SelectContext(ctx, &tasks, `
+	var rows []taskQueryRow
+	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
+	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority,
 		       CASE
@@ -331,7 +270,11 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0) AS card_done,
-		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
+		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -347,46 +290,37 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 			t.due_date ASC NULLS LAST,
 			t.created_at DESC
 	`, userID)
+	measureDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tasks: %w", err)
 	}
-	tasks, err = r.populateAssigneeIDs(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateLatestSubmissions(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateSubItems(ctx, tasks)
-	if err != nil {
-		return nil, err
-	}
-	return r.populateLists(ctx, tasks)
+	return decodeTaskRows(rows)
 }
 
 func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, error) {
-	var task domain.Task
-	err := r.db.GetContext(ctx, &task, `
+	var row taskQueryRow
+	measureDB := perf.MeasureDB(ctx, "db.tasks.by_id")
+	err := r.db.GetContext(ctx, &row, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
-		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count
+		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
+		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
 		WHERE t.id = $1 AND t.deleted_at IS NULL
 	`, id)
+	measureDB()
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := r.populateAssigneeIDs(ctx, []domain.Task{task})
-	if err != nil {
-		return nil, err
-	}
-	tasks, err = r.populateLatestSubmissions(ctx, tasks)
+	tasks, err := decodeTaskRows([]taskQueryRow{row})
 	if err != nil {
 		return nil, err
 	}

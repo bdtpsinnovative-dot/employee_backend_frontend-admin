@@ -7,8 +7,11 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -78,6 +81,16 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 // GetMe returns the current application user without exposing face_embedding.
 func (h *UserHandler) GetMe(c *gin.Context) {
+	startedAt := time.Now()
+	if cachedUser, ok := c.Get(middleware.ContextKeyUser); ok {
+		if user, valid := cachedUser.(*domain.User); valid && user != nil {
+			user.HasFace = user.FaceEmbedding != nil && strings.TrimSpace(*user.FaceEmbedding) != ""
+			perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
+			c.JSON(http.StatusOK, gin.H{"ok": true, "data": user})
+			return
+		}
+	}
+
 	authIDValue, exists := c.Get(middleware.ContextKeyAuthID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "กรุณาเข้าสู่ระบบ"})
@@ -100,6 +113,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.Set(middleware.ContextKeyUserID, user.ID)
 	c.Set(middleware.ContextKeyRole, user.Role)
 	c.Set(middleware.ContextKeyStatus, user.Status)
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": user})
 }
 

@@ -9,13 +9,16 @@ import (
 	"strings"
 
 	"github.com/Nattamon123/employee/backend/internal/config"
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/handler"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 // Server เก็บ Gin engine และ dependencies ทั้งหมดของระบบ
@@ -69,7 +72,7 @@ func New(cfg *config.Config) (*Server, error) {
 	firebaseSvc := service.NewFirebaseService()
 	userSvc := service.NewUserService(userRepo)
 	settingSvc := service.NewSettingService(settingRepo)
-	attendanceSvc := service.NewAttendanceService(attendanceRepo, locationRepo, offsiteRepo, userRepo, settingRepo, cfg)
+	attendanceSvc := service.NewAttendanceService(attendanceRepo, locationRepo, offsiteRepo, holidayRepo, userRepo, settingRepo, cfg)
 	leaveSvc := service.NewLeaveService(leaveRepo, leaveQuotaRepo)
 	offsiteSvc := service.NewOffsiteService(offsiteRepo)
 	holidaySvc := service.NewHolidayService(holidayRepo)
@@ -139,12 +142,14 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// --- สร้าง Router และลงทะเบียน Routes ---
 	router := gin.Default()
+	router.Use(perf.Middleware())
 
 	// CORS — อนุญาตให้ frontend เรียก API ข้าม origin ได้
 	router.Use(cors.New(cors.Config{
 		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "User-Agent", "Cache-Control"},
+		ExposeHeaders:    []string{"Server-Timing"},
 		AllowCredentials: true,
 	}))
 
@@ -189,6 +194,7 @@ func registerRoutes(
 
 	// สร้าง KeyManager เพื่อดึงและแคช Public Keys จาก Supabase JWKS (สำหรับยืนยัน ES256 tokens)
 	keyManager := middleware.NewKeyManager(cfg.SupabaseURL, cfg.SupabaseAnonKey)
+	loadUser := LoadUserMiddleware(userSvc)
 
 	// ─── เส้นทางสาธารณะ (ไม่ต้องล็อกอิน) ──────────────────
 	auth := r.Group("/auth")
@@ -202,7 +208,7 @@ func registerRoutes(
 	// JWT is required, but active status is not, so pending users can re-enroll.
 	account := r.Group("/api")
 	account.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager))
-	account.Use(LoadUserMiddleware(userSvc))
+	account.Use(loadUser)
 	account.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
 		account.GET("/users/me", userH.GetMe)
@@ -215,7 +221,7 @@ func registerRoutes(
 
 	api := r.Group("/api")
 	api.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager)) // ตรวจ JWT จาก Supabase
-	api.Use(LoadUserMiddleware(userSvc))                           // ดึงข้อมูล user จาก DB ฝังลง Context
+	api.Use(loadUser)                                              // ดึงข้อมูล user จาก DB ฝังลง Context
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
 	api.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
@@ -316,7 +322,7 @@ func registerRoutes(
 	// ─── เส้นทางแอดมิน (ต้องล็อกอิน + active + role admin) ─
 	admin := r.Group("/admin")
 	admin.Use(middleware.JWTAuth(cfg.SupabaseJWTSecret, keyManager))
-	admin.Use(LoadUserMiddleware(userSvc))
+	admin.Use(loadUser)
 	admin.Use(middleware.RequireActive())
 	admin.Use(middleware.RequireAdmin())
 	admin.Use(maintenanceGate.ReadOnlyDuringRestore())
@@ -330,13 +336,14 @@ func registerRoutes(
 		}
 
 		// จัดการพนักงาน
-		admin.GET("/users", adminH.ListUsers)                        // ดูรายชื่อพนักงานทั้งหมด
-		admin.GET("/users/:id/history", adminH.GetUserHistory)       // ดึงประวัติรายคน
-		admin.GET("/history/monthly", adminH.GetMonthlyHistory)      // ดึงประวัติเข้างานแบบรวมรายเดือน (N+1 fix)
-		admin.PUT("/users/:id", adminH.UpdateUser)                   // แก้ไขข้อมูลพนักงาน (Role, Name, etc.)
-		admin.PATCH("/users/:id/approve", adminH.ApproveUser)        // อนุมัติบัญชีพนักงาน
-		admin.PATCH("/users/:id/disable", adminH.DisableUser)        // ปิดบัญชีพนักงาน
-		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice) // ปลดล็อคเครื่องมือถือ
+		admin.GET("/users", adminH.ListUsers)                            // ดูรายชื่อพนักงานทั้งหมด
+		admin.GET("/users/:id/history", adminH.GetUserHistory)           // ดึงประวัติรายคน
+		admin.GET("/history/monthly", adminH.GetMonthlyHistory)          // ดึงประวัติเข้างานแบบรวมรายเดือน (N+1 fix)
+		admin.PUT("/users/:id", adminH.UpdateUser)                       // แก้ไขข้อมูลพนักงาน (Role, Name, etc.)
+		admin.PUT("/users/:id/work-schedule", adminH.UpdateWorkSchedule) // แก้ไขเวลาทำงานรายบุคคล
+		admin.PATCH("/users/:id/approve", adminH.ApproveUser)            // อนุมัติบัญชีพนักงาน
+		admin.PATCH("/users/:id/disable", adminH.DisableUser)            // ปิดบัญชีพนักงาน
+		admin.PATCH("/users/:id/unbind-device", adminH.UnbindDevice)     // ปลดล็อคเครื่องมือถือ
 		admin.GET("/settings/profile-teams", settingH.GetProfileTeams)
 		admin.POST("/settings/profile-teams", settingH.AddProfileTeam)
 		admin.GET("/settings/teams", settingH.GetTeams)
@@ -356,6 +363,7 @@ func registerRoutes(
 		// ภาพรวมเข้างาน
 		admin.GET("/attendance", adminH.GetAllAttendance)         // ดูสถิติเข้างานทุกคน ?date=2026-07-02
 		admin.POST("/attendance/manual", adminH.ManualAttendance) // บันทึกเข้างานด้วยมือ (กรณีพิเศษ)
+		admin.PATCH("/attendance/:id", adminH.UpdateAttendance)   // แก้ไขเวลา/สถานะพร้อม audit
 
 		// จัดการวันหยุด
 		admin.POST("/holidays", holidayH.Create)       // เพิ่มวันหยุด
@@ -364,7 +372,8 @@ func registerRoutes(
 		// จัดการจุดทำงาน (Geofence)
 		admin.GET("/locations", adminH.ListLocations)         // ดูจุดทำงานทั้งหมด
 		admin.POST("/locations", adminH.CreateLocation)       // เพิ่มจุดทำงาน (สาขาใหม่)
-		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ลบจุดทำงาน
+		admin.PUT("/locations/:id", adminH.UpdateLocation)    // แก้ไขจุดทำงาน
+		admin.DELETE("/locations/:id", adminH.DeleteLocation) // ปิดใช้งานจุดทำงาน
 
 		// จัดการงาน (Tasks)
 		admin.POST("/tasks", taskH.CreateTask)  // มอบหมายงานใหม่
@@ -392,6 +401,7 @@ func registerRoutes(
 
 // LoadUserMiddleware ดึงข้อมูลผู้ใช้จากฐานข้อมูลด้วย auth_id และฝัง user_id, role, status ลง Context
 func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
+	var userLoads singleflight.Group
 	return func(c *gin.Context) {
 		authIDStr, exists := c.Get(middleware.ContextKeyAuthID)
 		if !exists {
@@ -405,8 +415,17 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 			return
 		}
 
-		// ดึงข้อมูล User จากฐานข้อมูล
-		user, err := userSvc.GetByAuthID(c.Request.Context(), authID)
+		// Collapse only concurrent lookups for the same auth ID. The result is not
+		// retained after the requests finish, so role/status/profile changes never
+		// become stale across subsequent requests.
+		loaded, err, _ := userLoads.Do(authID.String(), func() (any, error) {
+			return userSvc.GetByAuthID(c.Request.Context(), authID)
+		})
+		var user *domain.User
+		if loadedUser, ok := loaded.(*domain.User); ok && loadedUser != nil {
+			userCopy := *loadedUser
+			user = &userCopy
+		}
 		if err != nil {
 			log.Printf("[LoadUser Error] GetByAuthID failed for authID %s: %v", authID, err)
 		} else if user == nil {
@@ -417,6 +436,7 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 			c.Set(middleware.ContextKeyUserID, user.ID)
 			c.Set(middleware.ContextKeyRole, user.Role)
 			c.Set(middleware.ContextKeyStatus, user.Status)
+			c.Set(middleware.ContextKeyUser, user)
 			c.Set("user_fullname", user.FullName())
 		}
 

@@ -137,6 +137,7 @@ const (
 	ContextKeyRole   = "role"    // สิทธิ์ของ user (employee/admin) — ถูกเซ็ตหลังจากดึงข้อมูลจาก DB
 	ContextKeyUserID = "user_id" // UUID ของ user ในตาราง public.users
 	ContextKeyStatus = "status"  // สถานะบัญชี (pending/active/disabled)
+	ContextKeyUser   = "user"    // ข้อมูลผู้ใช้ที่ LoadUserMiddleware โหลดไว้แล้ว
 )
 
 // JWTAuth ตรวจสอบ JWT ที่ส่งมาจาก Client ผ่าน Header: Authorization: Bearer <token>
@@ -175,7 +176,7 @@ func JWTAuth(jwtSecret string, keyManager *KeyManager) gin.HandlerFunc {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
-			
+
 			// Supabase JWT secret is base64-encoded. We must decode it.
 			if decoded, err := base64.StdEncoding.DecodeString(jwtSecret); err == nil {
 				return decoded, nil

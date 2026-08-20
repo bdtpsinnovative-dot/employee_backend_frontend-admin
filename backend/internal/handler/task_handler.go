@@ -8,6 +8,7 @@ import (
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -182,11 +183,13 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 // ListAllTasks GET /admin/tasks (Admin only)
 func (h *TaskHandler) ListAllTasks(c *gin.Context) {
+	startedAt := time.Now()
 	tasks, err := h.taskSvc.ListAllTasks(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานล้มเหลว"})
 		return
 	}
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
@@ -301,6 +304,7 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 
 // ListMyTasks GET /api/tasks (Employee view)
 func (h *TaskHandler) ListMyTasks(c *gin.Context) {
+	startedAt := time.Now()
 	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	userID := userIDRaw.(uuid.UUID)
 
@@ -310,6 +314,7 @@ func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 		return
 	}
 
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 

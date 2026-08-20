@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
+	"github.com/google/uuid"
 )
 
 // LocationService จัดการเกี่ยวกับจุดทำงาน (Geofence)
@@ -27,6 +27,10 @@ func (s *LocationService) Create(ctx context.Context, loc *domain.WorkLocation) 
 	loc.ID = uuid.New()
 	loc.IsActive = true
 	return s.repo.Create(ctx, loc)
+}
+
+func (s *LocationService) Update(ctx context.Context, loc *domain.WorkLocation) error {
+	return s.repo.Update(ctx, loc)
 }
 
 // Delete ลบจุดทำงาน

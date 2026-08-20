@@ -20,6 +20,7 @@ const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities')
 const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 
 import { fetchMe } from './services/adminApi';
+import { clearQueryCache } from './lib/queryCache';
 
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
@@ -65,7 +66,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
     checkUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') clearQueryCache();
       if (!session) {
         setAuthenticated(false);
         setHasProfile(false);

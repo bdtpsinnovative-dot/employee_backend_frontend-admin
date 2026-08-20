@@ -3,10 +3,10 @@ package handler
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
 	"github.com/Nattamon123/employee/backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // AttendanceHandler รับ HTTP Request เกี่ยวกับการเข้า-ออกงาน
@@ -20,11 +20,12 @@ func NewAttendanceHandler(svc *service.AttendanceService) *AttendanceHandler {
 
 // checkInBody ข้อมูลที่แอปส่งมาตอนเช็คอิน
 type checkInBody struct {
-	Lat        float64   `json:"lat" binding:"required"`       // พิกัดละติจูด
-	Lng        float64   `json:"lng" binding:"required"`       // พิกัดลองจิจูด
-	DeviceID   string    `json:"device_id"`                    // UUID ของเครื่องมือถือ (optional)
-	PhotoURL   *string   `json:"photo_url"`                    // URL รูปถ่าย (ถ้ามี)
+	Lat        float64   `json:"lat" binding:"required"` // พิกัดละติจูด
+	Lng        float64   `json:"lng" binding:"required"` // พิกัดลองจิจูด
+	DeviceID   string    `json:"device_id"`              // UUID ของเครื่องมือถือ (optional)
+	PhotoURL   *string   `json:"photo_url"`              // URL รูปถ่าย (ถ้ามี)
 	FaceVector []float64 `json:"face_vector" binding:"required"`
+	AccuracyM  *float64  `json:"accuracy_m"` // Optional for backward compatibility
 }
 
 // CheckIn POST /api/attendance/checkin
@@ -51,6 +52,7 @@ func (h *AttendanceHandler) CheckIn(c *gin.Context) {
 		PhotoURL:   body.PhotoURL,
 		DeviceID:   body.DeviceID,
 		FaceVector: faceVectorStr,
+		AccuracyM:  body.AccuracyM,
 	}
 
 	att, err := h.svc.CheckIn(c.Request.Context(), req)
@@ -68,9 +70,10 @@ func (h *AttendanceHandler) CheckIn(c *gin.Context) {
 
 // checkOutBody ข้อมูลที่แอปส่งมาตอนเช็คเอาท์
 type checkOutBody struct {
-	Lat      *float64 `json:"lat"`
-	Lng      *float64 `json:"lng"`
-	PhotoURL *string  `json:"photo_url"`
+	Lat       *float64 `json:"lat"`
+	Lng       *float64 `json:"lng"`
+	PhotoURL  *string  `json:"photo_url"`
+	AccuracyM *float64 `json:"accuracy_m"`
 }
 
 // CheckOut POST /api/attendance/checkout
@@ -82,10 +85,11 @@ func (h *AttendanceHandler) CheckOut(c *gin.Context) {
 	userID, _ := c.Get(middleware.ContextKeyUserID)
 
 	req := service.CheckOutRequest{
-		UserID:   userID.(uuid.UUID),
-		Lat:      body.Lat,
-		Lng:      body.Lng,
-		PhotoURL: body.PhotoURL,
+		UserID:    userID.(uuid.UUID),
+		Lat:       body.Lat,
+		Lng:       body.Lng,
+		PhotoURL:  body.PhotoURL,
+		AccuracyM: body.AccuracyM,
 	}
 
 	att, err := h.svc.CheckOut(c.Request.Context(), req)

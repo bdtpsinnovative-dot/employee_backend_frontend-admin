@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -779,7 +781,10 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 	}
 
 	// 1. Fetch lists
-	lists, err := h.listRepo.ListByTask(c.Request.Context(), taskID)
+	ctx := c.Request.Context()
+	measure := perf.MeasureDB(ctx, "db.trello.lists")
+	lists, err := h.listRepo.ListByTask(ctx, taskID)
+	measure()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงรายการล้มเหลว"})
 		return
@@ -787,45 +792,78 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 
 	// Reading a board must never create or move data. Empty boards are returned
 	// as an empty list and can be initialized explicitly by the client.
+	listIDs := make([]uuid.UUID, len(lists))
+	for i := range lists {
+		listIDs[i] = lists[i].ID
+	}
+	measure = perf.MeasureDB(ctx, "db.trello.cards")
+	cardsByList, err := h.cardRepo.ListByLists(ctx, listIDs)
+	measure()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงการ์ดล้มเหลว"})
+		return
+	}
+
 	var allCardIDs []uuid.UUID
 	for i := range lists {
-		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
-		if err != nil {
-			continue
-		}
-		lists[i].Cards = cards
-		for _, card := range cards {
+		lists[i].Cards = cardsByList[lists[i].ID]
+		for _, card := range lists[i].Cards {
 			allCardIDs = append(allCardIDs, card.ID)
 		}
 	}
 
-	// Fetch assignees in batch
-	assigneesMap, err := h.assigneeRepo.ListByCards(c.Request.Context(), allCardIDs)
-	if err != nil {
-		assigneesMap = make(map[uuid.UUID][]domain.UserSummary)
+	assigneesMap := make(map[uuid.UUID][]domain.UserSummary)
+	subItemsMap := make(map[uuid.UUID][]domain.TaskSubItem)
+	attachmentsMap := make(map[uuid.UUID][]domain.CardAttachment)
+	if len(allCardIDs) > 0 {
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(3)
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.assignees")
+			loaded, loadErr := h.assigneeRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				assigneesMap = loaded
+			}
+		}()
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.subitems")
+			loaded, loadErr := h.subItemRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				subItemsMap = loaded
+			}
+		}()
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.attachments")
+			loaded, loadErr := h.attachmentRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				attachmentsMap = loaded
+			}
+		}()
+		waitGroup.Wait()
 	}
 
 	for i := range lists {
 		for j := range lists[i].Cards {
 			cardID := lists[i].Cards[j].ID
-			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cardID)
-			if err == nil {
-				lists[i].Cards[j].SubItems = subItems
-			} else {
-				lists[i].Cards[j].SubItems = []domain.TaskSubItem{}
-			}
-			// Also load card attachments from card_attachments table
-			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cardID)
-			if err == nil {
-				lists[i].Cards[j].Attachments = attachments
-			} else {
-				lists[i].Cards[j].Attachments = []domain.CardAttachment{}
-			}
+			lists[i].Cards[j].SubItems = subItemsMap[cardID]
+			lists[i].Cards[j].Attachments = attachmentsMap[cardID]
 			// Assignees
 			if assignees, ok := assigneesMap[cardID]; ok {
 				lists[i].Cards[j].Assignees = assignees
+				assigneeIDs := make([]uuid.UUID, len(assignees))
+				for index, assignee := range assignees {
+					assigneeIDs[index] = assignee.ID
+				}
+				lists[i].Cards[j].AssigneeIDs = assigneeIDs
 			} else {
 				lists[i].Cards[j].Assignees = []domain.UserSummary{}
+				lists[i].Cards[j].AssigneeIDs = []uuid.UUID{}
 			}
 		}
 	}

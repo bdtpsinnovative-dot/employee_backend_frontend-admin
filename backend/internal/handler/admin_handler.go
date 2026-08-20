@@ -12,9 +12,11 @@ import (
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 // AdminHandler รับ HTTP Request สำหรับแอดมิน (จัดการพนักงาน, อนุมัติคำขอ)
@@ -130,6 +132,38 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+type updateWorkScheduleBody struct {
+	WorkStartTime string `json:"work_start_time" binding:"required"`
+	WorkEndTime   string `json:"work_end_time" binding:"required"`
+}
+
+// UpdateWorkSchedule PUT /admin/users/:id/work-schedule updates the regular
+// Monday-Friday schedule. Existing attendance keeps its schedule snapshot.
+func (h *AdminHandler) UpdateWorkSchedule(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+
+	var body updateWorkScheduleBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุเวลาเริ่มงานและเวลาเลิกงาน"})
+		return
+	}
+	if err := h.userSvc.UpdateWorkSchedule(
+		c.Request.Context(),
+		id,
+		body.WorkStartTime,
+		body.WorkEndTime,
+	); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "อัปเดตเวลาทำงานเรียบร้อย"})
+}
+
 // ApproveUser PATCH /admin/users/:id/approve — อนุมัติบัญชีพนักงาน
 func (h *AdminHandler) ApproveUser(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -185,9 +219,28 @@ type updateStatusBody struct {
 
 // GetPendingRequests GET /admin/requests/pending — ดูคำขอที่รออนุมัติ (ทั้งใบลาและออกหน้างาน)
 func (h *AdminHandler) GetPendingRequests(c *gin.Context) {
-	leaves, _ := h.leaveSvc.ListPending(c.Request.Context())
-	offsite, _ := h.offsiteSvc.ListPending(c.Request.Context())
+	startedAt := time.Now()
+	ctx := c.Request.Context()
+	var leaves []domain.LeaveRequest
+	var offsite []domain.OffsiteRequest
 
+	group, groupContext := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		var err error
+		leaves, err = h.leaveSvc.ListPending(groupContext)
+		return err
+	})
+	group.Go(func() error {
+		var err error
+		offsite, err = h.offsiteSvc.ListPending(groupContext)
+		return err
+	})
+	if err := group.Wait(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงคำขอที่รออนุมัติล้มเหลว"})
+		return
+	}
+
+	perf.AddServerTiming(c.Writer.Header(), ctx, time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{
 		"ok": true,
 		"data": gin.H{
@@ -212,19 +265,26 @@ func (h *AdminHandler) GetAllRequests(c *gin.Context) {
 }
 
 type HistoryRecord struct {
-	Date          string     `json:"date"`
-	UserName      string     `json:"user_name"`
-	Email         string     `json:"email"`
-	Department    string     `json:"department"`
-	Position      string     `json:"position"`
-	Status        string     `json:"status"`
-	Type          string     `json:"type"` // attendance, leave, offsite
-	Reason        string     `json:"reason"`
-	CheckInAt     *time.Time `json:"check_in_at,omitempty"`
-	CheckOutAt    *time.Time `json:"check_out_at,omitempty"`
-	CheckInPhoto  *string    `json:"check_in_photo,omitempty"`
-	CheckOutPhoto *string    `json:"check_out_photo,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
+	AttendanceID         string     `json:"attendance_id,omitempty"`
+	Date                 string     `json:"date"`
+	UserName             string     `json:"user_name"`
+	Email                string     `json:"email"`
+	Department           string     `json:"department"`
+	Position             string     `json:"position"`
+	Status               string     `json:"status"`
+	Type                 string     `json:"type"` // attendance, leave, offsite
+	Reason               string     `json:"reason"`
+	CheckInAt            *time.Time `json:"check_in_at,omitempty"`
+	CheckOutAt           *time.Time `json:"check_out_at,omitempty"`
+	CheckInPhoto         *string    `json:"check_in_photo,omitempty"`
+	CheckOutPhoto        *string    `json:"check_out_photo,omitempty"`
+	WorkStartTime        string     `json:"work_start_time,omitempty"`
+	WorkEndTime          string     `json:"work_end_time,omitempty"`
+	LateMinutes          int        `json:"late_minutes"`
+	LocationName         string     `json:"location_name,omitempty"`
+	CheckOutLocationName string     `json:"check_out_location_name,omitempty"`
+	IsOffsite            bool       `json:"is_offsite"`
+	CreatedAt            time.Time  `json:"created_at"`
 }
 
 // GetMonthlyHistory GET /admin/history/monthly?month=YYYY-MM
@@ -269,19 +329,26 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			createdAt = *a.CheckInAt
 		}
 		records = append(records, HistoryRecord{
-			Date:          a.Date.Format("2006-01-02"),
-			UserName:      u.FullName(),
-			Email:         u.Email,
-			Department:    u.Department,
-			Position:      u.Position,
-			Status:        a.Status,
-			Type:          "attendance",
-			Reason:        "",
-			CheckInAt:     a.CheckInAt,
-			CheckOutAt:    a.CheckOutAt,
-			CheckInPhoto:  a.CheckInPhoto,
-			CheckOutPhoto: a.CheckOutPhoto,
-			CreatedAt:     createdAt,
+			AttendanceID:         a.ID.String(),
+			Date:                 a.Date.Format("2006-01-02"),
+			UserName:             u.FullName(),
+			Email:                u.Email,
+			Department:           u.Department,
+			Position:             u.Position,
+			Status:               a.Status,
+			Type:                 "attendance",
+			Reason:               "",
+			CheckInAt:            a.CheckInAt,
+			CheckOutAt:           a.CheckOutAt,
+			CheckInPhoto:         a.CheckInPhoto,
+			CheckOutPhoto:        a.CheckOutPhoto,
+			WorkStartTime:        a.WorkStartTime,
+			WorkEndTime:          a.WorkEndTime,
+			LateMinutes:          a.LateMinutes,
+			LocationName:         a.LocationName,
+			CheckOutLocationName: a.CheckOutLocationName,
+			IsOffsite:            a.IsOffsite,
+			CreatedAt:            createdAt,
 		})
 	}
 
@@ -512,6 +579,58 @@ func (h *AdminHandler) ManualAttendance(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "บันทึกเข้างานสำเร็จ", "data": att})
 }
 
+type updateAttendanceBody struct {
+	CheckInAt  string  `json:"check_in_at" binding:"required"`
+	CheckOutAt *string `json:"check_out_at"`
+	Status     string  `json:"status"`
+}
+
+// UpdateAttendance PATCH /admin/attendance/:id directly corrects a record.
+// The service writes an automatic before/after audit entry; no reason is
+// required from the admin.
+func (h *AdminHandler) UpdateAttendance(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID บันทึกเวลาไม่ถูกต้อง"})
+		return
+	}
+	changedByValue, exists := c.Get(middleware.ContextKeyUserID)
+	changedBy, ok := changedByValue.(uuid.UUID)
+	if !exists || !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "ไม่พบข้อมูลแอดมิน"})
+		return
+	}
+
+	var body updateAttendanceBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาระบุเวลาเช็กอิน"})
+		return
+	}
+	checkInAt, err := time.Parse(time.RFC3339, body.CheckInAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบเวลาเช็กอินไม่ถูกต้อง"})
+		return
+	}
+	var checkOutAt *time.Time
+	if body.CheckOutAt != nil && strings.TrimSpace(*body.CheckOutAt) != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, *body.CheckOutAt)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "รูปแบบเวลาเช็กเอาต์ไม่ถูกต้อง"})
+			return
+		}
+		checkOutAt = &parsed
+	}
+
+	att, err := h.attendanceSvc.UpdateByAdmin(
+		c.Request.Context(), id, changedBy, &checkInAt, checkOutAt, body.Status,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "แก้ไขบันทึกเวลาเรียบร้อย", "data": att})
+}
+
 // ListLocations GET /admin/locations — ดูจุดทำงานทั้งหมด
 func (h *AdminHandler) ListLocations(c *gin.Context) {
 	locations, err := h.locationSvc.ListActive(c.Request.Context())
@@ -539,7 +658,7 @@ func (h *AdminHandler) CreateLocation(c *gin.Context) {
 
 	radius := body.RadiusM
 	if radius <= 0 {
-		radius = 50 // default radius
+		radius = 100 // default radius
 	}
 
 	loc := &domain.WorkLocation{
@@ -557,7 +676,33 @@ func (h *AdminHandler) CreateLocation(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "message": "เพิ่มจุดทำงานสำเร็จ", "data": loc})
 }
 
-// DeleteLocation DELETE /admin/locations/:id — ลบจุดทำงาน
+// UpdateLocation PUT /admin/locations/:id updates an active geofence.
+func (h *AdminHandler) UpdateLocation(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ไม่ถูกต้อง"})
+		return
+	}
+	var body createLocationBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบ"})
+		return
+	}
+	if body.RadiusM <= 0 {
+		body.RadiusM = 100
+	}
+	loc := &domain.WorkLocation{
+		ID: id, Name: strings.TrimSpace(body.Name), Latitude: body.Latitude,
+		Longitude: body.Longitude, RadiusM: body.RadiusM, IsActive: true,
+	}
+	if err := h.locationSvc.Update(c.Request.Context(), loc); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "แก้ไขจุดทำงานล้มเหลว"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "แก้ไขจุดทำงานเรียบร้อย", "data": loc})
+}
+
+// DeleteLocation DELETE /admin/locations/:id — ปิดใช้งานจุดทำงาน
 func (h *AdminHandler) DeleteLocation(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -570,5 +715,5 @@ func (h *AdminHandler) DeleteLocation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบจุดทำงานสำเร็จ"})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ปิดใช้งานจุดทำงานสำเร็จ"})
 }

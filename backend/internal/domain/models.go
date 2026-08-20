@@ -25,6 +25,8 @@ type User struct {
 	Team          string    `db:"team" json:"team"`
 	Role          string    `db:"role" json:"role"`     // "employee" | "admin"
 	Status        string    `db:"status" json:"status"` // "pending" | "active" | "disabled"
+	WorkStartTime string    `db:"work_start_time" json:"work_start_time"`
+	WorkEndTime   string    `db:"work_end_time" json:"work_end_time"`
 	DeviceID      *string   `db:"device_id" json:"device_id,omitempty"`
 	AvatarURL     *string   `db:"avatar_url" json:"avatar_url,omitempty"`
 	FcmToken      *string   `db:"fcm_token" json:"fcm_token,omitempty"`
@@ -102,20 +104,32 @@ type WorkLocation struct {
 // Maps to: public.attendance table
 // Old sheet: บันทึกลงเวลา
 type Attendance struct {
-	ID            uuid.UUID  `db:"id" json:"id"`
-	UserID        uuid.UUID  `db:"user_id" json:"user_id"`
-	Date          time.Time  `db:"date" json:"date"` // DATE only
-	CheckInAt     *time.Time `db:"check_in_at" json:"check_in_at,omitempty"`
-	CheckOutAt    *time.Time `db:"check_out_at" json:"check_out_at,omitempty"`
-	Status        string     `db:"status" json:"status"` // "on_time" | "late" | "no_record"
-	CheckInLat    *float64   `db:"check_in_lat" json:"check_in_lat,omitempty"`
-	CheckInLng    *float64   `db:"check_in_lng" json:"check_in_lng,omitempty"`
-	CheckOutLat   *float64   `db:"check_out_lat" json:"check_out_lat,omitempty"`
-	CheckOutLng   *float64   `db:"check_out_lng" json:"check_out_lng,omitempty"`
-	CheckInPhoto  *string    `db:"check_in_photo" json:"check_in_photo,omitempty"`
-	CheckOutPhoto *string    `db:"check_out_photo" json:"check_out_photo,omitempty"`
-	LocationID    *uuid.UUID `db:"location_id" json:"location_id,omitempty"`
-	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	ID                   uuid.UUID  `db:"id" json:"id"`
+	UserID               uuid.UUID  `db:"user_id" json:"user_id"`
+	Date                 time.Time  `db:"date" json:"date"` // DATE only
+	CheckInAt            *time.Time `db:"check_in_at" json:"check_in_at,omitempty"`
+	CheckOutAt           *time.Time `db:"check_out_at" json:"check_out_at,omitempty"`
+	Status               string     `db:"status" json:"status"` // "on_time" | "late" | "no_record"
+	CheckInLat           *float64   `db:"check_in_lat" json:"check_in_lat,omitempty"`
+	CheckInLng           *float64   `db:"check_in_lng" json:"check_in_lng,omitempty"`
+	CheckOutLat          *float64   `db:"check_out_lat" json:"check_out_lat,omitempty"`
+	CheckOutLng          *float64   `db:"check_out_lng" json:"check_out_lng,omitempty"`
+	CheckInPhoto         *string    `db:"check_in_photo" json:"check_in_photo,omitempty"`
+	CheckOutPhoto        *string    `db:"check_out_photo" json:"check_out_photo,omitempty"`
+	LocationID           *uuid.UUID `db:"location_id" json:"location_id,omitempty"`
+	WorkStartTime        string     `db:"work_start_time" json:"work_start_time"`
+	WorkEndTime          string     `db:"work_end_time" json:"work_end_time"`
+	IsWorkday            bool       `db:"is_workday" json:"is_workday"`
+	IsOffsite            bool       `db:"is_offsite" json:"is_offsite"`
+	LateMinutes          int        `db:"late_minutes" json:"late_minutes"`
+	LocationName         string     `db:"location_name" json:"location_name"`
+	CheckInDistanceM     *float64   `db:"check_in_distance_m" json:"check_in_distance_m,omitempty"`
+	CheckInAccuracyM     *float64   `db:"check_in_accuracy_m" json:"check_in_accuracy_m,omitempty"`
+	CheckOutLocationID   *uuid.UUID `db:"check_out_location_id" json:"check_out_location_id,omitempty"`
+	CheckOutLocationName string     `db:"check_out_location_name" json:"check_out_location_name"`
+	CheckOutDistanceM    *float64   `db:"check_out_distance_m" json:"check_out_distance_m,omitempty"`
+	CheckOutAccuracyM    *float64   `db:"check_out_accuracy_m" json:"check_out_accuracy_m,omitempty"`
+	CreatedAt            time.Time  `db:"created_at" json:"created_at"`
 }
 
 // LeaveRequest represents a leave/absence request.

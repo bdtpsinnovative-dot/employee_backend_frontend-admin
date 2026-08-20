@@ -2,15 +2,29 @@ package repository
 
 import (
 	"context"
+	"time"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // HolidayRepo จัดการ SQL queries สำหรับตาราง holidays (วันหยุด)
 type HolidayRepo struct {
 	db *sqlx.DB
+}
+
+// IsHoliday includes every day covered by a multi-day annual holiday.
+func (r *HolidayRepo) IsHoliday(ctx context.Context, date time.Time) (bool, error) {
+	var exists bool
+	err := r.db.GetContext(ctx, &exists, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM holidays
+			WHERE $1::date BETWEEN date AND date + (GREATEST(COALESCE(num_days, 1), 1) - 1)
+		)
+	`, date.Format("2006-01-02"))
+	return exists, err
 }
 
 func NewHolidayRepo(db *sqlx.DB) *HolidayRepo {
