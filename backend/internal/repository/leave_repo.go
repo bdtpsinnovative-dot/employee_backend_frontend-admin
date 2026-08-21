@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // LeaveRepo จัดการ SQL queries สำหรับตาราง leave_requests (ใบลาพนักงาน)
@@ -40,6 +41,7 @@ func (r *LeaveRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.
 
 // ListPending ดึงใบลาที่รออนุมัติ ทุกคน (สำหรับ Admin)
 func (r *LeaveRepo) ListPending(ctx context.Context) ([]domain.LeaveRequest, error) {
+	defer perf.MeasureDB(ctx, "db.pending.leaves")()
 	var requests []domain.LeaveRequest
 	err := r.db.SelectContext(ctx, &requests, `
 		SELECT * FROM leave_requests WHERE status = 'pending' ORDER BY created_at DESC

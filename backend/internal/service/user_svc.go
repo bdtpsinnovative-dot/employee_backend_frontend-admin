@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
@@ -89,19 +92,35 @@ func (s *UserService) UpdateUserProfileAndRole(ctx context.Context, id uuid.UUID
 	return s.userRepo.UpdateProfileAndRole(ctx, id, firstName, lastName, nickname, department, teamID, positionID, legacyTeam, role)
 }
 
-// BindDevice ผูกเครื่องมือถือกับบัญชี (Device Binding - ADR 0003)
-func (s *UserService) BindDevice(ctx context.Context, userID uuid.UUID, deviceID string) error {
-	user, err := s.userRepo.FindByID(ctx, userID)
+// UpdateWorkSchedule updates a user's regular Monday-Friday work window.
+func (s *UserService) UpdateWorkSchedule(ctx context.Context, id uuid.UUID, startTime, endTime string) error {
+	startTime = strings.TrimSpace(startTime)
+	endTime = strings.TrimSpace(endTime)
+	start, err := time.Parse("15:04", startTime)
 	if err != nil {
+		return errors.New("เวลาเริ่มงานต้องอยู่ในรูปแบบ HH:mm")
+	}
+	end, err := time.Parse("15:04", endTime)
+	if err != nil {
+		return errors.New("เวลาเลิกงานต้องอยู่ในรูปแบบ HH:mm")
+	}
+	if !end.After(start) {
+		return errors.New("เวลาเลิกงานต้องอยู่หลังเวลาเริ่มงาน")
+	}
+	if _, err := s.userRepo.FindByID(ctx, id); err != nil {
 		return errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
-
-	// ถ้าผูกเครื่องไว้แล้ว และ device_id ไม่ตรงกัน → บล็อค
-	if user.DeviceID != nil && *user.DeviceID != deviceID {
-		return errors.New("บัญชีนี้ถูกผูกกับเครื่องอื่นแล้ว กรุณาติดต่อแอดมินเพื่อปลดล็อค")
+	if err := s.userRepo.UpdateWorkSchedule(ctx, id, startTime, endTime); err != nil {
+		return fmt.Errorf("อัปเดตเวลาทำงานล้มเหลว: %w", err)
 	}
+	return nil
+}
 
-	// ผูกเครื่องใหม่ (หรือยืนยันเครื่องเดิม)
+// BindDevice บันทึก device_id ของเครื่องมือถือ (ไม่บล็อคหรือล็อคเครื่อง)
+func (s *UserService) BindDevice(ctx context.Context, userID uuid.UUID, deviceID string) error {
+	if _, err := s.userRepo.FindByID(ctx, userID); err != nil {
+		return errors.New("ไม่พบข้อมูลผู้ใช้")
+	}
 	return s.userRepo.UpdateDeviceID(ctx, userID, &deviceID)
 }
 

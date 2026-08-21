@@ -1,10 +1,22 @@
+/* Hallmark · component: task-toolbar-header · genre: modern-minimal · theme: existing-blue tokens
+ * pre-emit critique: Philosophy 5 · Hierarchy 5 · Execution 4 · Specificity 4 · Restraint 4 · Variety 4
+ */
 import {
   Bell,
+  Building2,
+  CalendarCheck2,
+  CalendarDays,
+  ChevronDown,
+  Flag,
   LayoutList,
   Kanban,
   Search,
   Plus,
   Settings,
+  SlidersHorizontal,
+  Star,
+  Tag,
+  UserRound,
   X,
   Trash2,
 } from 'lucide-react';
@@ -68,73 +80,91 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   onOpenDailyTasks,
 }) => {
   return (
-    <div className="task-toolbar-wrapper bg-white border-b border-slate-200 px-4 md:px-6 py-4 shadow-2xs space-y-4">
-      {/* Top Row: Title + Main Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-semibold shadow-xs">
-            <Kanban className="w-5 h-5" />
+    <div className="task-toolbar-wrapper task-toolbar-shell border-b border-slate-200 bg-white px-4 py-4 shadow-sm md:px-6 md:py-5">
+      <div className="flex flex-col gap-5">
+        {/* Title rail + action group: primary work stays visually separate from utilities. */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="task-toolbar-title-rail flex min-w-0 items-center gap-3 border-l-4 border-blue-600 pl-3 md:pl-4">
+            <div className="task-toolbar-brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100">
+              <Kanban className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="task-toolbar-title break-words text-xl font-bold tracking-tight text-slate-900 md:text-2xl">การจัดการงาน (Task Management)</h1>
+              <p className="task-toolbar-subtitle mt-0.5 text-xs font-medium text-slate-500">ติดตามและมอบหมายงานประจำวันสไตล์ Project Overview & Sheet</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">การจัดการงาน (Task Management)</h1>
-            <p className="text-xs text-slate-500 font-medium">ติดตามและมอบหมายงานประจำวันสไตล์ Project Overview & Sheet</p>
-          </div>
-        </div>
 
-        {/* Right Header Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenMainNotif}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all border relative ${hasUnreadMainNotif
-                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100/70 shadow-2xs'
-                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-              }`}
-            title="ดูการแจ้งเตือนและการเปลี่ยนแปลงงานหลักทั้งหมด"
-          >
-            <Bell className={`w-4 h-4 ${hasUnreadMainNotif ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`} />
-            <span>แจ้งเตือน</span>
-            {hasUnreadMainNotif && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-rose-600 rounded-full flex">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-450 opacity-75"></span>
-              </span>
-            )}
-          </button>
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+            <div className="task-toolbar-utility-group flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={onOpenMainNotif}
+                className={`task-toolbar-utility-button task-toolbar-notification-button relative inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${hasUnreadMainNotif
+                    ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                  }`}
+                title="ดูการแจ้งเตือนและการเปลี่ยนแปลงงานหลักทั้งหมด"
+              >
+                <Bell className={`h-4 w-4 ${hasUnreadMainNotif ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`} />
+                <span>แจ้งเตือน</span>
+                {hasUnreadMainNotif && (
+                  <span className="absolute right-1.5 top-1.5 flex h-2 w-2 rounded-full bg-rose-600">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                  </span>
+                )}
+              </button>
 
-          <button
-            onClick={onOpenTrashModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
-            title="ดูงานที่ถูกลบไปแล้ว"
-          >
-            <Trash2 className="w-4 h-4 text-slate-500" />
-            <span>ถังขยะ</span>
-          </button>
+              <button
+                type="button"
+                onClick={onOpenTrashModal}
+                className="task-toolbar-utility-button inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                title="ดูงานที่ถูกลบไปแล้ว"
+              >
+                <Trash2 className="h-4 w-4 text-slate-500" />
+                <span>ถังขยะ</span>
+              </button>
 
-          {canManageSettings && (
+              {onOpenDailyTasks && (
+                <button
+                  type="button"
+                  onClick={onOpenDailyTasks}
+                  className="task-toolbar-utility-button inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  title="ดูกระดานงานรายวันรวม"
+                >
+                  <CalendarDays className="h-4 w-4 text-slate-500" />
+                  <span>งานรายวัน</span>
+                </button>
+              )}
+
+              {canManageSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettingsModal}
+                  className="task-toolbar-utility-button inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                >
+                  <Settings className="h-4 w-4 text-slate-500" />
+                  <span>ตั้งค่าแบรนด์และผู้รับผิดชอบ</span>
+                </button>
+              )}
+            </div>
+
             <button
-              onClick={onOpenSettingsModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all border border-slate-200"
+              type="button"
+              onClick={onOpenCreateModal}
+              className="task-toolbar-primary-action inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              <Settings className="w-4 h-4 text-slate-500" />
-              <span>ตั้งค่าแบรนด์และผู้รับผิดชอบ</span>
+              <Plus className="h-4 w-4" />
+              <span>มอบหมายงานใหม่</span>
             </button>
-          )}
-
-          <button
-            onClick={onOpenCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>มอบหมายงานใหม่</span>
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Second Row: View Switcher Tabs + Search & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
-        
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View Switcher Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium w-fit overflow-x-auto">
+        {/* View + search row. Filters intentionally live on their own rail to avoid accidental wrapping. */}
+        <div className="border-t border-slate-200 pt-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              {/* View Switcher Tabs */}
+              <div role="tablist" aria-label="ตัวกรองสถานะงาน" className="task-toolbar-view-group flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-medium lg:w-fit">
           {/* 
             [WARNING FOR AI & DEVELOPERS - DO NOT UNCOMMENT / DO NOT REMOVE THIS BLOCK]
             คำเตือนสำคัญ: ผู้ใช้ (USER) สั่งให้ปิดการแสดงผลและปิดใช้งานฟีเจอร์ "หัวข้องาน (Overview)" นี้ไว้
@@ -152,148 +182,183 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
             <span>หัวข้องาน (Overview)</span>
           </button>
           */}
-          <button
-            onClick={() => onTabFilterChange('all')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'all'
-                ? 'bg-blue-600 text-white shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 font-medium'
-              }`}
-          >
-            <LayoutList className="w-3.5 h-3.5" />
-            <span>รายการรวม</span>
-          </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tabFilter === 'all'}
+                  onClick={() => onTabFilterChange('all')}
+                  className={`task-toolbar-tab ${tabFilter === 'all' ? 'task-toolbar-tab-active' : ''} flex min-h-8 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${tabFilter === 'all'
+                      ? 'bg-blue-600 font-bold text-white shadow-sm'
+                      : 'font-medium text-slate-600 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <LayoutList className="h-3.5 w-3.5" />
+                  <span>รายการรวม</span>
+                </button>
 
-          <button
-            onClick={() => onTabFilterChange('completed')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'completed'
-                ? 'bg-green-600 text-white shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 font-medium'
-              }`}
-          >
-            <i className="fa-solid fa-calendar-check text-xs"></i>
-            <span>งานที่เสร็จแล้ว</span>
-          </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tabFilter === 'completed'}
+                  onClick={() => onTabFilterChange('completed')}
+                  className={`task-toolbar-tab ${tabFilter === 'completed' ? 'task-toolbar-tab-active' : ''} flex min-h-8 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 ${tabFilter === 'completed'
+                      ? 'bg-green-600 font-bold text-white shadow-sm'
+                      : 'font-medium text-slate-600 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <CalendarCheck2 className="h-3.5 w-3.5" />
+                  <span>งานที่เสร็จแล้ว</span>
+                </button>
 
-          <button
-            onClick={() => onTabFilterChange('starred')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${tabFilter === 'starred'
-                ? 'bg-amber-500 text-white shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 font-medium'
-              }`}
-          >
-            <i className="fa-solid fa-star text-xs"></i>
-            <span>งานที่ติดดาว</span>
-          </button>
-        </div>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tabFilter === 'starred'}
+                  onClick={() => onTabFilterChange('starred')}
+                  className={`task-toolbar-tab ${tabFilter === 'starred' ? 'task-toolbar-tab-active' : ''} flex min-h-8 shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${tabFilter === 'starred'
+                      ? 'bg-amber-500 font-bold text-white shadow-sm'
+                      : 'font-medium text-slate-600 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Star className="h-3.5 w-3.5" />
+                  <span>งานที่ติดดาว</span>
+                </button>
+              </div>
 
-        <button
-          onClick={onOpenDailyTasks}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 hover:border-indigo-200 shadow-xs font-semibold text-xs"
-          title="ดูกระดานงานรายวันรวม"
-        >
-          <i className="fa-solid fa-calendar-day text-xs text-indigo-600"></i>
-          <span>งานรายวัน</span>
-        </button>
-      </div>
+              {/* Search Box */}
+              <div className="relative w-full lg:ml-auto lg:max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="task-toolbar-search w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  type="text"
+                  placeholder="ค้นหาชื่องาน..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  aria-label="ค้นหาชื่องาน"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange('')}
+                    aria-label="ล้างคำค้นหา"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-        {/* Search & Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search Box */}
-          <div className="relative min-w-[180px] flex-1 sm:flex-none">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="ค้นหาชื่องาน..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <div className="task-toolbar-filter-rail flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+              <div className="task-toolbar-filter-label mr-1 inline-flex items-center gap-2 whitespace-nowrap pr-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-blue-500" />
+                <span>ตัวกรอง</span>
+              </div>
+
+              {/* Brand Filter */}
+              <div className="task-toolbar-filter-control relative min-w-[140px] flex-1 sm:flex-none">
+                <Building2 className="task-toolbar-filter-icon pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedBrand}
+                  onChange={(e) => onBrandChange(e.target.value)}
+                  aria-label="กรองตามแบรนด์"
+                  className="task-toolbar-filter-select w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">ทุกแบรนด์</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="task-toolbar-filter-icon pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Category Filter */}
+              <div className="task-toolbar-filter-control relative min-w-[140px] flex-1 sm:flex-none">
+                <Tag className="task-toolbar-filter-icon pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => onCategoryChange(e.target.value)}
+                  aria-label="กรองตามหมวดหมู่"
+                  className="task-toolbar-filter-select w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">ทุกหมวดหมู่</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="task-toolbar-filter-icon pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Ownership Filter */}
+              <div className="task-toolbar-filter-control relative min-w-[168px] flex-1 sm:flex-none">
+                <UserRound className="task-toolbar-filter-icon pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={ownershipMode}
+                  onChange={(e) => onOwnershipChange(e.target.value as any)}
+                  aria-label="กรองตามผู้สร้างหรือผู้รับผิดชอบ"
+                  className="task-toolbar-filter-select w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="all">งานทั้งหมด</option>
+                  <option value="created_by_me">งานที่ฉันสร้าง</option>
+                  <option value="assigned_to_me">งานที่ฉันรับผิดชอบ</option>
+                </select>
+                <ChevronDown className="task-toolbar-filter-icon pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Priority Filter */}
+              <div className="task-toolbar-filter-control relative min-w-[140px] flex-1 sm:flex-none">
+                <Flag className="task-toolbar-filter-icon pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedPriority}
+                  onChange={(e) => onPriorityChange(e.target.value)}
+                  aria-label="กรองตาม Priority"
+                  className="task-toolbar-filter-select w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">ทุก Priority</option>
+                  <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
+                  <option value="high">🟠 งานด่วน (High)</option>
+                  <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
+                  <option value="low">🌱 งานไม่รีบ (Low)</option>
+                </select>
+                <ChevronDown className="task-toolbar-filter-icon pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Assignee Filter */}
+              <div className="task-toolbar-filter-control relative min-w-[185px] flex-1 sm:flex-none">
+                <UserRound className="task-toolbar-filter-icon pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedAssignee}
+                  onChange={(e) => onAssigneeChange(e.target.value)}
+                  aria-label="กรองตามผู้รับผิดชอบ"
+                  className="task-toolbar-filter-select w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">ทุกคนที่ได้รับมอบหมาย</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nickname || u.first_name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="task-toolbar-filter-icon pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Clear Filters Button */}
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onClearFilters}
+                  className="task-toolbar-clear-filters inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>ล้างฟิลเตอร์ ({activeFilterCount})</span>
+                </button>
+              )}
+            </div>
           </div>
-
-          {/* Brand Filter */}
-          <select
-            value={selectedBrand}
-            onChange={(e) => onBrandChange(e.target.value)}
-            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
-          >
-            <option value="">ทุกแบรนด์</option>
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Category Filter */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => onCategoryChange(e.target.value)}
-            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
-          >
-            <option value="">ทุกหมวดหมู่</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Ownership Filter */}
-          <select
-            value={ownershipMode}
-            onChange={(e) => onOwnershipChange(e.target.value as any)}
-            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
-          >
-            <option value="all">งานทั้งหมด</option>
-            <option value="created_by_me">งานที่ฉันสร้าง</option>
-            <option value="assigned_to_me">งานที่ฉันรับผิดชอบ</option>
-          </select>
-
-          {/* Priority Filter */}
-          <select
-            value={selectedPriority}
-            onChange={(e) => onPriorityChange(e.target.value)}
-            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
-          >
-            <option value="">ทุก Priority</option>
-            <option value="urgent">🔥 งานด่วนมาก (Urgent)</option>
-            <option value="high">🟠 งานด่วน (High)</option>
-            <option value="medium">⚡ งานด่วนปานกลาง (Medium)</option>
-            <option value="low">🌱 งานไม่รีบ (Low)</option>
-          </select>
-
-          {/* Assignee Filter */}
-          <select
-            value={selectedAssignee}
-            onChange={(e) => onAssigneeChange(e.target.value)}
-            className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700"
-          >
-            <option value="">ทุกคนที่ได้รับมอบหมาย</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nickname || u.first_name}
-              </option>
-            ))}
-          </select>
-
-          {/* Clear Filters Button */}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={onClearFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>ล้างฟิลเตอร์ ({activeFilterCount})</span>
-            </button>
-          )}
         </div>
       </div>
     </div>

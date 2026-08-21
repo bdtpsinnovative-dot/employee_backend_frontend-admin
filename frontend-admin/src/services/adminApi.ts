@@ -1,4 +1,5 @@
 import api from '../api';
+import { cachedQuery, invalidateQuery, invalidateQueryPrefix } from '../lib/queryCache';
 import type {
   ApiResponse,
   User,
@@ -54,17 +55,20 @@ export async function fetchBackupJob(id: string): Promise<BackupJob> {
 // ────────────────── Users ──────────────────
 
 export async function fetchUsers(ids?: string[]): Promise<User[]> {
-  const params = ids && ids.length > 0 ? { ids: ids.join(',') } : undefined;
-  try {
-    const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
-    return data.data;
-  } catch (err: any) {
-    if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
-      const { data } = await api.get<ApiResponse<User[]>>('/api/users', { params });
+  const cacheKey = `users:${ids?.slice().sort().join(',') ?? 'all'}`;
+  return cachedQuery(cacheKey, 0, async () => {
+    const params = ids && ids.length > 0 ? { ids: ids.join(',') } : undefined;
+    try {
+      const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
       return data.data;
+    } catch (err: any) {
+      if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
+        const { data } = await api.get<ApiResponse<User[]>>('/api/users', { params });
+        return data.data;
+      }
+      throw err;
     }
-    throw err;
-  }
+  });
 }
 
 export async function fetchActiveUsers(): Promise<User[]> {
@@ -134,16 +138,20 @@ export async function unbindDevice(id: string): Promise<void> {
 // ────────────────── Requests (Leave + Offsite) ──────────────────
 
 export async function fetchPendingRequests(): Promise<PendingRequestsData> {
-  const { data } = await api.get<ApiResponse<PendingRequestsData>>('/admin/requests/pending');
-  return data.data;
+  return cachedQuery('pending-requests', 5_000, async () => {
+    const { data } = await api.get<ApiResponse<PendingRequestsData>>('/admin/requests/pending');
+    return data.data;
+  });
 }
 
 export async function updateLeaveStatus(id: string, status: 'approved' | 'rejected'): Promise<void> {
   await api.patch(`/admin/leaves/${id}/status`, { status });
+  invalidateQuery('pending-requests');
 }
 
 export async function updateOffsiteStatus(id: string, status: 'approved' | 'rejected'): Promise<void> {
   await api.patch(`/admin/offsite/${id}/status`, { status });
+  invalidateQuery('pending-requests');
 }
 
 // ────────────────── Attendance ──────────────────
@@ -182,10 +190,12 @@ export async function manualAttendance(body: {
 // ────────────────── Holidays ──────────────────
 
 export async function fetchHolidays(year: number): Promise<Holiday[]> {
-  const { data } = await api.get<ApiResponse<Holiday[]>>('/api/holidays', {
-    params: { year },
+  return cachedQuery(`holidays:${year}`, 5 * 60_000, async () => {
+    const { data } = await api.get<ApiResponse<Holiday[]>>('/api/holidays', {
+      params: { year },
+    });
+    return data.data ?? [];
   });
-  return data.data ?? [];
 }
 
 export async function createHoliday(body: {
@@ -194,10 +204,12 @@ export async function createHoliday(body: {
   num_days?: number;
 }): Promise<void> {
   await api.post('/admin/holidays', body);
+  invalidateQueryPrefix('holidays:');
 }
 
 export async function deleteHoliday(id: string): Promise<void> {
   await api.delete(`/admin/holidays/${id}`);
+  invalidateQueryPrefix('holidays:');
 }
 
 // ────────────────── Locations ──────────────────
@@ -224,8 +236,10 @@ export async function deleteLocation(id: string): Promise<void> {
 // ────────────────── User (self) ──────────────────
 
 export async function fetchMe(): Promise<User> {
-  const { data } = await api.get<ApiResponse<User>>('/api/users/me');
-  return data.data;
+  return cachedQuery('me', 60_000, async () => {
+    const { data } = await api.get<ApiResponse<User>>('/api/users/me');
+    return data.data;
+  });
 }
 
 /** Fetch the signed-in employee's leave requests (all statuses). */
@@ -248,6 +262,7 @@ export async function updateMyProfile(body: {
   email: string;
 }): Promise<void> {
   await api.put('/api/users/me/profile/info', body);
+  invalidateQuery('me');
 }
 
 // ────────────────── Employee History (Admin) ──────────────────
@@ -305,21 +320,26 @@ export async function updateCheckInMode(mode: 'face' | 'selfie'): Promise<void> 
 // ────────────────── Brands (Admin) ──────────────────
 
 export async function fetchBrands(): Promise<Brand[]> {
-  const { data } = await api.get<ApiResponse<Brand[]>>('/api/brands');
-  return data.data ?? [];
+  return cachedQuery('brands', 5 * 60_000, async () => {
+    const { data } = await api.get<ApiResponse<Brand[]>>('/api/brands');
+    return data.data ?? [];
+  });
 }
 
 export async function createBrand(name: string): Promise<Brand> {
   const { data } = await api.post<ApiResponse<Brand>>('/admin/brands', { name });
+  invalidateQuery('brands');
   return data.data;
 }
 
 export async function deleteBrand(id: string): Promise<void> {
   await api.delete(`/admin/brands/${id}`);
+  invalidateQuery('brands');
 }
 
 export async function reorderBrands(brandIds: string[]): Promise<void> {
   await api.put('/admin/brands/order', { brand_ids: brandIds });
+  invalidateQuery('brands');
 }
 
 export async function updateBrandResponsibilities(
@@ -334,6 +354,7 @@ export async function updateBrandResponsibilities(
     `/admin/brands/${id}/responsibilities`,
     { responsibilities },
   );
+  invalidateQuery('brands');
   return {
     responsibleUserIds: data.data?.responsible_user_ids ?? [],
     responsibilities: data.data?.responsibilities ?? [],
@@ -343,8 +364,10 @@ export async function updateBrandResponsibilities(
 // ────────────────── Task Categories (Admin) ──────────────────
 
 export async function fetchTaskCategories(): Promise<TaskCategory[]> {
-  const { data } = await api.get<ApiResponse<TaskCategory[]>>('/api/task-categories');
-  return data.data ?? [];
+  return cachedQuery('task-categories', 0, async () => {
+    const { data } = await api.get<ApiResponse<TaskCategory[]>>('/api/task-categories');
+    return data.data ?? [];
+  });
 }
 
 export async function createTaskCategory(name: string): Promise<TaskCategory> {
@@ -358,11 +381,18 @@ export async function deleteTaskCategory(id: string): Promise<void> {
 
 // ────────────────── Admin Tasks ──────────────────
 
-export async function fetchAdminTasks(): Promise<AdminTask[]> {
-  // The task page is scoped to work owned by or assigned to the signed-in user,
-  // including for Admins. Admin privileges apply to actions, not visibility.
-  const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
-  return data.data ?? [];
+export async function fetchAdminTasks(scope: 'mine' | 'all' = 'mine'): Promise<AdminTask[]> {
+  // The task page remains scoped to work owned by or assigned to the signed-in user.
+  // Calendar admins can explicitly request the existing admin-wide read endpoint.
+  return cachedQuery(`tasks:${scope}`, 0, async () => {
+    if (scope === 'all') {
+      const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
+      return data.data ?? [];
+    }
+
+    const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
+    return data.data ?? [];
+  });
 }
 
 export async function createAdminTask(body: {
@@ -459,7 +489,7 @@ export async function createTaskList(taskId: string, body: {
   description?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   assignee_ids?: string[];
@@ -477,7 +507,7 @@ export async function updateTaskList(listId: string, body: {
   description?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   assignee_ids?: string[];
@@ -591,12 +621,23 @@ export async function createSubItemVerification(subItemId: string, body: { statu
   return data.data;
 }
 
-export async function uploadFile(file: File): Promise<{ ok: boolean; url: string }> {
+interface UploadFileOptions {
+  onProgress?: (progress: number) => void;
+  signal?: AbortSignal;
+}
+
+export async function uploadFile(file: File, options: UploadFileOptions = {}): Promise<{ ok: boolean; url: string }> {
   const formData = new FormData();
   formData.append('file', file);
   const { data } = await api.post('/api/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
+    },
+    signal: options.signal,
+    onUploadProgress: (event) => {
+      if (!options.onProgress || !event.total) return;
+      const progress = Math.min(100, Math.round((event.loaded * 100) / event.total));
+      options.onProgress(progress);
     },
   });
   return data;

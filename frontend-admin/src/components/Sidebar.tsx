@@ -10,9 +10,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
+  tasksSearch?: string;
 }
 
-export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = '' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
@@ -56,9 +57,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       {/* Header: App Brand Logo & Close Action */}
       <div className="sidebar-header">
         <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">
-            <i className="fa-solid fa-layer-group"></i>
-          </div>
+          <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-8 h-8 rounded-xl object-contain shadow-xs" />
           <span className="sidebar-brand-title">HR System</span>
         </div>
         <button
@@ -184,7 +183,7 @@ export default function Sidebar({ isOpen, onClose, currentUser }: SidebarProps) 
       <NavLink to="/holidays" className={navLinkClass}>
         <i className="fa-solid fa-calendar-days"></i> ปฏิทินวันหยุด
       </NavLink>
-      <NavLink to="/tasks" className={navLinkClass}>
+      <NavLink to={`/tasks${tasksSearch}`} className={navLinkClass}>
         <i className="fa-solid fa-clipboard-list"></i> จัดการงาน
       </NavLink>
       <div className="menu-category">การปฏิบัติงาน</div>

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -182,11 +183,13 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 
 // ListAllTasks GET /admin/tasks (Admin only)
 func (h *TaskHandler) ListAllTasks(c *gin.Context) {
+	startedAt := time.Now()
 	tasks, err := h.taskSvc.ListAllTasks(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานล้มเหลว"})
 		return
 	}
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
@@ -214,25 +217,47 @@ func (h *TaskHandler) ListAllDailyTaskLists(c *gin.Context) {
 		return
 	}
 
-	taskMap := make(map[uuid.UUID]string)
+	taskMap := make(map[uuid.UUID]domain.Task)
 	for _, t := range tasks {
-		taskMap[t.ID] = t.Title
+		taskMap[t.ID] = t
+	}
+
+	var brandRows []struct {
+		ID   uuid.UUID `db:"id"`
+		Name string    `db:"name"`
+	}
+	_ = h.cardRepo.GetDB().SelectContext(ctx, &brandRows, `SELECT id, name FROM brands`)
+	brandMap := make(map[uuid.UUID]string)
+	for _, b := range brandRows {
+		brandMap[b.ID] = b.Name
 	}
 
 	type dailyListResponse struct {
 		domain.TaskList
-		ProjectName string `json:"project_name"`
+		ProjectName string     `json:"project_name"`
+		TaskTitle   string     `json:"task_title"`
+		BrandID     *uuid.UUID `json:"brand_id,omitempty"`
+		BrandName   string     `json:"brand_name,omitempty"`
+		CategoryID  *uuid.UUID `json:"category_id,omitempty"`
 	}
 
 	var res []dailyListResponse
 	for _, l := range lists {
-		pName, visible := taskMap[l.TaskID]
+		parentTask, visible := taskMap[l.TaskID]
 		if !visible {
 			continue
 		}
+		var bName string
+		if parentTask.BrandID != nil {
+			bName = brandMap[*parentTask.BrandID]
+		}
 		res = append(res, dailyListResponse{
 			TaskList:    l,
-			ProjectName: pName,
+			ProjectName: parentTask.Title,
+			TaskTitle:   parentTask.Title,
+			BrandID:     parentTask.BrandID,
+			BrandName:   bName,
+			CategoryID:  parentTask.CategoryID,
 		})
 	}
 
@@ -279,6 +304,7 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 
 // ListMyTasks GET /api/tasks (Employee view)
 func (h *TaskHandler) ListMyTasks(c *gin.Context) {
+	startedAt := time.Now()
 	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	userID := userIDRaw.(uuid.UUID)
 
@@ -288,6 +314,7 @@ func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 		return
 	}
 
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 

@@ -7,9 +7,9 @@ func TestShouldPushTaskListStatus(t *testing.T) {
 		status string
 		want   bool
 	}{
-		{status: "waiting", want: false},
-		{status: "pending", want: false},
-		{status: "in_progress", want: false},
+		{status: "waiting", want: true},
+		{status: "pending", want: true},
+		{status: "in_progress", want: true},
 		{status: "in_review", want: true},
 		{status: "completed", want: true},
 	}

@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // LocationRepo จัดการ SQL queries สำหรับตาราง work_locations (จุดทำงาน / Geofence)
@@ -39,8 +39,17 @@ func (r *LocationRepo) Create(ctx context.Context, loc *domain.WorkLocation) err
 	return err
 }
 
-// Delete ลบจุดทำงาน
+func (r *LocationRepo) Update(ctx context.Context, loc *domain.WorkLocation) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE work_locations
+		SET name = $1, latitude = $2, longitude = $3, radius_m = $4
+		WHERE id = $5 AND is_active = TRUE
+	`, loc.Name, loc.Latitude, loc.Longitude, loc.RadiusM, loc.ID)
+	return err
+}
+
+// Delete deactivates a location so historical attendance remains intact.
 func (r *LocationRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM work_locations WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE work_locations SET is_active = FALSE WHERE id = $1`, id)
 	return err
 }

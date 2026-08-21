@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -24,12 +26,15 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 
 	// ตั้งค่า connection pool (จำกัดให้ไม่เกิน 8 เพื่อเลี่ยงลิมิต 15 ของ Supabase ใน session mode)
 	db.SetMaxOpenConns(8) // จำนวนการเชื่อมต่อสูงสุด
-	db.SetMaxIdleConns(2) // จำนวนการเชื่อมต่อที่เก็บไว้รอ
+	db.SetMaxIdleConns(4) // รองรับ page-load burst โดยไม่เปิด TLS connection กลาง request
+	db.SetConnMaxIdleTime(10 * time.Minute)
+	db.SetConnMaxLifetime(45 * time.Minute)
 
 	// ทดสอบการเชื่อมต่อ
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ฐานข้อมูลไม่ตอบสนอง: %w", err)
 	}
+	warmConnectionPool(db, 4)
 
 	// สร้างตาราง tasks อัตโนมัติหากยังไม่มี (สำหรับระบบมอบหมายงาน) และเพิ่มฟีลด์ fcm_token
 	_, _ = db.Exec(`
@@ -81,6 +86,8 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS admin_comment TEXT NOT NULL DEFAULT '';
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb;
 		ALTER TABLE task_lists ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+		ALTER TABLE task_lists DROP CONSTRAINT IF EXISTS task_lists_status_check;
+		ALTER TABLE task_lists ADD CONSTRAINT task_lists_status_check CHECK (status IN ('waiting', 'pending', 'in_progress', 'in_review', 'completed', 'revision'));
 
 		CREATE TABLE IF NOT EXISTS card_assignees (
 			card_id UUID REFERENCES task_cards(id) ON DELETE CASCADE,
@@ -177,6 +184,36 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 	}()
 
 	return db, nil
+}
+
+func warmConnectionPool(db *sqlx.DB, size int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	connections := make(chan *sqlx.Conn, size)
+	var waitGroup sync.WaitGroup
+	for range size {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			connection, err := db.Connx(ctx)
+			if err != nil {
+				log.Printf("[DB Init] warm connection failed: %v", err)
+				return
+			}
+			if err := connection.PingContext(ctx); err != nil {
+				log.Printf("[DB Init] warm connection ping failed: %v", err)
+				_ = connection.Close()
+				return
+			}
+			connections <- connection
+		}()
+	}
+	waitGroup.Wait()
+	close(connections)
+	for connection := range connections {
+		_ = connection.Close()
+	}
 }
 
 func databaseURLWithPublicSearchPath(databaseURL string) (string, error) {

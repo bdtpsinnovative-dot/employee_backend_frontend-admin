@@ -321,6 +321,71 @@ func (r *TaskSubItemRepo) ListByCard(ctx context.Context, cardID uuid.UUID) ([]d
 	return items, nil
 }
 
+// ListByCards returns sub-items for all requested cards without issuing one
+// query per card. Verification history is loaded in one additional query.
+func (r *TaskSubItemRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID) (map[uuid.UUID][]domain.TaskSubItem, error) {
+	result := make(map[uuid.UUID][]domain.TaskSubItem, len(cardIDs))
+	for _, cardID := range cardIDs {
+		result[cardID] = nil
+	}
+	if len(cardIDs) == 0 {
+		return result, nil
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT *
+		FROM task_sub_items
+		WHERE card_id IN (?)
+		ORDER BY card_id, sort_order ASC, created_at ASC
+	`, cardIDs)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+
+	var items []domain.TaskSubItem
+	if err := r.db.SelectContext(ctx, &items, query, args...); err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return result, nil
+	}
+
+	subItemIDs := make([]uuid.UUID, len(items))
+	itemIndexes := make(map[uuid.UUID]int, len(items))
+	for i := range items {
+		items[i].Verifications = []domain.SubItemVerification{}
+		subItemIDs[i] = items[i].ID
+		itemIndexes[items[i].ID] = i
+	}
+
+	verificationQuery, verificationArgs, err := sqlx.In(`
+		SELECT *
+		FROM sub_item_verifications
+		WHERE sub_item_id IN (?)
+		ORDER BY sub_item_id, round DESC, created_at DESC
+	`, subItemIDs)
+	if err != nil {
+		return nil, err
+	}
+	verificationQuery = r.db.Rebind(verificationQuery)
+	var verifications []domain.SubItemVerification
+	if err := r.db.SelectContext(ctx, &verifications, verificationQuery, verificationArgs...); err != nil {
+		return nil, err
+	}
+	for _, verification := range verifications {
+		if index, ok := itemIndexes[verification.SubItemID]; ok {
+			items[index].Verifications = append(items[index].Verifications, verification)
+		}
+	}
+	for _, item := range items {
+		if item.CardID != nil {
+			result[*item.CardID] = append(result[*item.CardID], item)
+		}
+	}
+	return result, nil
+}
+
 func (r *TaskSubItemRepo) LinkSubItemsToCard(ctx context.Context, cardID uuid.UUID, taskID uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE task_sub_items SET card_id = $1 WHERE task_id = $2 AND card_id IS NULL
@@ -411,73 +476,67 @@ func NewTaskListRepo(db *sqlx.DB) *TaskListRepo {
 }
 
 func (r *TaskListRepo) ListByTask(ctx context.Context, taskID uuid.UUID) ([]domain.TaskList, error) {
-	var lists []domain.TaskList
-	err := r.db.SelectContext(ctx, &lists, `
-		SELECT id, task_id, name, description, sort_order, created_at,
-		       start_date, due_date, priority, status, admin_comment, attachments, deleted_at
-		FROM task_lists
-		WHERE task_id = $1 AND deleted_at IS NULL
-		ORDER BY sort_order ASC, created_at ASC
-	`, taskID)
-	if err != nil {
+	type listRow struct {
+		domain.TaskList
+		AssigneeID        *uuid.UUID `db:"assignee_id"`
+		AssigneeFirstName *string    `db:"assignee_first_name"`
+		AssigneeLastName  *string    `db:"assignee_last_name"`
+		AssigneeNickname  *string    `db:"assignee_nickname"`
+		AssigneeAvatarURL *string    `db:"assignee_avatar_url"`
+		AssigneePosition  string     `db:"assignee_position"`
+	}
+	var rows []listRow
+	if err := r.db.SelectContext(ctx, &rows, `
+		SELECT tl.id, tl.task_id, tl.name, tl.description, tl.sort_order, tl.created_at,
+		       tl.start_date, tl.due_date, tl.priority, tl.status, tl.admin_comment,
+		       tl.attachments, tl.deleted_at,
+		       u.id AS assignee_id,
+		       u.first_name AS assignee_first_name,
+		       u.last_name AS assignee_last_name,
+		       u.nickname AS assignee_nickname,
+		       u.avatar_url AS assignee_avatar_url,
+		       COALESCE(p.name, '') AS assignee_position
+		FROM task_lists tl
+		LEFT JOIN list_assignees la ON la.list_id = tl.id
+		LEFT JOIN users u ON u.id = la.user_id
+		LEFT JOIN positions p ON p.id = u.position_id
+		WHERE tl.task_id = $1 AND tl.deleted_at IS NULL
+		ORDER BY tl.sort_order ASC, tl.created_at ASC, u.first_name, u.last_name
+	`, taskID); err != nil {
 		return nil, err
 	}
-	if len(lists) > 0 {
-		var listAssignees []struct {
-			ListID uuid.UUID `db:"list_id"`
-			UserID uuid.UUID `db:"user_id"`
-			FirstName string `db:"first_name"`
-			LastName  string `db:"last_name"`
-			Nickname  *string `db:"nickname"`
-			AvatarURL *string `db:"avatar_url"`
-			Position  string `db:"position"`
+
+	var lists []domain.TaskList
+	indexes := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		index, exists := indexes[row.ID]
+		if !exists {
+			list := row.TaskList
+			list.AssigneeIDs = []uuid.UUID{}
+			list.Assignees = []domain.UserSummary{}
+			lists = append(lists, list)
+			index = len(lists) - 1
+			indexes[row.ID] = index
 		}
-		listIDs := make([]uuid.UUID, len(lists))
-		for i, list := range lists {
-			listIDs[i] = list.ID
+		if row.AssigneeID == nil {
+			continue
 		}
-		query, args, queryErr := sqlx.In(`
-			SELECT la.list_id, u.id AS user_id, u.first_name, u.last_name,
-			       u.nickname, u.avatar_url, COALESCE(p.name, '') AS position
-			FROM list_assignees la
-			JOIN users u ON u.id = la.user_id
-			LEFT JOIN positions p ON p.id = u.position_id
-			WHERE la.list_id IN (?)
-			ORDER BY la.list_id, u.first_name, u.last_name
-		`, listIDs)
-		if queryErr == nil {
-			query = r.db.Rebind(query)
-			err = r.db.SelectContext(ctx, &listAssignees, query, args...)
-		} else {
-			err = queryErr
+		firstName, lastName := "", ""
+		if row.AssigneeFirstName != nil {
+			firstName = *row.AssigneeFirstName
 		}
-		if err == nil {
-			listMap := make(map[uuid.UUID][]uuid.UUID)
-			assigneeMap := make(map[uuid.UUID][]domain.UserSummary)
-			for _, la := range listAssignees {
-				listMap[la.ListID] = append(listMap[la.ListID], la.UserID)
-				assigneeMap[la.ListID] = append(assigneeMap[la.ListID], domain.UserSummary{
-					ID:        la.UserID,
-					FirstName: la.FirstName,
-					LastName:  la.LastName,
-					Nickname:  la.Nickname,
-					AvatarURL: la.AvatarURL,
-					Position:  la.Position,
-				})
-			}
-			for i, l := range lists {
-				ids := listMap[l.ID]
-				if ids == nil {
-					ids = []uuid.UUID{}
-				}
-				lists[i].AssigneeIDs = ids
-				assignees := assigneeMap[l.ID]
-				if assignees == nil {
-					assignees = []domain.UserSummary{}
-				}
-				lists[i].Assignees = assignees
-			}
+		if row.AssigneeLastName != nil {
+			lastName = *row.AssigneeLastName
 		}
+		lists[index].AssigneeIDs = append(lists[index].AssigneeIDs, *row.AssigneeID)
+		lists[index].Assignees = append(lists[index].Assignees, domain.UserSummary{
+			ID:        *row.AssigneeID,
+			FirstName: firstName,
+			LastName:  lastName,
+			Nickname:  row.AssigneeNickname,
+			AvatarURL: row.AssigneeAvatarURL,
+			Position:  row.AssigneePosition,
+		})
 	}
 	return lists, nil
 }
@@ -661,6 +720,23 @@ func (r *TaskListRepo) SyncParentTaskStatus(ctx context.Context, taskID uuid.UUI
 	return err
 }
 
+// SyncParentTaskDueDate keeps the parent task date aligned with the latest
+// active sub-task date. If no sub-task has a date, retain the existing parent
+// date so creating an undated sub-task does not erase a manually set deadline.
+func (r *TaskListRepo) SyncParentTaskDueDate(ctx context.Context, taskID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE tasks AS t
+		SET due_date = COALESCE((
+			SELECT MAX(tl.due_date)
+			FROM task_lists tl
+			WHERE tl.task_id = t.id
+			  AND tl.deleted_at IS NULL
+		), t.due_date)
+		WHERE t.id = $1
+	`, taskID)
+	return err
+}
+
 func (r *TaskListRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	// Deliverables are soft-deleted so legacy cards and sub-items remain
 	// recoverable if this hidden hierarchy is restored in the future.
@@ -811,6 +887,40 @@ func (r *TaskCardRepo) ListByList(ctx context.Context, listID uuid.UUID) ([]doma
 		}
 	}
 	return cards, nil
+}
+
+// ListByLists returns cards grouped by list in a single query. Assignee
+// details are deliberately loaded by CardAssigneeRepo.ListByCards so the
+// board endpoint does not scan card_assignees once for every list.
+func (r *TaskCardRepo) ListByLists(ctx context.Context, listIDs []uuid.UUID) (map[uuid.UUID][]domain.TaskCard, error) {
+	result := make(map[uuid.UUID][]domain.TaskCard, len(listIDs))
+	for _, listID := range listIDs {
+		result[listID] = nil
+	}
+	if len(listIDs) == 0 {
+		return result, nil
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT id, list_id, title, description, status, sort_order, created_at,
+		       start_date, due_date, priority, admin_comment
+		FROM task_cards
+		WHERE list_id IN (?)
+		ORDER BY list_id, sort_order ASC, created_at ASC
+	`, listIDs)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+
+	var cards []domain.TaskCard
+	if err := r.db.SelectContext(ctx, &cards, query, args...); err != nil {
+		return nil, err
+	}
+	for _, card := range cards {
+		result[card.ListID] = append(result[card.ListID], card)
+	}
+	return result, nil
 }
 
 func (r *TaskCardRepo) Create(ctx context.Context, card *domain.TaskCard) error {

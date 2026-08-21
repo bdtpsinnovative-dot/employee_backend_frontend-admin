@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, X, Bell, CheckCircle2 } from 'lucide-react';
 import {
   fetchAdminTasks,
@@ -38,10 +39,81 @@ import { TaskCreateModal } from '../components/tasks/TaskCreateModal';
 import { TaskProjectOverview } from '../components/tasks/TaskProjectOverview';
 */
 import { getTaskPriority, type TaskStatus } from '../components/tasks/taskUtils';
+import { queryKeys } from '../lib/queryKeys';
+
+type TasksViewState = {
+  searchQuery: string;
+  selectedBrand: string;
+  selectedCategory: string;
+  selectedAssignee: string;
+  selectedPriority: string;
+  ownershipMode: 'all' | 'created_by_me' | 'assigned_to_me';
+  tabFilter: 'all' | 'completed' | 'starred';
+};
+
+const TASKS_VIEW_QUERY_KEYS = {
+  searchQuery: 'search',
+  selectedBrand: 'brand',
+  selectedCategory: 'category',
+  selectedAssignee: 'assignee',
+  selectedPriority: 'priority',
+  ownershipMode: 'owner',
+  tabFilter: 'tab',
+} as const;
+
+function getTasksViewStateFromParams(searchParams: URLSearchParams): TasksViewState {
+  const ownershipMode = searchParams.get(TASKS_VIEW_QUERY_KEYS.ownershipMode);
+  const tabFilter = searchParams.get(TASKS_VIEW_QUERY_KEYS.tabFilter);
+
+  return {
+    searchQuery: searchParams.get(TASKS_VIEW_QUERY_KEYS.searchQuery) || '',
+    selectedBrand: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedBrand) || '',
+    selectedCategory: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedCategory) || '',
+    selectedAssignee: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedAssignee) || '',
+    selectedPriority: searchParams.get(TASKS_VIEW_QUERY_KEYS.selectedPriority) || '',
+    ownershipMode: ownershipMode === 'created_by_me' || ownershipMode === 'assigned_to_me'
+      ? ownershipMode
+      : 'all',
+    tabFilter: tabFilter === 'completed' || tabFilter === 'starred'
+      ? tabFilter
+      : 'all',
+  };
+}
 
 export default function Tasks() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
+  const taskFilterQuery = searchParams.toString();
+
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.tasks('mine'),
+    queryFn: () => fetchAdminTasks(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    staleTime: 5 * 60_000,
+  });
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.taskCategories,
+    queryFn: () => fetchTaskCategories(),
+    staleTime: 15 * 60_000,
+  });
+  const meQuery = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: () => fetchMe(),
+    staleTime: 5 * 60_000,
+  });
 
   const hasUnreadMainNotif = notifications.some(n => {
     if (n.is_read) return false;
@@ -113,13 +185,47 @@ export default function Tasks() {
 
 
   // ─── Search & Filter State ───
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedAssignee, setSelectedAssignee] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState('');
-  const [ownershipMode, setOwnershipMode] = useState<'all' | 'created_by_me' | 'assigned_to_me'>('all');
-  const [tabFilter, setTabFilter] = useState<'all' | 'completed' | 'starred'>('all');
+  const {
+    searchQuery,
+    selectedBrand,
+    selectedCategory,
+    selectedAssignee,
+    selectedPriority,
+    ownershipMode,
+    tabFilter,
+  } = getTasksViewStateFromParams(searchParams);
+
+  const updateTasksViewState = useCallback((patch: Partial<TasksViewState>) => {
+    setSearchParams((currentParams) => {
+      const nextState = {
+        ...getTasksViewStateFromParams(currentParams),
+        ...patch,
+      };
+      const nextParams = new URLSearchParams(currentParams);
+
+      (Object.keys(TASKS_VIEW_QUERY_KEYS) as Array<keyof TasksViewState>).forEach((stateKey) => {
+        const queryKey = TASKS_VIEW_QUERY_KEYS[stateKey];
+        const value = nextState[stateKey];
+        const isDefault = value === '' || value === 'all';
+
+        if (isDefault) {
+          nextParams.delete(queryKey);
+        } else {
+          nextParams.set(queryKey, value);
+        }
+      });
+
+      return nextParams;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSearchQuery = (value: string) => updateTasksViewState({ searchQuery: value });
+  const setSelectedBrand = (value: string) => updateTasksViewState({ selectedBrand: value });
+  const setSelectedCategory = (value: string) => updateTasksViewState({ selectedCategory: value });
+  const setSelectedAssignee = (value: string) => updateTasksViewState({ selectedAssignee: value });
+  const setSelectedPriority = (value: string) => updateTasksViewState({ selectedPriority: value });
+  const setOwnershipMode = (value: TasksViewState['ownershipMode']) => updateTasksViewState({ ownershipMode: value });
+  const setTabFilter = (value: TasksViewState['tabFilter']) => updateTasksViewState({ tabFilter: value });
 
   // ─── Modals & Drawers ───
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -141,33 +247,50 @@ export default function Tasks() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [commentText, setCommentText] = useState('');
 
-  // ─── Load Initial Data ───
-  const loadAll = useCallback(async (silent?: boolean) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const [t, u, b, c, me] = await Promise.all([
-        fetchAdminTasks(),
-        fetchUsers(),
-        fetchBrands(),
-        fetchTaskCategories(),
-        fetchMe(),
-      ]);
-      setTasks(t);
-      setUsers(u.filter((usr) => usr.status === 'active'));
-      setBrands(b);
-      setCategories(c);
-      setCurrentUser(me);
-    } catch (e: any) {
-      setError(e.message || 'โหลดข้อมูลงานล้มเหลว');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    if (tasksQuery.data) setTasks(tasksQuery.data);
+    if (usersQuery.data) setUsers(usersQuery.data.filter((usr) => usr.status === 'active'));
+    if (brandsQuery.data) setBrands(brandsQuery.data);
+    if (categoriesQuery.data) setCategories(categoriesQuery.data);
+    if (meQuery.data) setCurrentUser(meQuery.data);
+
+    const queryError = tasksQuery.error || usersQuery.error || brandsQuery.error || categoriesQuery.error || meQuery.error;
+    if (queryError) setError(queryError instanceof Error ? queryError.message : 'โหลดข้อมูลงานล้มเหลว');
+
+    setLoading(
+      tasksQuery.isPending || usersQuery.isPending || brandsQuery.isPending || categoriesQuery.isPending || meQuery.isPending,
+    );
+  }, [
+    brandsQuery.data,
+    brandsQuery.error,
+    brandsQuery.isPending,
+    categoriesQuery.data,
+    categoriesQuery.error,
+    categoriesQuery.isPending,
+    meQuery.data,
+    meQuery.error,
+    meQuery.isPending,
+    tasksQuery.data,
+    tasksQuery.error,
+    tasksQuery.isPending,
+    usersQuery.data,
+    usersQuery.error,
+    usersQuery.isPending,
+  ]);
+
+  const refreshTaskData = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
+  }, [queryClient]);
+
+  const refreshTasksInBackground = useCallback(() => {
+    void refreshTaskData().catch((err) => {
+      console.error('Failed to sync tasks after mutation', err);
+    });
+  }, [refreshTaskData]);
+
+  const refreshUsers = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.users() });
+  }, [queryClient]);
 
   // ─── Load Task Events when task selected ───
   useEffect(() => {
@@ -218,6 +341,9 @@ export default function Tasks() {
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status } : t))
       );
+      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+        current?.map((t) => (t.id === task.id ? { ...t, status } : t)),
+      );
       if (selectedTask?.id === task.id) {
         setSelectedTask((prev) => (prev ? { ...prev, status } : null));
       }
@@ -263,6 +389,9 @@ export default function Tasks() {
     try {
       await deleteAdminTask(taskToDelete);
       setTasks((prev) => prev.filter((t) => t.id !== taskToDelete));
+      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+        current?.filter((task) => task.id !== taskToDelete),
+      );
       if (selectedTask?.id === taskToDelete) setSelectedTask(null);
       setTaskToDelete(null);
     } catch (e: any) {
@@ -273,7 +402,7 @@ export default function Tasks() {
   const handleRestoreTask = async (id: string) => {
     try {
       await restoreTask(id);
-      await loadAll(true);
+      await refreshTaskData();
       if (showTrashModal) {
         await loadTrash();
       }
@@ -305,17 +434,20 @@ export default function Tasks() {
     });
 
     if (data.boards && data.boards.length > 0) {
-      for (const board of data.boards) {
-        await createTaskList(newTask.id, {
-          name: board.name,
-          due_date: board.due_date,
-          priority: board.priority,
-          description: board.description,
-          assignee_ids: data.assignee_ids,
-        });
-      }
+      await Promise.all(data.boards.map((board) => createTaskList(newTask.id, {
+        name: board.name,
+        due_date: board.due_date,
+        priority: board.priority,
+        description: board.description,
+        assignee_ids: data.assignee_ids,
+      })));
+
+      // Board-derived progress may not be included in the create response.
+      refreshTasksInBackground();
     }
-    await loadAll(true);
+
+    setTasks((prev) => [newTask, ...prev]);
+    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) => [newTask, ...(current || [])]);
   };
 
   const handleUpdateTask = async (data: {
@@ -329,7 +461,7 @@ export default function Tasks() {
     status?: string;
   }) => {
     if (!editingTask) return;
-    await updateAdminTask(editingTask.id, {
+    const updatedTask = await updateAdminTask(editingTask.id, {
       title: data.title,
       description: data.description,
       due_date: data.due_date,
@@ -339,8 +471,17 @@ export default function Tasks() {
       priority: data.priority,
       status: data.status,
     });
+
+    setTasks((prev) => prev.map((task) => (
+      task.id === updatedTask.id ? updatedTask : task
+    )));
+    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+      current?.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
+    );
+    setSelectedTask((prev) => (
+      prev?.id === updatedTask.id ? updatedTask : prev
+    ));
     setEditingTask(null);
-    await loadAll(true);
   };
 
   const handleAddComment = async () => {
@@ -366,7 +507,7 @@ export default function Tasks() {
     try {
       await approveTask(taskToApprove.id);
       setTaskToApprove(null);
-      await loadAll(true);
+      await refreshTaskData();
     } catch (e: any) {
       alert(e.message || 'อนุมัติงานล้มเหลว');
     }
@@ -456,12 +597,14 @@ export default function Tasks() {
   ].filter(Boolean).length;
 
   const handleClearFilters = () => {
-    setSearchQuery('');
-    setSelectedBrand('');
-    setSelectedCategory('');
-    setSelectedAssignee('');
-    setSelectedPriority('');
-    setOwnershipMode('all');
+    updateTasksViewState({
+      searchQuery: '',
+      selectedBrand: '',
+      selectedCategory: '',
+      selectedAssignee: '',
+      selectedPriority: '',
+      ownershipMode: 'all',
+    });
   };
 
   return (
@@ -538,7 +681,7 @@ export default function Tasks() {
             onSelectTask={setSelectedTask}
             onEditTask={setEditingTask}
             onSelectProjectSheet={(task) => {
-              navigate(`/tasks/${task.id}`);
+              navigate(`/tasks/${task.id}${taskFilterQuery ? `?${taskFilterQuery}` : ''}`);
             }}
             onStatusChange={handleStatusChange}
             onOpenCreateModal={(status) => {
@@ -569,7 +712,7 @@ export default function Tasks() {
         onDeleteTask={handleDeleteTask}
         onEditTask={(t) => setEditingTask(t)}
         onRefresh={() => {
-          loadAll(true);
+          void refreshTaskData();
           // Also optionally reload the selected task if we have an endpoint for it.
           // Since loadAll fetches all tasks, it will refresh the data, but we might want to manually sync the selectedTask.
           // For now, loadAll() is okay if the user reopens the drawer or the drawer re-renders based on updated tasks array.
@@ -591,6 +734,7 @@ export default function Tasks() {
         categories={categories}
         initialData={editingTask || undefined}
         currentUser={currentUser}
+        onRefreshUsers={refreshUsers}
         taskEvents={editTaskEvents}
         eventsLoading={editEventsLoading}
         onDelete={(id) => {

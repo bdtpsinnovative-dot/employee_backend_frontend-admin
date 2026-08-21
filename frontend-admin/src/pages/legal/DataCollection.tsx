@@ -6,7 +6,7 @@ export default function DataCollection() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-800">
       <header className="border-b bg-white px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/favicon.png" alt="Logo" className="w-12 h-12 rounded-xl" />
+          <img src="/app_icon_v2.svg" alt="Logo" className="w-12 h-12 rounded-xl object-contain shadow-xs" />
           <span className="font-bold text-xl text-teal-600">TaskManagementSystem</span>
         </div>
         <Link to="/login" className="text-sm font-medium text-slate-500 hover:text-emerald-500 transition-colors">

@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/middleware"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/Nattamon123/employee/backend/internal/repository"
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -34,7 +36,7 @@ type BrandCategoryHandler struct {
 }
 
 func shouldPushTaskListStatus(status string) bool {
-	return status == "in_review" || status == "completed"
+	return status == "in_review" || status == "completed" || status == "pending" || status == "in_progress" || status == "waiting" || status == "revision"
 }
 
 func NewBrandCategoryHandler(
@@ -145,12 +147,18 @@ func readableBoardPriority(value string) string {
 
 func readableBoardStatus(value string) string {
 	switch value {
+	case "waiting":
+		return "รอรับ"
 	case "pending":
-		return "รอดำเนินการ"
+		return "รอทำ"
 	case "in_progress", "doing":
 		return "กำลังทำ"
+	case "in_review":
+		return "รอตรวจ"
+	case "revision":
+		return "แก้ไข"
 	case "completed", "done":
-		return "เสร็จแล้ว"
+		return "เสร็จสิ้น"
 	default:
 		return readableAuditValue(value)
 	}
@@ -384,7 +392,8 @@ func (h *BrandCategoryHandler) validateTaskAssignees(
 		WHERE u.id IN (?)
 		  AND u.status = 'active'
 		  AND (
-		    EXISTS (
+		    u.id = t.assigned_to
+		    OR EXISTS (
 		      SELECT 1 FROM task_assignees ta
 		      WHERE ta.task_id = t.id AND ta.user_id = u.id
 		    )
@@ -772,7 +781,10 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 	}
 
 	// 1. Fetch lists
-	lists, err := h.listRepo.ListByTask(c.Request.Context(), taskID)
+	ctx := c.Request.Context()
+	measure := perf.MeasureDB(ctx, "db.trello.lists")
+	lists, err := h.listRepo.ListByTask(ctx, taskID)
+	measure()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงรายการล้มเหลว"})
 		return
@@ -780,45 +792,78 @@ func (h *BrandCategoryHandler) GetTaskTrelloBoard(c *gin.Context) {
 
 	// Reading a board must never create or move data. Empty boards are returned
 	// as an empty list and can be initialized explicitly by the client.
+	listIDs := make([]uuid.UUID, len(lists))
+	for i := range lists {
+		listIDs[i] = lists[i].ID
+	}
+	measure = perf.MeasureDB(ctx, "db.trello.cards")
+	cardsByList, err := h.cardRepo.ListByLists(ctx, listIDs)
+	measure()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงการ์ดล้มเหลว"})
+		return
+	}
+
 	var allCardIDs []uuid.UUID
 	for i := range lists {
-		cards, err := h.cardRepo.ListByList(c.Request.Context(), lists[i].ID)
-		if err != nil {
-			continue
-		}
-		lists[i].Cards = cards
-		for _, card := range cards {
+		lists[i].Cards = cardsByList[lists[i].ID]
+		for _, card := range lists[i].Cards {
 			allCardIDs = append(allCardIDs, card.ID)
 		}
 	}
 
-	// Fetch assignees in batch
-	assigneesMap, err := h.assigneeRepo.ListByCards(c.Request.Context(), allCardIDs)
-	if err != nil {
-		assigneesMap = make(map[uuid.UUID][]domain.UserSummary)
+	assigneesMap := make(map[uuid.UUID][]domain.UserSummary)
+	subItemsMap := make(map[uuid.UUID][]domain.TaskSubItem)
+	attachmentsMap := make(map[uuid.UUID][]domain.CardAttachment)
+	if len(allCardIDs) > 0 {
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(3)
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.assignees")
+			loaded, loadErr := h.assigneeRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				assigneesMap = loaded
+			}
+		}()
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.subitems")
+			loaded, loadErr := h.subItemRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				subItemsMap = loaded
+			}
+		}()
+		go func() {
+			defer waitGroup.Done()
+			finish := perf.MeasureDB(ctx, "db.trello.attachments")
+			loaded, loadErr := h.attachmentRepo.ListByCards(ctx, allCardIDs)
+			finish()
+			if loadErr == nil {
+				attachmentsMap = loaded
+			}
+		}()
+		waitGroup.Wait()
 	}
 
 	for i := range lists {
 		for j := range lists[i].Cards {
 			cardID := lists[i].Cards[j].ID
-			subItems, err := h.subItemRepo.ListByCard(c.Request.Context(), cardID)
-			if err == nil {
-				lists[i].Cards[j].SubItems = subItems
-			} else {
-				lists[i].Cards[j].SubItems = []domain.TaskSubItem{}
-			}
-			// Also load card attachments from card_attachments table
-			attachments, err := h.attachmentRepo.ListByCard(c.Request.Context(), cardID)
-			if err == nil {
-				lists[i].Cards[j].Attachments = attachments
-			} else {
-				lists[i].Cards[j].Attachments = []domain.CardAttachment{}
-			}
+			lists[i].Cards[j].SubItems = subItemsMap[cardID]
+			lists[i].Cards[j].Attachments = attachmentsMap[cardID]
 			// Assignees
 			if assignees, ok := assigneesMap[cardID]; ok {
 				lists[i].Cards[j].Assignees = assignees
+				assigneeIDs := make([]uuid.UUID, len(assignees))
+				for index, assignee := range assignees {
+					assigneeIDs[index] = assignee.ID
+				}
+				lists[i].Cards[j].AssigneeIDs = assigneeIDs
 			} else {
 				lists[i].Cards[j].Assignees = []domain.UserSummary{}
+				lists[i].Cards[j].AssigneeIDs = []uuid.UUID{}
 			}
 		}
 	}
@@ -882,6 +927,9 @@ func (h *BrandCategoryHandler) RestoreTaskList(c *gin.Context) {
 		if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
 			log.Printf("failed to sync parent task status after list restore (%s): %v", taskID, err)
 		}
+		if err := h.listRepo.SyncParentTaskDueDate(c.Request.Context(), taskID); err != nil {
+			log.Printf("failed to sync parent task due date after list restore (%s): %v", taskID, err)
+		}
 	}
 
 	scope, _ := h.eventRepo.ScopeForList(c.Request.Context(), listID)
@@ -941,6 +989,15 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	if req.Status == "" {
 		req.Status = "in_progress"
 	}
+	if req.Status != "waiting" &&
+		req.Status != "pending" &&
+		req.Status != "in_progress" &&
+		req.Status != "in_review" &&
+		req.Status != "revision" &&
+		req.Status != "completed" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "สถานะงานไม่ถูกต้อง"})
+		return
+	}
 
 	desc := ""
 	if req.Description != nil {
@@ -950,6 +1007,12 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	comment := ""
 	if req.AdminComment != nil {
 		comment = *req.AdminComment
+	}
+
+	if len(req.AssigneeIDs) > 0 {
+		if !h.validateTaskAssignees(c, taskID, req.AssigneeIDs) {
+			return
+		}
 	}
 
 	list := domain.TaskList{
@@ -974,6 +1037,11 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
 		log.Printf("failed to sync parent task status after list create (%s): %v", taskID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
+		return
+	}
+	if err := h.listRepo.SyncParentTaskDueDate(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task due date after list create (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task due date sync failed"})
 		return
 	}
 	scope := &repository.TaskEventScope{TaskID: taskID, ListID: &list.ID, Name: list.Name}
@@ -1040,6 +1108,11 @@ func (h *BrandCategoryHandler) DeleteTaskList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
 		return
 	}
+	if err := h.listRepo.SyncParentTaskDueDate(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task due date after list delete (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task due date sync failed"})
+		return
+	}
 	name := listID.String()
 	if scope != nil && scope.Name != "" {
 		name = scope.Name
@@ -1101,6 +1174,7 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		*req.Status != "pending" &&
 		*req.Status != "in_progress" &&
 		*req.Status != "in_review" &&
+		*req.Status != "revision" &&
 		*req.Status != "completed" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "สถานะงานไม่ถูกต้อง"})
 		return
@@ -1137,6 +1211,12 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		}
 	}
 
+	if req.AssigneeIDs != nil && len(*req.AssigneeIDs) > 0 {
+		if !h.validateTaskAssignees(c, taskID, *req.AssigneeIDs) {
+			return
+		}
+	}
+
 	if req.Name != nil || req.Description != nil || hasStartDate || hasDueDate || req.Priority != nil || req.Status != nil || req.AdminComment != nil || req.Attachments != nil || req.AssigneeIDs != nil {
 		if err := h.listRepo.UpdateDetail(
 			c.Request.Context(),
@@ -1168,12 +1248,20 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			h.audit(c, scope, "board_description_changed", "แก้ไขรายละเอียดบอร์ดจาก "+readableAuditValue(existingList.Description)+" เป็น "+readableAuditValue(*req.Description), &taskID)
 		}
 		if req.Status != nil && *req.Status != existingList.Status {
-			h.audit(c, scope, "board_status_changed", "เปลี่ยนสถานะบอร์ดจาก "+readableBoardStatus(existingList.Status)+" เป็น "+readableBoardStatus(*req.Status), &taskID)
+			if *req.Status == "revision" {
+				reason := ""
+				if req.AdminComment != nil && *req.AdminComment != "" {
+					reason = " (เหตุผล: " + *req.AdminComment + ")"
+				}
+				h.audit(c, scope, "board_revision_requested", "ส่งแก้ไขงานย่อย"+reason, &taskID)
+			} else {
+				h.audit(c, scope, "board_status_changed", "เปลี่ยนสถานะบอร์ดจาก "+readableBoardStatus(existingList.Status)+" เป็น "+readableBoardStatus(*req.Status), &taskID)
+			}
 		}
 		if req.Priority != nil && *req.Priority != existingList.Priority {
 			h.audit(c, scope, "board_priority_changed", "เปลี่ยนความสำคัญบอร์ดจาก "+readableBoardPriority(existingList.Priority)+" เป็น "+readableBoardPriority(*req.Priority), &taskID)
 		}
-		if req.AdminComment != nil && *req.AdminComment != existingList.AdminComment {
+		if req.AdminComment != nil && *req.AdminComment != existingList.AdminComment && (req.Status == nil || *req.Status != "revision") {
 			h.audit(c, scope, "board_note_changed", "แก้ไขหมายเหตุบอร์ดจาก "+readableAuditValue(existingList.AdminComment)+" เป็น "+readableAuditValue(*req.AdminComment), &taskID)
 		}
 		if hasStartDate {
@@ -1233,6 +1321,11 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 	if err := h.listRepo.SyncParentTaskStatus(c.Request.Context(), taskID); err != nil {
 		log.Printf("failed to sync parent task status after list update (%s): %v", taskID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task status sync failed"})
+		return
+	}
+	if err := h.listRepo.SyncParentTaskDueDate(c.Request.Context(), taskID); err != nil {
+		log.Printf("failed to sync parent task due date after list update (%s): %v", taskID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "parent task due date sync failed"})
 		return
 	}
 
@@ -1299,8 +1392,23 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			var notifTitle, notifBody string
 			if capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status {
 				newStatusLabel := readableBoardStatus(*capturedReq.Status)
-				notifTitle = "อัปเดตสถานะงานย่อย"
-				notifBody = actorName + ` เปลี่ยนสถานะ "` + listName + `" เป็น "` + newStatusLabel + `"`
+				if *capturedReq.Status == "in_review" {
+					notifTitle = "ส่งตรวจงานย่อย"
+					notifBody = actorName + ` ส่งงานย่อย "` + listName + `" ให้ตรวจ`
+				} else if *capturedReq.Status == "completed" {
+					notifTitle = "งานย่อยเสร็จสิ้น"
+					notifBody = actorName + ` ทำงานย่อย "` + listName + `" เสร็จสมบูรณ์แล้ว`
+				} else if *capturedReq.Status == "revision" || ((*capturedReq.Status == "pending" || *capturedReq.Status == "in_progress" || *capturedReq.Status == "waiting") && (capturedExistingList.Status == "in_review" || capturedExistingList.Status == "completed")) {
+					notifTitle = "ส่งแก้ไขงานย่อย"
+					reason := ""
+					if capturedReq.AdminComment != nil && *capturedReq.AdminComment != "" {
+						reason = " (เหตุผล: " + *capturedReq.AdminComment + ")"
+					}
+					notifBody = actorName + ` ส่งงานย่อย "` + listName + `" ให้แก้ไข` + reason
+				} else {
+					notifTitle = "อัปเดตสถานะงานย่อย"
+					notifBody = actorName + ` เปลี่ยนสถานะ "` + listName + `" เป็น "` + newStatusLabel + `"`
+				}
 			} else if capturedReq.Name != nil && *capturedReq.Name != capturedExistingList.Name {
 				notifTitle = "เปลี่ยนชื่องานย่อย"
 				notifBody = actorName + ` เปลี่ยนชื่อ "` + capturedExistingList.Name + `" เป็น "` + *capturedReq.Name + `"`
@@ -1313,8 +1421,8 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			}
 
 			for _, uID := range userIDs {
-				if uID == actorID {
-					continue // ไม่แจ้งเตือนผู้ทำการแก้ไขเอง
+				if uID == actorID && len(userIDs) > 1 && (capturedReq.Status == nil || *capturedReq.Status != "revision") {
+					continue // ไม่แจ้งเตือนผู้ทำการแก้ไขเอง เมื่อมีผู้อื่นให้แจ้งเตือน
 				}
 				metadata := map[string]string{"task_id": taskID.String(), "list_id": listID.String(), "type": "task_list_update"}
 				statusChanged := capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status
@@ -2303,42 +2411,7 @@ func (h *BrandCategoryHandler) UpdateCardAssignees(c *gin.Context) {
 
 	// 5. Verify all assignees are active and belong to project (or task if no project)
 	if len(uids) > 0 {
-		var validCount int
-		if task.ProjectID != nil {
-			query, args, err := sqlx.In(`
-				SELECT COUNT(DISTINCT u.id)
-				FROM users u
-				JOIN project_members pm ON pm.user_id = u.id
-				WHERE pm.project_id = ? AND u.status = 'active' AND u.id IN (?)
-			`, *task.ProjectID, uids)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
-				return
-			}
-			query = h.cardRepo.GetDB().Rebind(query)
-			err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &validCount, query, args...)
-		} else {
-			query, args, err := sqlx.In(`
-				SELECT COUNT(DISTINCT u.id)
-				FROM users u
-				JOIN task_assignees ta ON ta.user_id = u.id
-				WHERE ta.task_id = ? AND u.status = 'active' AND u.id IN (?)
-			`, task.ID, uids)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
-				return
-			}
-			query = h.cardRepo.GetDB().Rebind(query)
-			err = h.cardRepo.GetDB().GetContext(c.Request.Context(), &validCount, query, args...)
-		}
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบข้อมูลผู้รับผิดชอบล้มเหลว"})
-			return
-		}
-
-		if validCount != len(uids) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "ผู้รับผิดชอบบางคนไม่มีสิทธิ์หรือสถานะไม่ถูกต้อง"})
+		if !h.validateTaskAssignees(c, task.ID, uids) {
 			return
 		}
 	}

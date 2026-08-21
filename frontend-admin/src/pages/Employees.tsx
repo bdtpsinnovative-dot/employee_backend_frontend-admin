@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { addProfileTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, unbindDevice, updateUser, fetchMe } from '../services/adminApi';
+import { addProfileTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, updateUser, fetchMe } from '../services/adminApi';
 import type { Position, Team, User } from '../types';
 import { avatarUrl } from '../components/tasks/taskUtils';
 
@@ -96,18 +96,6 @@ export default function Employees() {
     setActionLoading(null);
   }
 
-  async function handleUnbind(id: string) {
-    if (!confirm('ต้องการปลดล็อคเครื่องมือถือของพนักงานนี้หรือไม่?')) return;
-    setActionLoading(id);
-    try {
-      await unbindDevice(id);
-      await loadUsers();
-    } catch (err) {
-      console.error('ปลดล็อคเครื่องล้มเหลว:', err);
-      alert('ปลดล็อคเครื่องล้มเหลว');
-    }
-    setActionLoading(null);
-  }
 
   async function handleSaveEdit() {
     if (!editUser) return;
@@ -203,20 +191,19 @@ export default function Employees() {
             <th>แผนก</th>
             <th>สิทธิ์</th>
             <th>สถานะ</th>
-            <th>อุปกรณ์</th>
             <th style={{ textAlign: 'right' }}>จัดการ</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={8} style={{ textAlign: 'center', padding: '30px' }}>
+              <td colSpan={7} style={{ textAlign: 'center', padding: '30px' }}>
                 กำลังโหลดข้อมูล...
               </td>
             </tr>
           ) : userList.length === 0 ? (
             <tr>
-              <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
+              <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
                 {emptyMsg}
               </td>
             </tr>
@@ -245,15 +232,6 @@ export default function Employees() {
                 <td data-label="แผนก">{user.department || '-'}</td>
                 <td data-label="สิทธิ์">{roleBadge(user.role)}</td>
                 <td data-label="สถานะ">{statusBadge(user.status)}</td>
-                <td data-label="อุปกรณ์">
-                  {user.device_id ? (
-                    <span style={{ fontSize: '12px', color: 'var(--green)' }}>
-                      <i className="fa-solid fa-mobile-screen"></i> ผูกแล้ว
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>ยังไม่ผูก</span>
-                  )}
-                </td>
                 <td data-label="จัดการ" style={{ textAlign: 'right' }}>
                   {user.id === '' ? (
                     <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic' }}>
@@ -290,16 +268,6 @@ export default function Employees() {
                           style={{ fontSize: '12px', padding: '4px 10px' }}
                         >
                           <i className="fa-solid fa-check"></i> อนุมัติ
-                        </button>
-                      )}
-                      {user.device_id && (
-                        <button
-                          className="btn-secondary"
-                          disabled={actionLoading === user.id}
-                          onClick={() => handleUnbind(user.id)}
-                          style={{ fontSize: '12px', padding: '4px 10px' }}
-                        >
-                          <i className="fa-solid fa-mobile-screen-button"></i> ปลดล็อค
                         </button>
                       )}
                     </div>

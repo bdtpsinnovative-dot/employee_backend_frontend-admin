@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { fetchHolidays, createHoliday, deleteHoliday, fetchAdminTasks, fetchBrands } from '../services/adminApi';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchHolidays, createHoliday, deleteHoliday, fetchAdminTasks, fetchBrands, fetchUsers } from '../services/adminApi';
 import type { Holiday, User, AdminTask, Brand } from '../types';
 import { getTaskPriority, type TaskPriority } from '../components/tasks/taskUtils';
+import { queryKeys } from '../lib/queryKeys';
 
 interface LayoutContext {
   currentUser: User | null;
@@ -76,10 +78,21 @@ function isTaskVisibleToUser(task: AdminTask, userId?: string): boolean {
   return isOwner || assigneeIds.includes(userId);
 }
 
+function isTaskAssignedTo(task: AdminTask, userId: string): boolean {
+  const assigneeIds = task.assignee_ids && task.assignee_ids.length > 0
+    ? task.assignee_ids
+    : task.assigned_to
+      ? [task.assigned_to]
+      : [];
+
+  return assigneeIds.includes(userId);
+}
+
 export default function Holidays() {
   const navigate = useNavigate();
   const { currentUser } = useOutletContext<LayoutContext>() || {};
   const isAdmin = currentUser?.role === 'admin';
+  const queryClient = useQueryClient();
 
   const today = useMemo(() => {
     const d = new Date();
@@ -91,10 +104,39 @@ export default function Holidays() {
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [tasks, setTasks] = useState<AdminTask[]>([]);
+  const [taskUsers, setTaskUsers] = useState<User[]>([]);
+  const [taskPersonFilter, setTaskPersonFilter] = useState<string>('all');
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  const taskScope = isAdmin ? 'all' : 'mine';
+  const holidaysQuery = useQuery({
+    queryKey: queryKeys.holidays(year),
+    queryFn: () => fetchHolidays(year),
+    staleTime: 30 * 60_000,
+  });
+  const tasksQuery = useQuery({
+    queryKey: queryKeys.tasks(taskScope),
+    queryFn: () => fetchAdminTasks(taskScope),
+    enabled: Boolean(currentUser?.id),
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    enabled: Boolean(currentUser?.id && isAdmin),
+    staleTime: 5 * 60_000,
+  });
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -113,48 +155,41 @@ export default function Holidays() {
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [hData, tData, bData] = await Promise.all([
-        fetchHolidays(year).catch(err => {
-          console.error('โหลดวันหยุดล้มเหลว:', err);
-          return [];
-        }),
-        currentUser?.id
-          ? fetchAdminTasks().catch(err => {
-            console.error('โหลดงานที่ได้รับมอบหมายล้มเหลว:', err);
-            return [];
-          })
-          : Promise.resolve<AdminTask[]>([]),
-        fetchBrands().catch(err => {
-          console.error('โหลดแบรนด์ล้มเหลว:', err);
-          return [];
-        }),
-      ]);
-
-      const sortedHolidays = (hData ?? []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setHolidays(sortedHolidays);
-      setTasks((tData ?? []).filter(task => isTaskVisibleToUser(task, currentUser?.id)));
-      setBrands(bData ?? []);
-    } catch (err) {
-      console.error('โหลดข้อมูลล้มเหลว:', err);
-    }
-    setLoading(false);
-  }, [year, currentUser?.id]);
-
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (holidaysQuery.data) {
+      setHolidays([...holidaysQuery.data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    }
+    if (tasksQuery.data) {
+      setTasks(tasksQuery.data.filter(task => isAdmin || isTaskVisibleToUser(task, currentUser?.id)));
+    }
+    if (usersQuery.data) setTaskUsers(usersQuery.data);
+    if (brandsQuery.data) setBrands(brandsQuery.data);
+
+    if (holidaysQuery.error) console.error('โหลดวันหยุดล้มเหลว:', holidaysQuery.error);
+    if (tasksQuery.error) console.error('โหลดงานที่ได้รับมอบหมายล้มเหลว:', tasksQuery.error);
+    if (brandsQuery.error) console.error('โหลดแบรนด์ล้มเหลว:', brandsQuery.error);
+    if (usersQuery.error) console.error('โหลดรายชื่อผู้รับผิดชอบล้มเหลว:', usersQuery.error);
+
+    // Holiday data controls the page shell. Tasks are allowed to arrive in
+    // the background so the calendar can paint immediately from cache.
+    setLoading(holidaysQuery.isPending);
+  }, [
+    brandsQuery.data,
+    brandsQuery.error,
+    currentUser?.id,
+    holidaysQuery.data,
+    holidaysQuery.error,
+    holidaysQuery.isPending,
+    isAdmin,
+    tasksQuery.data,
+    tasksQuery.error,
+    tasksQuery.isPending,
+    usersQuery.data,
+    usersQuery.error,
+  ]);
 
   async function loadHolidays() {
-    try {
-      const data = await fetchHolidays(year);
-      (data ?? []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setHolidays(data ?? []);
-    } catch (err) {
-      console.error('โหลดวันหยุดล้มเหลว:', err);
-    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.holidays(year) });
   }
 
   const brandsMap = useMemo(() => {
@@ -162,6 +197,31 @@ export default function Holidays() {
     brands.forEach(b => map.set(b.id, b.name));
     return map;
   }, [brands]);
+
+  const taskFilterUsers = useMemo(() => {
+    const assignedUserIDs = new Set<string>();
+    tasks.forEach(task => {
+      const assigneeIDs = task.assignee_ids && task.assignee_ids.length > 0
+        ? task.assignee_ids
+        : task.assigned_to
+          ? [task.assigned_to]
+          : [];
+      assigneeIDs.forEach(id => assignedUserIDs.add(id));
+    });
+
+    return taskUsers
+      .filter(user => user.status === 'active' || assignedUserIDs.has(user.id))
+      .sort((a, b) => {
+        const aName = `${a.nickname || ''} ${a.first_name} ${a.last_name}`.trim();
+        const bName = `${b.nickname || ''} ${b.first_name} ${b.last_name}`.trim();
+        return aName.localeCompare(bName, 'th');
+      });
+  }, [taskUsers, tasks]);
+
+  const visibleTasks = useMemo(() => {
+    if (!isAdmin || taskPersonFilter === 'all') return tasks;
+    return tasks.filter(task => isTaskAssignedTo(task, taskPersonFilter));
+  }, [isAdmin, taskPersonFilter, tasks]);
 
   const monthNames = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -321,7 +381,7 @@ export default function Holidays() {
   const taskItems = useMemo<CalendarTaskItem[]>(() => {
     const items: CalendarTaskItem[] = [];
 
-    tasks.forEach(task => {
+    visibleTasks.forEach(task => {
       const taskDueDate = datePart(task.due_date);
       const taskCompletedDate = datePart(task.completed_at);
       const taskCompleted = task.status === 'completed';
@@ -449,7 +509,7 @@ export default function Holidays() {
     });
 
     return items.sort((a, b) => (a.dueDate || a.completedAt || '').localeCompare(b.dueDate || b.completedAt || ''));
-  }, [tasks]);
+  }, [visibleTasks]);
 
   const taskOverview = useMemo(() => {
     const todayKey = formatDateStr(today);
@@ -607,6 +667,12 @@ export default function Holidays() {
               ? 'ตรวจสอบวันหยุดประจำปี เพิ่มหรือจัดการวันหยุดสำหรับพนักงานในระบบ'
               : ''}
           </p>
+          {tasksQuery.isFetching ? (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-600" role="status" aria-live="polite">
+              <i className="fa-solid fa-rotate fa-spin" aria-hidden="true"></i>
+              กำลังซิงค์งานล่าสุด...
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -875,7 +941,7 @@ export default function Holidays() {
                   <i className="fa-solid fa-list-check text-[10px] text-indigo-600" aria-hidden="true"></i>
                   <span className="truncate">งานใกล้ครบกำหนด: {upcomingTaskLabel} · {formatDateThai(upcomingTaskInfo.dueDate || '')}</span>
                   {upcomingTaskInfo.priority && upcomingTaskInfo.priority !== 'low' && (
-                    <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${TASK_PRIORITY_META[upcomingTaskInfo.priority].className}`}>
+                    <span className={`holiday-priority-pill shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${TASK_PRIORITY_META[upcomingTaskInfo.priority].className}`}>
                       {TASK_PRIORITY_META[upcomingTaskInfo.priority].label}
                     </span>
                   )}
@@ -883,10 +949,47 @@ export default function Holidays() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {isAdmin && (
+                <div className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-2 py-1.5">
+                  <label htmlFor="holiday-task-person-filter" className="hidden sm:inline text-[11px] font-bold text-indigo-700 whitespace-nowrap">
+                    ดูงานของ
+                  </label>
+                  <i className="fa-regular fa-user text-[11px] text-indigo-500 sm:hidden" aria-hidden="true"></i>
+                  <select
+                    id="holiday-task-person-filter"
+                    aria-label="กรองงานตามผู้รับผิดชอบ"
+                    value={taskPersonFilter}
+                    onChange={(event) => setTaskPersonFilter(event.target.value)}
+                    className="w-[118px] max-w-full bg-transparent text-xs font-bold text-indigo-800 outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500/40 rounded-md sm:w-[150px]"
+                  >
+                    <option value="all">ทุกคน ({tasks.length})</option>
+                    {taskFilterUsers.map(user => {
+                      const displayName = user.nickname?.trim() || `${user.first_name} ${user.last_name}`.trim();
+                      const taskCount = tasks.filter(task => isTaskAssignedTo(task, user.id)).length;
+                      return (
+                        <option key={user.id} value={user.id}>
+                          {displayName || user.email} ({taskCount})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {taskPersonFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setTaskPersonFilter('all')}
+                      aria-label="ล้างตัวกรองผู้รับผิดชอบ"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-indigo-500 hover:bg-indigo-100 hover:text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                    >
+                      <i className="fa-solid fa-xmark text-[10px]" aria-hidden="true"></i>
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Month Selector Tabs Dropdown */}
               <select
-                className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-3 py-1.5 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-[118px] bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-3 py-1.5 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-auto"
                 value={currentMonth}
                 onChange={(e) => setCurrentMonth(Number(e.target.value))}
               >
@@ -1106,10 +1209,10 @@ export default function Holidays() {
                             return (
                               <div
                                 key={item.key}
-                                className={`px-1.5 py-1 rounded-lg border text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:brightness-95 transition-all ${priorityMeta.className}`}
+                                className={`holiday-task-priority px-1.5 py-1 rounded-lg border text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:brightness-95 transition-all ${priorityMeta.className}`}
                                 title={`${priorityMeta.label}: ${item.isSubItem && item.parentTitle ? `งานหลัก ${item.parentTitle} › ` : ''}${item.title}`}
                               >
-                                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white/70 px-1 py-0.5 text-[9px] font-extrabold">
+                                <span className="holiday-task-priority-label inline-flex shrink-0 items-center gap-1 rounded-md bg-white/70 px-1 py-0.5 text-[9px] font-extrabold">
                                   <i className={`fa-solid ${priorityMeta.icon} text-[9px]`} aria-hidden="true"></i>
                                   {priorityMeta.label}
                                 </span>
@@ -1269,8 +1372,8 @@ export default function Holidays() {
 
       {/* Day Activity Details Modal */}
       {selectedDayDetails && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+        <div className="holiday-day-details-overlay fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="holiday-day-details-modal bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="bg-slate-900 p-6 text-white relative shrink-0">
               <button
@@ -1290,7 +1393,7 @@ export default function Holidays() {
             </div>
 
             {/* Content List */}
-            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            <div className="holiday-day-details-content p-6 space-y-5 overflow-y-auto custom-scrollbar">
               {/* Holidays section */}
               {selectedDayDetails.holidayMatches.length > 0 && (
                 <div className="space-y-2.5">
@@ -1353,7 +1456,7 @@ export default function Holidays() {
                               )}
                             </div>
 
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            <span className={`holiday-priority-status text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                               item.priority === 'high' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}>
@@ -1485,7 +1588,7 @@ export default function Holidays() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+            <div className="holiday-day-details-footer p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
               <button
                 onClick={() => setSelectedDayDetails(null)}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"

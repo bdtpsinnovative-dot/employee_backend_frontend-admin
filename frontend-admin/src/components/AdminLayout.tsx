@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import type { User } from '../types';
 import { fetchMe, fetchPendingRequests, fetchNotifications, type AppNotification } from '../services/adminApi';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
+const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
 const ADMIN_ONLY_ROUTES = [
   '/dashboard',
   '/requests',
@@ -49,16 +52,28 @@ function saveSidebarPref(open: boolean) {
 }
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
+  const [lastTasksSearch, setLastTasksSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentUserLoaded, setCurrentUserLoaded] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const previousNotificationIdsRef = useRef<Set<string> | null>(null);
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
   const isAdmin = currentUser?.role === 'admin';
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
+  const isTasksPage = location.pathname === '/tasks'
+    || location.pathname === '/tasks/'
+    || (location.pathname.startsWith('/tasks/') && location.pathname !== '/tasks/daily');
+
+  useEffect(() => {
+    if (isTasksPage) {
+      setLastTasksSearch(location.search);
+    }
+  }, [isTasksPage, location.search]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -78,18 +93,64 @@ export default function AdminLayout() {
     }
   }, [currentUser, isAdmin]);
 
-  // Fetch notifications and poll every 30 seconds
+  // Notifications are intentionally cheaper to poll than the full task list.
+  // A new task notification invalidates task queries only when fresh data exists.
   useEffect(() => {
+    let stopped = false;
+    let requestInFlight = false;
+
     async function loadNotifications() {
+      if (requestInFlight || stopped) return;
+      requestInFlight = true;
       try {
         const data = await fetchNotifications();
-        setNotifications(data);
+        if (stopped) return;
+
+        setNotifications((prev) => {
+          if (
+            prev.length === data.length &&
+            prev.every((item, idx) => item.id === data[idx].id && item.is_read === data[idx].is_read)
+          ) {
+            return prev;
+          }
+          return data;
+        });
+
+        const previousIds = previousNotificationIdsRef.current;
+        if (previousIds) {
+          const hasNewTaskNotification = data.some((notification) => {
+            if (previousIds.has(notification.id) || !notification.metadata) return false;
+            const metadata = typeof notification.metadata === 'string'
+              ? (() => {
+                try { return JSON.parse(notification.metadata as string); } catch { return null; }
+              })()
+              : notification.metadata;
+            return Boolean(metadata && typeof metadata === 'object' && (metadata.task_id || metadata.list_id));
+          });
+
+          if (hasNewTaskNotification) {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') }),
+            ]);
+          }
+        }
+
+        previousNotificationIdsRef.current = new Set(data.map((notification) => notification.id));
       } catch { }
+      finally {
+        requestInFlight = false;
+      }
     }
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    void loadNotifications();
+    const interval = window.setInterval(() => void loadNotifications(), NOTIFICATION_POLL_INTERVAL_MS);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [queryClient]);
 
 
 
@@ -171,7 +232,7 @@ export default function AdminLayout() {
         onClick={toggleSidebar}
       ></div>
 
-      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} />
+      <Sidebar currentUser={currentUser} isOpen={sidebarOpen} onClose={handleCloseSidebar} tasksSearch={lastTasksSearch} />
 
       {/* Collapsed Left Rail for Desktop */}
       {/* Collapsed Left Rail for Desktop */}
@@ -280,7 +341,7 @@ export default function AdminLayout() {
             </NavLink>
 
             <NavLink
-              to="/tasks"
+                to={`/tasks${lastTasksSearch}`}
               title="จัดการงาน (Tasks)"
               className={({ isActive }) =>
                 `collapsed-nav-link ${isActive
@@ -345,7 +406,10 @@ export default function AdminLayout() {
             <button className="btn-hamburger" onClick={toggleSidebar}>
               <i className="fa-solid fa-bars"></i>
             </button>
-            <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>HR</div>
+            <div className="flex items-center gap-2" style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+              <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-6 h-6 rounded-md object-contain" />
+              <span>HR System</span>
+            </div>
             <div
               className="avatar-circle"
               style={{

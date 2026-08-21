@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
+	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -13,6 +14,23 @@ type UserRepo struct {
 	db *sqlx.DB
 }
 
+const userSelectColumns = `
+	u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname,
+	u.department, u.team_id, u.position_id,
+	COALESCE(p.name, '') AS position,
+	COALESCE(t.name, '') AS team,
+	u.role, u.status,
+	to_char(u.work_start_time, 'HH24:MI') AS work_start_time,
+	to_char(u.work_end_time, 'HH24:MI') AS work_end_time,
+	u.device_id, u.avatar_url, u.fcm_token,
+	u.face_embedding::text AS face_embedding,
+	u.created_at, u.updated_at`
+
+const userSelectJoins = `
+	FROM users u
+	LEFT JOIN teams t ON t.id = u.team_id
+	LEFT JOIN positions p ON p.id = u.position_id`
+
 func NewUserRepo(db *sqlx.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
@@ -20,8 +38,9 @@ func NewUserRepo(db *sqlx.DB) *UserRepo {
 // FindByAuthID ค้นหา user จาก auth_id (UUID จาก Supabase Auth)
 // ใช้ตอน JWT middleware ดึงข้อมูล user หลังจาก verify token สำเร็จ
 func (r *UserRepo) FindByAuthID(ctx context.Context, authID uuid.UUID) (*domain.User, error) {
+	defer perf.MeasureDB(ctx, "db.user.by_auth_id")()
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, u.position_id, COALESCE(p.name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id LEFT JOIN positions p ON p.id = u.position_id WHERE u.auth_id = $1`, authID)
+	err := r.db.GetContext(ctx, &user, `SELECT `+userSelectColumns+userSelectJoins+` WHERE u.auth_id = $1`, authID)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +50,7 @@ func (r *UserRepo) FindByAuthID(ctx context.Context, authID uuid.UUID) (*domain.
 // FindByID ค้นหา user จาก primary key
 func (r *UserRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, u.position_id, COALESCE(p.name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id LEFT JOIN positions p ON p.id = u.position_id WHERE u.id = $1`, id)
+	err := r.db.GetContext(ctx, &user, `SELECT `+userSelectColumns+userSelectJoins+` WHERE u.id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +60,7 @@ func (r *UserRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.User, er
 // FindByEmail ค้นหา user จาก email
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
-	err := r.db.GetContext(ctx, &user, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, u.position_id, COALESCE(p.name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.face_embedding::text AS face_embedding, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id LEFT JOIN positions p ON p.id = u.position_id WHERE u.email = $1`, email)
+	err := r.db.GetContext(ctx, &user, `SELECT `+userSelectColumns+userSelectJoins+` WHERE u.email = $1`, email)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +101,19 @@ func (r *UserRepo) UpdateProfileAndRole(ctx context.Context, id uuid.UUID, first
 		    role = $8, updated_at = NOW()
 		WHERE id = $9`,
 		firstName, lastName, nickname, department, positionID, teamID, legacyTeam, role, id)
+	return err
+}
+
+// UpdateWorkSchedule changes the employee's regular Monday-Friday schedule.
+// Existing attendance rows keep their own schedule snapshot.
+func (r *UserRepo) UpdateWorkSchedule(ctx context.Context, id uuid.UUID, startTime, endTime string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET work_start_time = $1::time,
+		    work_end_time = $2::time,
+		    updated_at = NOW()
+		WHERE id = $3
+	`, startTime, endTime, id)
 	return err
 }
 
@@ -147,7 +179,7 @@ func (r *UserRepo) UpdateProfileInfo(ctx context.Context, id uuid.UUID, firstNam
 // ListAll ดึงรายชื่อพนักงานทั้งหมด (สำหรับ Admin)
 func (r *UserRepo) ListAll(ctx context.Context) ([]domain.User, error) {
 	var users []domain.User
-	err := r.db.SelectContext(ctx, &users, `SELECT u.id, u.auth_id, u.email, u.first_name, u.last_name, u.nickname, u.department, u.team_id, u.position_id, COALESCE(p.name, '') AS position, COALESCE(t.name, '') AS team, u.role, u.status, u.device_id, u.avatar_url, u.fcm_token, u.created_at, u.updated_at FROM users u LEFT JOIN teams t ON t.id = u.team_id LEFT JOIN positions p ON p.id = u.position_id ORDER BY u.created_at DESC`)
+	err := r.db.SelectContext(ctx, &users, `SELECT `+userSelectColumns+userSelectJoins+` ORDER BY u.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}

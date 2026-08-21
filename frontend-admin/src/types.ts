@@ -258,24 +258,20 @@ export interface TaskList {
   sort_order: number;
   created_at: string;
   description?: string;
-}
-
-export interface TaskList {
-  id: string;
-  task_id: string;
-  name: string;
-  sort_order: number;
-  created_at: string;
-  description?: string;
   start_date?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];
   assignee_ids?: string[];
   deleted_at?: string;
+  project_name?: string;
+  task_title?: string;
+  brand_id?: string;
+  brand_name?: string;
+  category_id?: string;
 }
 
 export interface TaskSubmission {

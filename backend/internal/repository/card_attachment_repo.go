@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/Nattamon123/employee/backend/internal/domain"
 )
 
 // CardAttachmentRepo จัดการ SQL queries สำหรับตาราง card_attachments
@@ -39,6 +39,37 @@ func (r *CardAttachmentRepo) ListByCard(ctx context.Context, cardID uuid.UUID) (
 		return nil, err
 	}
 	return attachments, nil
+}
+
+// ListByCards returns attachments grouped by card in a single query.
+func (r *CardAttachmentRepo) ListByCards(ctx context.Context, cardIDs []uuid.UUID) (map[uuid.UUID][]domain.CardAttachment, error) {
+	result := make(map[uuid.UUID][]domain.CardAttachment, len(cardIDs))
+	for _, cardID := range cardIDs {
+		result[cardID] = nil
+	}
+	if len(cardIDs) == 0 {
+		return result, nil
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT id, card_id, url, name, type, created_at, created_by
+		FROM card_attachments
+		WHERE card_id IN (?)
+		ORDER BY card_id, created_at ASC
+	`, cardIDs)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+
+	var attachments []domain.CardAttachment
+	if err := r.db.SelectContext(ctx, &attachments, query, args...); err != nil {
+		return nil, err
+	}
+	for _, attachment := range attachments {
+		result[attachment.CardID] = append(result[attachment.CardID], attachment)
+	}
+	return result, nil
 }
 
 // Delete ลบ Attachment
