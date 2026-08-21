@@ -49,6 +49,7 @@ import {
   markNotificationRead,
   fetchDailyTaskLists,
 } from '../../services/adminApi';
+import { getTaskNotificationRefreshKey } from './taskNotificationRefresh';
 
 const isValidUUID = (id: string): boolean => {
   if (!id) return false;
@@ -204,6 +205,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
     return task.id === 'daily' ? true : tId === task.id;
   });
+  const taskNotificationRefreshKey = useMemo(
+    () => getTaskNotificationRefreshKey(notifications, task.id),
+    [notifications, task.id],
+  );
   const [loading, setLoading] = useState(true);
   const [drawerAssignees, setDrawerAssignees] = useState<string[]>([]);
   const [showCreateListModal, setShowCreateListModal] = useState(false);
@@ -377,7 +382,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
   useEffect(() => {
     loadSubItems();
-  }, [task.id, activeFilter]);
+  }, [task.id, activeFilter, taskNotificationRefreshKey]);
 
   const handleToggleListStatus = async (list: TaskList, currentStatus?: string) => {
     const newStatus = currentStatus === 'completed' ? 'in_progress' : 'completed';
