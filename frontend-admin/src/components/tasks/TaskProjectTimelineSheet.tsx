@@ -178,8 +178,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     if (task.assigned_to) {
       ids.add(task.assigned_to);
     }
+    if (task.assigned_by) {
+      ids.add(task.assigned_by);
+    }
     return Array.from(ids);
-  }, [task.id, task.assignee_ids, task.assigned_to, userMap]);
+  }, [task.id, task.assignee_ids, task.assigned_by, task.assigned_to, userMap]);
 
   const projectMemberUsers = useMemo(() => {
     if (task.id === 'daily') {
@@ -189,6 +192,10 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       .map((id) => userMap[id])
       .filter((u): u is User => Boolean(u && u.status === 'active'));
   }, [task.id, projectAssigneeIds, userMap]);
+  const canSubmitRevision = Boolean(
+    _currentUser &&
+      (_currentUser.role === 'admin' || projectAssigneeIds.includes(_currentUser.id)),
+  );
   const hasUnreadMainTaskNotif = notifications.some(n => {
     if (n.is_read) return false;
     let tId: string | null = null;
@@ -2011,8 +2018,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 </>
               ) : (
                 <>
-                  {/* ปุ่ม ส่งแก้ไข ไว้ซ้ายล่างสุด เฉพาะเมื่อสถานะเป็น in_review (รอตรวจ) หรือ completed (เสร็จสิ้น) */}
-                  {drawerStatus === 'in_review' || drawerStatus === 'completed' ? (
+                  {/* สมาชิกโปรเจกต์และผู้มอบหมายงานส่งแก้ไขได้เฉพาะสถานะที่พร้อมตรวจ/แก้ไข */}
+                  {canSubmitRevision &&
+                  (drawerStatus === 'in_review' ||
+                    drawerStatus === 'completed' ||
+                    drawerStatus === 'revision') ? (
                     <button
                       type="button"
                       onClick={() => {

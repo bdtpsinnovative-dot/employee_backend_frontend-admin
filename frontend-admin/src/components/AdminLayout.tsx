@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
+const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
 const ADMIN_ONLY_ROUTES = [
   '/dashboard',
   '/requests',
@@ -92,12 +93,28 @@ export default function AdminLayout() {
     }
   }, [currentUser, isAdmin]);
 
-  // Fetch notifications and poll every 30 seconds
+  // Notifications are intentionally cheaper to poll than the full task list.
+  // A new task notification invalidates task queries only when fresh data exists.
   useEffect(() => {
+    let stopped = false;
+    let requestInFlight = false;
+
     async function loadNotifications() {
+      if (requestInFlight || stopped) return;
+      requestInFlight = true;
       try {
         const data = await fetchNotifications();
-        setNotifications(data);
+        if (stopped) return;
+
+        setNotifications((prev) => {
+          if (
+            prev.length === data.length &&
+            prev.every((item, idx) => item.id === data[idx].id && item.is_read === data[idx].is_read)
+          ) {
+            return prev;
+          }
+          return data;
+        });
 
         const previousIds = previousNotificationIdsRef.current;
         if (previousIds) {
@@ -121,10 +138,18 @@ export default function AdminLayout() {
 
         previousNotificationIdsRef.current = new Set(data.map((notification) => notification.id));
       } catch { }
+      finally {
+        requestInFlight = false;
+      }
     }
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+
+    void loadNotifications();
+    const interval = window.setInterval(() => void loadNotifications(), NOTIFICATION_POLL_INTERVAL_MS);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
   }, [queryClient]);
 
 

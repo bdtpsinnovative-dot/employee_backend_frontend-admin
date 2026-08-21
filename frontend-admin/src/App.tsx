@@ -27,21 +27,32 @@ import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
 import DataCollection from './pages/legal/DataCollection';
 import DataDeletion from './pages/legal/DataDeletion';
+import { useRef } from 'react';
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    async function checkUser() {
+    async function checkUser(force = false) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setAuthenticated(false);
         setHasProfile(false);
         setChecking(false);
+        currentUserIdRef.current = null;
         return;
       }
       setAuthenticated(true);
+
+      if (!force && currentUserIdRef.current === session.user.id) {
+        setChecking(false);
+        return;
+      }
+
+      currentUserIdRef.current = session.user.id;
 
       try {
         await fetchMe();
@@ -61,23 +72,32 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
         } else {
           setHasProfile(false);
         }
+      } finally {
+        setChecking(false);
       }
-      setChecking(false);
     }
 
-    checkUser();
+    void checkUser(true);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         clearQueryCache();
         queryClient.clear();
-      }
-      if (!session) {
         setAuthenticated(false);
         setHasProfile(false);
         setChecking(false);
-      } else {
-        checkUser();
+        currentUserIdRef.current = null;
+      } else if (event === 'SIGNED_IN') {
+        if (session && session.user.id !== currentUserIdRef.current) {
+          clearQueryCache();
+          queryClient.clear();
+          void checkUser(true);
+        }
+      } else if (!session) {
+        setAuthenticated(false);
+        setHasProfile(false);
+        setChecking(false);
+        currentUserIdRef.current = null;
       }
     });
 
