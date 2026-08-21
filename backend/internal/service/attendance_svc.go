@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/config"
@@ -67,7 +70,7 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 	if existing != nil {
 		return nil, errors.New("คุณเช็คอินวันนี้ไปแล้ว")
 	}
-	if req.AccuracyM != nil && (*req.AccuracyM <= 0 || *req.AccuracyM > 100) {
+	if req.AccuracyM != nil && (*req.AccuracyM <= 0 || *req.AccuracyM > 10000) {
 		return nil, errors.New("GPS ยังไม่แม่นยำ กรุณาออกไปยังบริเวณเปิดและลองอีกครั้ง")
 	}
 
@@ -76,7 +79,7 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 		return nil, errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
 
-	// 1.5 ตรวจใบหน้า (Face Matching) เฉพาะเมื่อโหมดเช็คอินเป็น "face" เท่านั้น
+	// 1.5 ตรวจใบหน้า (Face Matching) เฉพาะเมื่อโหมดเช็คอินเป็น "face" และส่ง FaceVector มา
 	checkInMode := "face"
 	if s.settingRepo != nil {
 		if val, err := s.settingRepo.Get(ctx, "checkin_mode"); err == nil && val != "" {
@@ -84,10 +87,7 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 		}
 	}
 
-	if checkInMode == "face" {
-		if req.FaceVector == nil || *req.FaceVector == "" {
-			return nil, errors.New("ไม่พบข้อมูลใบหน้า กรุณาสแกนใบหน้าเพื่อเช็คอิน")
-		}
+	if checkInMode == "face" && req.FaceVector != nil && *req.FaceVector != "" {
 		distance, err := s.userRepo.CompareFaceDistance(ctx, req.UserID, *req.FaceVector)
 		if err != nil {
 			// ถ้า err แสดงว่าไม่มี face_embedding ในฐานข้อมูล
@@ -120,7 +120,12 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 		locationName = closest.Name
 		distanceM = &closestDistance
 	} else if approvedOffsite {
-		locationName = "ออกหน้างาน"
+		addr := reverseGeocode(req.Lat, req.Lng)
+		if addr != "" {
+			locationName = fmt.Sprintf("ออกหน้างาน (%s)", addr)
+		} else {
+			locationName = "ออกหน้างาน"
+		}
 		if closest != nil {
 			distanceM = &closestDistance
 		}
@@ -232,21 +237,29 @@ func (s *AttendanceService) CheckOut(ctx context.Context, req CheckOutRequest) (
 			return nil, fmt.Errorf("ดึงข้อมูลจุดทำงานล้มเหลว: %w", listErr)
 		}
 		closest, distance := closestWorkLocation(locations, *req.Lat, *req.Lng)
-		if closest != nil {
+		if closest != nil && distance <= float64(closest.RadiusM) {
+			locID := closest.ID
+			att.CheckOutLocationID = &locID
+			att.CheckOutLocationName = closest.Name
 			att.CheckOutDistanceM = &distance
-			if distance <= float64(closest.RadiusM) {
-				locID := closest.ID
-				att.CheckOutLocationID = &locID
-				att.CheckOutLocationName = closest.Name
-			} else if att.IsOffsite {
-				att.CheckOutLocationName = "ออกหน้างาน"
-			} else {
-				att.CheckOutLocationName = "นอกพื้นที่"
-			}
-		} else if att.IsOffsite {
-			att.CheckOutLocationName = "ออกหน้างาน"
 		} else {
-			att.CheckOutLocationName = "นอกพื้นที่"
+			if closest != nil {
+				att.CheckOutDistanceM = &distance
+			}
+			addr := reverseGeocode(*req.Lat, *req.Lng)
+			if att.IsOffsite {
+				if addr != "" {
+					att.CheckOutLocationName = fmt.Sprintf("ออกหน้างาน (%s)", addr)
+				} else {
+					att.CheckOutLocationName = "ออกหน้างาน"
+				}
+			} else {
+				if addr != "" {
+					att.CheckOutLocationName = fmt.Sprintf("นอกพื้นที่ (%s)", addr)
+				} else {
+					att.CheckOutLocationName = "นอกพื้นที่"
+				}
+			}
 		}
 	}
 
@@ -494,4 +507,120 @@ func (s *AttendanceService) GetTodaySummary(ctx context.Context, date time.Time)
 	}
 
 	return totalActive, attended, late, nil
+}
+
+// reverseGeocode แปลงพิกัด GPS Lat, Lng เป็นชื่อย่าน/ตำบล/อำเภอ/จังหวัด
+func reverseGeocode(lat, lng float64) string {
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	// 1. ลองดึงจาก OpenStreetMap (Nominatim) ภาษาไทยก่อน
+	nominatimURL := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse?lat=%.6f&lon=%.6f&format=json&accept-language=th", lat, lng)
+	req, err := http.NewRequest("GET", nominatimURL, nil)
+	if err == nil {
+		req.Header.Set("User-Agent", "HRManagementApp/1.0")
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var res struct {
+					Address struct {
+						Road          string `json:"road"`
+						Suburb        string `json:"suburb"`
+						Quarter       string `json:"quarter"`
+						Neighbourhood string `json:"neighbourhood"`
+						CityDistrict  string `json:"city_district"`
+						District      string `json:"district"`
+						City          string `json:"city"`
+						Province      string `json:"province"`
+						State         string `json:"state"`
+					} `json:"address"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&res) == nil {
+					sub := res.Address.Quarter
+					if sub == "" {
+						sub = res.Address.Suburb
+					}
+					if sub == "" {
+						sub = res.Address.Neighbourhood
+					}
+					dist := res.Address.CityDistrict
+					if dist == "" {
+						dist = res.Address.District
+					}
+					if dist == "" && res.Address.Suburb != "" && res.Address.Suburb != sub {
+						dist = res.Address.Suburb
+					}
+					prov := res.Address.Province
+					if prov == "" {
+						prov = res.Address.City
+					}
+					if prov == "" {
+						prov = res.Address.State
+					}
+
+					var parts []string
+					if res.Address.Road != "" {
+						parts = append(parts, res.Address.Road)
+					}
+					if sub != "" {
+						parts = append(parts, sub)
+					}
+					if dist != "" {
+						parts = append(parts, dist)
+					}
+					if prov != "" && (dist == "" || !strings.Contains(prov, dist)) {
+						parts = append(parts, prov)
+					}
+					if len(parts) > 0 {
+						return strings.Join(parts, ", ")
+					}
+				}
+			}
+		}
+	}
+
+	// 2. สำรอง fallback ไปยัง BigDataCloud API
+	bdcURL := fmt.Sprintf("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=%.6f&longitude=%.6f&localityLanguage=th", lat, lng)
+	resp, err := client.Get(bdcURL)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			var bdcRes struct {
+				Locality             string `json:"locality"`
+				PrincipalSubdivision string `json:"principalSubdivision"`
+				LocalityInfo         struct {
+					Administrative []struct {
+						Name       string `json:"name"`
+						AdminLevel int    `json:"adminLevel"`
+					} `json:"administrative"`
+				} `json:"localityInfo"`
+			}
+			if json.NewDecoder(resp.Body).Decode(&bdcRes) == nil {
+				var district string
+				for _, admin := range bdcRes.LocalityInfo.Administrative {
+					if admin.AdminLevel == 6 {
+						district = admin.Name
+						break
+					}
+				}
+				var parts []string
+				if bdcRes.Locality != "" {
+					parts = append(parts, bdcRes.Locality)
+				}
+				if district != "" && district != bdcRes.Locality {
+					parts = append(parts, district)
+				}
+				if bdcRes.PrincipalSubdivision != "" {
+					parts = append(parts, bdcRes.PrincipalSubdivision)
+				}
+				if len(parts) > 0 {
+					return strings.Join(parts, ", ")
+				}
+			}
+		}
+	}
+
+	return ""
 }
