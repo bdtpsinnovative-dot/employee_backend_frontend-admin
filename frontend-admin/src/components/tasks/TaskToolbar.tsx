@@ -1,6 +1,4 @@
-/* Hallmark · component: task-toolbar-header · genre: modern-minimal · theme: existing-blue tokens
- * pre-emit critique: Philosophy 5 · Hierarchy 5 · Execution 4 · Specificity 4 · Restraint 4 · Variety 4
- */
+import { useState } from 'react';
 import {
   Bell,
   Building2,
@@ -49,6 +47,7 @@ interface TaskToolbarProps {
   hasUnreadMainNotif: boolean;
   onOpenMainNotif: () => void;
   onOpenDailyTasks?: () => void;
+  onCreateBrand?: (name: string) => Promise<Brand | void>;
 }
 
 export const TaskToolbar: React.FC<TaskToolbarProps> = ({
@@ -78,7 +77,12 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   hasUnreadMainNotif,
   onOpenMainNotif,
   onOpenDailyTasks,
+  onCreateBrand,
 }) => {
+  const [showQuickAddBrand, setShowQuickAddBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [creatingBrand, setCreatingBrand] = useState(false);
+
   return (
     <div className="task-toolbar-wrapper task-toolbar-shell border-b border-slate-200 bg-white px-4 py-4 shadow-sm md:px-6 md:py-5">
       <div className="flex flex-col gap-5">
@@ -133,6 +137,18 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
                 >
                   <CalendarDays className="h-4 w-4 text-slate-500" />
                   <span>งานรายวัน</span>
+                </button>
+              )}
+
+              {canManageSettings && onCreateBrand && (
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddBrand(true)}
+                  className="task-toolbar-utility-button inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  title="เพิ่มแบรนด์ใหม่"
+                >
+                  <Plus className="h-4 w-4 text-blue-600" />
+                  <span>เพิ่มแบรนด์</span>
                 </button>
               )}
 
@@ -361,6 +377,75 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Quick Add Brand Modal */}
+      {showQuickAddBrand && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => !creatingBrand && setShowQuickAddBrand(false)} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <Tag className="w-4 h-4 text-blue-600" />
+                  <span>เพิ่มแบรนด์ใหม่</span>
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={() => setShowQuickAddBrand(false)}
+                  disabled={creatingBrand}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newBrandName.trim() || !onCreateBrand) return;
+                try {
+                  setCreatingBrand(true);
+                  await onCreateBrand(newBrandName.trim());
+                  setNewBrandName('');
+                  setShowQuickAddBrand(false);
+                } catch (err: any) {
+                  alert(err.message || 'เพิ่มแบรนด์ไม่สำเร็จ');
+                } finally {
+                  setCreatingBrand(false);
+                }
+              }} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">ชื่อแบรนด์ *</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="เช่น Nike, Apple, Ember..."
+                    value={newBrandName}
+                    onChange={(e) => setNewBrandName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddBrand(false)}
+                    disabled={creatingBrand}
+                    className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingBrand || !newBrandName.trim()}
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                  >
+                    {creatingBrand ? 'กำลังสร้าง...' : 'สร้างแบรนด์'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -16,6 +16,7 @@ const Notifications = lazy(() => import('./pages/Notifications'));
 const TaskLogs = lazy(() => import('./pages/TaskLogs'));
 const BackupCenter = lazy(() => import('./pages/BackupCenter'));
 const Profile = lazy(() => import('./pages/Profile'));
+const ContentCalendar = lazy(() => import('./pages/ContentCalendar'));
 const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities'));
 const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 
@@ -154,6 +155,7 @@ export default function App() {
             <Route path="daily-record" element={<DailyRecord />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
+            <Route path="content-calendar" element={<ContentCalendar />} />
             <Route path="brand-responsibilities" element={<BrandResponsibilities />} />
             <Route path="teams" element={<TeamManagement />} />
             <Route path="tasks/:taskId" element={<TaskDetail />} />

@@ -12,6 +12,7 @@ import {
   fetchTaskEvents,
   addTaskComment,
   fetchMe,
+  createBrand,
 } from '../services/adminApi';
 import type { AdminTask, User, Brand, TaskCategory, TaskEvent } from '../types';
 import { TaskProjectTimelineSheet } from '../components/tasks/TaskProjectTimelineSheet';
@@ -476,6 +477,12 @@ export default function TaskDetail() {
         categories={categories}
         initialData={editingTask || undefined}
         currentUser={currentUser}
+        onCreateBrand={async (name: string) => {
+          const created = await createBrand(name);
+          queryClient.invalidateQueries({ queryKey: queryKeys.brands });
+          setBrands((prev) => [...prev, created]);
+          return created;
+        }}
         onSubmit={handleUpdateTask}
       />
 

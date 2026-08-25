@@ -20,6 +20,7 @@ import {
   restoreTask,
   markNotificationRead,
   toggleStarTask,
+  createBrand,
 } from '../services/adminApi';
 import type {
   AdminTask,
@@ -513,6 +514,16 @@ export default function Tasks() {
     }
   };
 
+  const handleCreateBrand = async (name: string) => {
+    const created = await createBrand(name);
+    queryClient.invalidateQueries({ queryKey: queryKeys.brands });
+    setBrands((prev) => {
+      if (prev.some((b) => b.id === created.id)) return prev;
+      return [...prev, created];
+    });
+    return created;
+  };
+
   // ─── Filter Logic ───
   const filteredTasks = tasks.filter((task) => {
     // กรองแสดงเฉพาะงานที่เราสร้าง หรือ งานที่เราเข้าร่วม (มีรายชื่อเป็นผู้รับผิดชอบ) เท่านั้น
@@ -530,7 +541,7 @@ export default function Tasks() {
     } else if (tabFilter === 'completed') {
       if (task.status !== 'completed') return false;
     } else if (tabFilter === 'starred') {
-      if (!task.is_starred) return false;
+      if (!task.is_starred || task.status === 'completed') return false;
     }
 
     if (searchQuery.trim()) {
@@ -640,6 +651,7 @@ export default function Tasks() {
         hasUnreadMainNotif={hasUnreadMainNotif}
         onOpenMainNotif={handleOpenMainNotif}
         onOpenDailyTasks={() => navigate('/tasks/daily')}
+        onCreateBrand={handleCreateBrand}
       />
 
       {/* Loading & Error States */}
@@ -741,6 +753,7 @@ export default function Tasks() {
           setEditingTask(null);
           handleDeleteTask(id);
         }}
+        onCreateBrand={handleCreateBrand}
         onSubmit={editingTask ? handleUpdateTask : handleCreateTask}
       />
 

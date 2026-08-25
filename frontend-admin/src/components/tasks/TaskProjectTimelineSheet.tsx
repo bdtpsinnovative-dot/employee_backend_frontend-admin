@@ -1048,8 +1048,8 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
           </td>
         )}
 
-        {/* 2. รายละเอียดงาน (PROJECT / SUBTASK) */}
-        <td className="px-4 py-3 border-r border-slate-200 align-middle">
+        {/* 1.8 BRAND (คอลัมน์แบรนด์) */}
+        <td className="px-3 py-3 border-r border-slate-200 text-center align-middle">
           {(() => {
             const parentTask = list.task_id ? allTasksMap[list.task_id] : null;
             const brandId = list.brand_id || parentTask?.brand_id || task.brand_id || null;
@@ -1057,24 +1057,28 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                              (list.brand_name ? { id: brandId || '', name: list.brand_name, sort_order: 0, created_at: '' } : null);
             const brandName = rowBrand?.name || list.brand_name || '';
 
-            return (
-              <div className="flex items-start gap-2.5">
-                <Star className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span className="font-bold text-slate-850 text-xs leading-snug break-words" title={list.name}>
-                    {list.name}
-                  </span>
+            if (!brandName) {
+              return <span className="text-slate-400 font-medium text-xs">-</span>;
+            }
 
-                  {task.id === 'daily' && brandName ? (
-                    <span className="inline-flex items-center gap-1 w-fit rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                      <Tag className="h-2.5 w-2.5 shrink-0 text-blue-600" />
-                      <span className="truncate max-w-[160px]" title={brandName}>{brandName}</span>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+            return (
+              <span className="font-semibold text-slate-800 text-xs leading-snug" title={brandName}>
+                {brandName}
+              </span>
             );
           })()}
+        </td>
+
+        {/* 2. รายละเอียดงาน (PROJECT / SUBTASK) */}
+        <td className="px-4 py-3 border-r border-slate-200 align-middle">
+          <div className="flex items-start gap-2.5">
+            <Star className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="font-bold text-slate-850 text-xs leading-snug break-words" title={list.name}>
+                {list.name}
+              </span>
+            </div>
+          </div>
         </td>
 
         {/* 5. PRIORITY */}
@@ -1374,13 +1378,14 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
           {/* Table Container */}
           <div className="task-timeline-table-wrap overflow-x-auto">
-            <table className={`w-full text-left border-collapse text-xs font-sans ${task.id === 'daily' ? (showNoteColumn ? 'min-w-[1100px]' : 'min-w-[1000px]') : (showNoteColumn ? 'min-w-[950px]' : 'min-w-[860px]')}`}>
+            <table className={`w-full text-left border-collapse text-xs font-sans ${task.id === 'daily' ? (showNoteColumn ? 'min-w-[1200px]' : 'min-w-[1100px]') : (showNoteColumn ? 'min-w-[1050px]' : 'min-w-[960px]')}`}>
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
                   <th className="px-3 py-3 w-28 text-center border-r border-slate-200">DUE DATE</th>
                   {task.id === 'daily' && (
                     <th className="px-3 py-3 border-r border-slate-200 w-44 min-w-[150px] text-left">งานหลัก</th>
                   )}
+                  <th className="px-3 py-3 border-r border-slate-200 w-32 min-w-[105px] text-center">แบรนด์</th>
                   <th className="px-4 py-3 border-r border-slate-200 min-w-[200px] text-left">รายละเอียดงาน</th>
                   <th className="px-3 py-3 w-24 text-center border-r border-slate-200">PRIORITY</th>
                   <th className="px-4 py-3 border-r border-slate-200 w-1/4 max-w-[250px]">DETAILS</th>
@@ -1402,7 +1407,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   renderedRows
                 ) : (
                   <tr>
-                    <td colSpan={task.id === 'daily' ? (showNoteColumn ? 10 : 9) : (showNoteColumn ? 9 : 8)} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
+                    <td colSpan={task.id === 'daily' ? (showNoteColumn ? 11 : 10) : (showNoteColumn ? 10 : 9)} className="px-6 py-12 text-center text-slate-400 font-semibold italic text-sm bg-slate-50/50">
                       ยังไม่ได้เพิ่มงานย่อย
                     </td>
                   </tr>
