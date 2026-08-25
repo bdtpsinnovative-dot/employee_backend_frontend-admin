@@ -9,6 +9,7 @@ import {
   Pencil,
   Save,
   ShieldCheck,
+  X,
   UserRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -42,9 +43,13 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPasswordVerified, setCurrentPasswordVerified] = useState(false);
+  const [verifyingCurrentPassword, setVerifyingCurrentPassword] = useState(false);
+  const [passwordVerificationMessage, setPasswordVerificationMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [cropSource, setCropSource] = useState<string | null>(null);
@@ -66,6 +71,19 @@ export default function Profile() {
       .catch(() => setError('โหลดข้อมูลโปรไฟล์ไม่สำเร็จ'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!passwordModalOpen) return undefined;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !savingPassword) {
+        setPasswordModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [passwordModalOpen, savingPassword]);
 
   function clearMessages() {
     setError('');
@@ -209,6 +227,43 @@ export default function Profile() {
     setPassword('');
     setConfirmPassword('');
     setSuccess('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
+    setPasswordModalOpen(false);
+    setCurrentPasswordVerified(false);
+    setPasswordVerificationMessage('');
+  }
+
+  async function verifyCurrentPassword() {
+    if (verifyingCurrentPassword || currentPasswordVerified) return;
+    clearMessages();
+    setPasswordVerificationMessage('');
+    if (currentPassword.length < 6) {
+      setError('กรุณากรอกรหัสผ่านเดิมให้ครบอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    setVerifyingCurrentPassword(true);
+    const { data: authData, error: authUserError } = await supabase.auth.getUser();
+    const authEmail = authData.user?.email || user?.email || '';
+    if (authUserError || !authEmail) {
+      setCurrentPasswordVerified(false);
+      setError('ไม่พบอีเมลของบัญชีที่กำลังเข้าสู่ระบบ');
+      setVerifyingCurrentPassword(false);
+      return;
+    }
+
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password: currentPassword,
+    });
+    setVerifyingCurrentPassword(false);
+    if (verifyError) {
+      setCurrentPasswordVerified(false);
+      setError('รหัสผ่านเดิมไม่ถูกต้อง');
+      return;
+    }
+
+    setCurrentPasswordVerified(true);
+    setPasswordVerificationMessage('ยืนยันรหัสผ่านเดิมแล้ว สามารถตั้งรหัสผ่านใหม่ได้');
   }
 
   if (loading) {
@@ -229,9 +284,9 @@ export default function Profile() {
       <div className="profile-grid">
         <article className="profile-card">
           <div className="profile-card-heading"><UserRound size={19} /><div><h2>แก้ไขโปรไฟล์</h2><p>รูป Avatar ข้อมูลส่วนตัว และข้อมูลที่ใช้ในระบบ</p></div></div>
-          <form className="profile-password-form" onSubmit={handleSaveProfile}>
+          <form className="profile-password-form profile-main-form" onSubmit={handleSaveProfile}>
             <div className="profile-avatar-picker">
-              <div className="profile-avatar-picker-heading"><strong>รูปโปรไฟล์</strong><span>กดดินสอเพื่อเปลี่ยนรูป</span></div>
+              <div className="profile-avatar-picker-heading"><strong>รูปโปรไฟล์</strong></div>
               <div className="profile-avatar-edit-shell">
                 <div className="profile-current-avatar">
                   {avatarUrl(avatarURL) ? <img src={avatarUrl(avatarURL) || undefined} alt="รูปโปรไฟล์ที่เลือก" /> : <UserRound size={30} />}
@@ -288,7 +343,7 @@ export default function Profile() {
               <label>ชื่อ<input value={firstName} onChange={(event) => setFirstName(event.target.value)} required /></label>
               <label>นามสกุล<input value={lastName} onChange={(event) => setLastName(event.target.value)} required /></label>
             </div>
-            <label>ชื่อเล่น<input value={nickname} onChange={(event) => setNickname(event.target.value)} required /></label>
+            <label className="profile-nickname-field">ชื่อเล่น<input value={nickname} onChange={(event) => setNickname(event.target.value)} required /></label>
             <div className="profile-admin-managed-note"><ShieldCheck size={17} /><span>ตำแหน่งและทีมกำหนดโดย Admin</span></div>
             <label>ตำแหน่ง<input value={user?.position || 'ยังไม่ได้ระบุ'} readOnly /></label>
             <label>ทีม<input value={user?.team || 'ยังไม่ได้ระบุ'} readOnly /></label>
@@ -300,22 +355,99 @@ export default function Profile() {
               บันทึกข้อมูลโปรไฟล์
             </button>
           </form>
-        </article>
-
-        <article className="profile-card">
-          <div className="profile-card-heading"><KeyRound size={19} /><div><h2>เปลี่ยนรหัสผ่าน</h2><p>รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร</p></div></div>
-          <div className="profile-security-note"><ShieldCheck size={18} /><span>ต้องยืนยันรหัสผ่านเดิมก่อน ระบบจึงจะเปลี่ยนเป็นรหัสผ่านใหม่ให้</span></div>
-          <form className="profile-password-form" onSubmit={handleChangePassword}>
-            <label>รหัสผ่านเดิม<input type="password" minLength={6} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required /></label>
-            <label>รหัสผ่านใหม่<input type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required /></label>
-            <label>ยืนยันรหัสผ่านใหม่<input type="password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required /></label>
-            <button className="btn-primary profile-action-button" type="submit" disabled={savingPassword}>
-              {savingPassword ? <LoaderCircle className="backup-spin" size={17} /> : <KeyRound size={17} />}
-              บันทึกรหัสผ่านใหม่
+          <div className="profile-inline-security">
+            <div className="profile-inline-security-copy">
+              <KeyRound size={19} />
+              <div>
+                <h2>รหัสผ่าน</h2>
+                <p>เปลี่ยนรหัสผ่านบัญชีของคุณเมื่อจำเป็น</p>
+              </div>
+            </div>
+            <button
+              className="btn-primary profile-password-trigger"
+              type="button"
+              onClick={() => {
+                clearMessages();
+                setCurrentPasswordVerified(false);
+                setPasswordVerificationMessage('');
+                setPasswordModalOpen(true);
+              }}
+            >
+              <KeyRound size={17} />
+              เปลี่ยนรหัสผ่าน
             </button>
-          </form>
+          </div>
         </article>
       </div>
+
+      {passwordModalOpen && (
+        <div
+          className="profile-password-modal-backdrop"
+          role="presentation"
+          onMouseDown={() => {
+            if (!savingPassword) setPasswordModalOpen(false);
+          }}
+        >
+          <div
+            className="profile-password-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-password-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="profile-password-modal-header">
+              <div className="profile-card-heading">
+                <KeyRound size={19} />
+                <div>
+                  <h2 id="change-password-title">เปลี่ยนรหัสผ่าน</h2>
+                  <p>รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร</p>
+                </div>
+              </div>
+              <button
+                className="profile-password-modal-close"
+                type="button"
+                onClick={() => setPasswordModalOpen(false)}
+                disabled={savingPassword}
+                aria-label="ปิดหน้าต่างเปลี่ยนรหัสผ่าน"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {error && <div className="profile-modal-message error" role="alert">{error}</div>}
+
+            <div className="profile-security-note">
+              <ShieldCheck size={18} />
+              <span>ต้องยืนยันรหัสผ่านเดิมก่อน ระบบจึงจะเปลี่ยนเป็นรหัสผ่านใหม่ให้</span>
+            </div>
+            <form className="profile-password-form" onSubmit={handleChangePassword}>
+              <label>
+                <span className="profile-password-field-label">
+                  <span>รหัสผ่านเดิม</span>
+                  <button className="profile-password-verify-button" type="button" onClick={() => void verifyCurrentPassword()} disabled={verifyingCurrentPassword || currentPasswordVerified}>
+                    {verifyingCurrentPassword ? 'กำลังตรวจสอบ...' : currentPasswordVerified ? 'ตรวจสอบแล้ว' : 'ตรวจสอบ'}
+                  </button>
+                </span>
+                <input type="password" minLength={6} value={currentPassword} onChange={(event) => {
+                  setCurrentPassword(event.target.value);
+                  setCurrentPasswordVerified(false);
+                  setPasswordVerificationMessage('');
+                }} onBlur={() => void verifyCurrentPassword()} autoComplete="current-password" required autoFocus />
+                {passwordVerificationMessage && <small className="profile-password-verified-message">{passwordVerificationMessage}</small>}
+              </label>
+              <label>รหัสผ่านใหม่<input type="password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required disabled={!currentPasswordVerified} /></label>
+              <label>ยืนยันรหัสผ่านใหม่<input type="password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required disabled={!currentPasswordVerified} /></label>
+              <div className="profile-password-modal-actions">
+                <button className="btn-secondary" type="button" onClick={() => setPasswordModalOpen(false)} disabled={savingPassword}>ยกเลิก</button>
+                <button className="btn-primary profile-action-button" type="submit" disabled={savingPassword}>
+                  {savingPassword ? <LoaderCircle className="backup-spin" size={17} /> : <Save size={17} />}
+                  บันทึกรหัสผ่าน
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {cropSource && <AvatarCropModal source={cropSource} fileName={cropFileName} onCancel={closeCropModal} onConfirm={handleCroppedAvatar} />}
     </section>
   );

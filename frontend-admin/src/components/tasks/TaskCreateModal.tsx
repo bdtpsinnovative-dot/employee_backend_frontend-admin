@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Calendar, User, Check, Lock, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
 import { avatarUrl } from './taskUtils';
+import { fetchTaskEvents } from '../../services/adminApi';
 import {
   getVisibleBrandResponsibilityGroups,
   getAutoBrandAssigneeIDs,
@@ -92,6 +93,29 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   
   // Custom Alert inside modal to avoid native alert
   const [modalAlert, setModalAlert] = useState<string | null>(null);
+
+  // Internal events loading fallback
+  const [internalEvents, setInternalEvents] = useState<TaskEvent[]>([]);
+  const [internalLoading, setInternalLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && initialData?.id) {
+      if (taskEvents.length > 0) {
+        setInternalEvents(taskEvents);
+      } else {
+        setInternalLoading(true);
+        fetchTaskEvents(initialData.id, { taskOnly: true })
+          .then((evts) => setInternalEvents(evts || []))
+          .catch(() => setInternalEvents([]))
+          .finally(() => setInternalLoading(false));
+      }
+    } else if (!isOpen) {
+      setInternalEvents([]);
+    }
+  }, [isOpen, initialData?.id, taskEvents]);
+
+  const activeEvents = taskEvents.length > 0 ? taskEvents : internalEvents;
+  const isEventsLoading = eventsLoading || internalLoading;
 
   // Inline Add Brand state
   const [showAddBrandInline, setShowAddBrandInline] = useState(false);
@@ -291,8 +315,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
               >
                 <Activity className="w-3.5 h-3.5" />
                 ประวัติกิจกรรม
-                {taskEvents.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">{taskEvents.length}</span>
+                {activeEvents.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">{activeEvents.length}</span>
                 )}
               </button>
             </div>
@@ -787,19 +811,19 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
           {/* Activity History Tab */}
           {initialData && activeTab === 'history' && (
             <div className="p-5 max-h-[480px] overflow-y-auto">
-              {eventsLoading ? (
+              {isEventsLoading ? (
                 <div className="flex items-center justify-center py-12 text-slate-400">
                   <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin mr-2" />
                   <span className="text-xs">กำลังโหลดประวัติ...</span>
                 </div>
-              ) : taskEvents.length === 0 ? (
+              ) : activeEvents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                   <Activity className="w-10 h-10 mb-2 opacity-30" />
                   <p className="text-xs font-medium">ยังไม่มีประวัติกิจกรรม</p>
                 </div>
               ) : (
                 <ol className="relative border-l-2 border-slate-100 ml-2 space-y-4">
-                  {taskEvents.map((ev) => {
+                  {activeEvents.map((ev) => {
                     const actionLabel: Record<string, { label: string; color: string; dot: string }> = {
                       task_created:       { label: 'สร้างงาน',              color: 'text-emerald-700 bg-emerald-50 border-emerald-200',   dot: 'bg-emerald-400' },
                       task_updated:       { label: 'แก้ไขงาน',              color: 'text-blue-700 bg-blue-50 border-blue-200',           dot: 'bg-blue-400' },

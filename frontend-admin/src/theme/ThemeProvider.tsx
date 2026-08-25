@@ -22,6 +22,11 @@ function getInitialThemeMode(): ThemeMode {
 function applyTheme(theme: ResolvedTheme) {
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
 }
 
 interface ThemeContextValue {

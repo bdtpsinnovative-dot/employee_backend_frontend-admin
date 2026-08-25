@@ -34,7 +34,7 @@ export const TaskProjectOverview: React.FC<TaskProjectOverviewProps> = ({
           const brand = task.brand_id ? brandMap[task.brand_id] : null;
           const category = task.category_id ? categoryMap[task.category_id] : null;
           const isDone = task.status === 'completed';
-          const dueInfo = formatRelativeDueDate(task.due_date, isDone);
+          const dueInfo = formatRelativeDueDate(task.due_date, isDone, task.status, task.latest_submission?.submitted_at);
 
           const subItems = task.sub_items || [];
           const doneSubItems = subItems.filter((s) => s.is_done).length;

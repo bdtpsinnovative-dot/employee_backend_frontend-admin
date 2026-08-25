@@ -48,14 +48,32 @@ export const STATUS_CONFIG: Record<TaskStatus, {
   },
 };
 
-export function formatRelativeDueDate(dueIso: string, isCompleted: boolean = false): {
+export function formatRelativeDueDate(
+  dueIso: string,
+  isCompleted: boolean = false,
+  status?: string,
+  submissionDate?: string
+): {
   text: string;
-  variant: 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'completed';
+  variant: 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'completed' | 'in_review';
 } {
-  if (isCompleted) {
-    const d = new Date(dueIso);
-    const dateStr = isNaN(d.getTime()) ? dueIso : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-    return { text: dateStr, variant: 'completed' };
+  const d = new Date(dueIso);
+  const formattedDate = isNaN(d.getTime()) ? dueIso : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+  if (isCompleted || status === 'completed') {
+    return { text: formattedDate, variant: 'completed' };
+  }
+
+  // If task is waiting for review (รอตรวจ), do not show overdue red badge
+  if (status === 'in_review') {
+    if (submissionDate) {
+      const subTime = new Date(submissionDate).getTime();
+      const dueTime = new Date(dueIso).getTime();
+      if (!isNaN(subTime) && !isNaN(dueTime) && subTime <= dueTime) {
+        return { text: `ส่งตรงเวลา (${formattedDate})`, variant: 'in_review' };
+      }
+    }
+    return { text: `รอตรวจ (${formattedDate})`, variant: 'in_review' };
   }
 
   const dueDate = new Date(dueIso);
@@ -74,8 +92,6 @@ export function formatRelativeDueDate(dueIso: string, isCompleted: boolean = fal
   
   const diffTime = targetDay.getTime() - today.getTime();
   const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
-
-  const formattedDate = dueDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
   if (diffDays < 0) {
     const daysAgo = Math.abs(diffDays);

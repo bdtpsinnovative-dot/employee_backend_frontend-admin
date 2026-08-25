@@ -3,6 +3,8 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
+import TopHeader from './TopHeader';
+import { CommandSearchModal } from './common/CommandSearchModal';
 import type { User } from '../types';
 import { fetchMe, fetchNotifications, type AppNotification } from '../services/adminApi';
 import { queryKeys } from '../lib/queryKeys';
@@ -52,6 +54,7 @@ function saveSidebarPref(open: boolean) {
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(getInitialSidebarOpen);
   const [lastTasksSearch, setLastTasksSearch] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentUserLoaded, setCurrentUserLoaded] = useState(false);
@@ -64,6 +67,18 @@ export default function AdminLayout() {
   const isTasksPage = location.pathname === '/tasks'
     || location.pathname === '/tasks/'
     || (location.pathname.startsWith('/tasks/') && location.pathname !== '/tasks/daily');
+
+  // Global Ctrl + K / Cmd + K Shortcut to open Search
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   useEffect(() => {
     if (isTasksPage) {
@@ -217,38 +232,31 @@ export default function AdminLayout() {
         tasksSearch={lastTasksSearch}
       />
 
-      <div className="main-container">
-        <div className="content-area">
-          <div className="mobile-header">
-            <button className="btn-hamburger" onClick={toggleSidebar}>
-              <i className="fa-solid fa-bars"></i>
-            </button>
-            <div className="flex items-center gap-2" style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-              <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-6 h-6 rounded-md object-contain" />
-              <span>HR System</span>
-            </div>
-            <div
-              className="avatar-circle"
-              style={{
-                background: 'var(--primary-gradient)',
-                color: 'white',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold'
-              }}
-            >
-              {currentUser?.first_name ? currentUser.first_name[0].toUpperCase() : 'U'}
-            </div>
+      <div className="main-container flex flex-col flex-1 h-screen overflow-hidden">
+        {/* Modern Top Header Bar (YouTube Studio / Linear style) */}
+        <TopHeader
+          currentUser={currentUser}
+          notifications={notifications}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onToggleSidebar={toggleSidebar}
+        />
+
+        <div className="flex-1 flex overflow-hidden w-full relative">
+          <div className="content-area flex-1 overflow-y-auto">
+            {/* Child Routes Render Here */}
+            <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
           </div>
 
-          {/* Child Routes Render Here */}
-          <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
+          {isDashboard && <RightPanel selectedUser={selectedUser} onSelectUser={setSelectedUser} />}
         </div>
-
-        {isDashboard && <RightPanel selectedUser={selectedUser} onSelectUser={setSelectedUser} />}
       </div>
+
+      {/* Global Spotlight Search Modal (Ctrl + K) */}
+      <CommandSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

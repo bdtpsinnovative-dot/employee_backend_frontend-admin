@@ -976,12 +976,13 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
 
     // Relative due date calculation for sub-tasks (งานย่อย)
     const isCompletedList = listStatus === 'completed';
+    const isInReviewList = listStatus === 'in_review';
     const hasDueDate = !!list.due_date && !list.due_date.startsWith('0001-01-01');
     let dueBadge = null;
 
     if (hasDueDate && list.due_date) {
       const listDueDateStr = list.due_date.split('T')[0];
-      const isOverdue = !isCompletedList && listDueDateStr < todayStr;
+      const isOverdue = !isCompletedList && !isInReviewList && listDueDateStr < todayStr;
       const formattedDate = new Date(list.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
       if (isOverdue) {
@@ -1001,6 +1002,13 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         dueBadge = (
           <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold whitespace-nowrap">
             {formattedDate}
+          </span>
+        );
+      } else if (isInReviewList) {
+        dueBadge = (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-700 border border-blue-200 font-bold whitespace-nowrap shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+            <span>รอตรวจ ({formattedDate})</span>
           </span>
         );
       } else if (listDueDateStr === todayStr) {

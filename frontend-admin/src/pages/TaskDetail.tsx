@@ -89,6 +89,20 @@ export default function TaskDetail() {
 
   // ─── Edit Modal ───
   const [editingTask, setEditingTask] = useState<AdminTask | null>(null);
+  const [editTaskEvents, setEditTaskEvents] = useState<TaskEvent[]>([]);
+  const [editEventsLoading, setEditEventsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!editingTask) {
+      setEditTaskEvents([]);
+      return;
+    }
+    setEditEventsLoading(true);
+    fetchTaskEvents(editingTask.id, { taskOnly: true })
+      .then((evts) => setEditTaskEvents(evts || []))
+      .catch(() => setEditTaskEvents([]))
+      .finally(() => setEditEventsLoading(false));
+  }, [editingTask?.id]);
 
   useEffect(() => {
     if (tasksQuery.data) setTasks(tasksQuery.data);
@@ -261,7 +275,7 @@ export default function TaskDetail() {
   // ─── Derived data for header ───
   const brand    = task?.brand_id ? brandMap[task.brand_id] : null;
   const category = task?.category_id ? categoryMap[task.category_id] : null;
-  const dueInfo  = task ? formatRelativeDueDate(task.due_date, task.status === 'completed') : null;
+  const dueInfo  = task ? formatRelativeDueDate(task.due_date, task.status === 'completed', task.status, task.latest_submission?.submitted_at) : null;
   const assigneeIds =
     task?.assignee_ids && task.assignee_ids.length > 0
       ? task.assignee_ids
@@ -477,6 +491,8 @@ export default function TaskDetail() {
         categories={categories}
         initialData={editingTask || undefined}
         currentUser={currentUser}
+        taskEvents={editTaskEvents}
+        eventsLoading={editEventsLoading}
         onCreateBrand={async (name: string) => {
           const created = await createBrand(name);
           queryClient.invalidateQueries({ queryKey: queryKeys.brands });

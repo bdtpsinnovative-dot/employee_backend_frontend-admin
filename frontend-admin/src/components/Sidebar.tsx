@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -10,17 +10,12 @@ import {
   CalendarCheck,
   History,
   Kanban,
-  User as UserIcon,
-  Sun,
-  Moon,
   LogOut,
-  Settings,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
 import type { User } from '../types';
 import { avatarUrl } from './tasks/taskUtils';
-import { useTheme } from '../theme/ThemeProvider';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -33,37 +28,19 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
-  const { mode, resolvedTheme, toggleTheme } = useTheme();
   const isAdmin = currentUser?.role === 'admin';
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser
-    ? `${currentUser.first_name} ${currentUser.last_name}${currentUser.nickname ? ` (${currentUser.nickname})` : ''}`.trim()
+    ? (currentUser.nickname || currentUser.first_name || 'ผู้ใช้งาน')
     : 'กำลังโหลดข้อมูล...';
   const positionText = currentUser?.position || (isAdmin ? 'ผู้ดูแลระบบ' : 'พนักงาน');
-  const roleBadgeText = currentUser?.department ? currentUser.department : (isAdmin ? 'ADMIN' : 'STAFF');
+  const roleBadgeText = isAdmin ? 'ADMIN' : 'STAFF';
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
   useEffect(() => {
     if (isAdmin) void loadPendingCount();
   }, [isAdmin]);
-
-  // Click outside to close profile popup
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-    }
-    if (profileMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [profileMenuOpen]);
 
   async function loadPendingCount() {
     try {
@@ -92,16 +69,13 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
   return (
     <div className={`sidebar ${isOpen ? 'active' : 'collapsed'}`} id="sidebar">
-      {/* Top Profile Header: Avatar, Name, Position, Badge & Gear Settings Icon */}
-      <div className="sidebar-profile-header relative w-full mb-3" ref={profileMenuRef}>
-        <button
-          type="button"
-          className={`sidebar-profile ${profileMenuOpen ? 'active open' : ''}`}
-          aria-label={`${profileMenuOpen ? 'ปิด' : 'เปิด'}เมนูโปรไฟล์ของ ${profileName}`}
-          aria-haspopup="menu"
-          aria-expanded={profileMenuOpen}
-          aria-controls="sidebar-profile-menu"
-          onClick={() => setProfileMenuOpen((previous) => !previous)}
+      {/* Top Profile Header: Avatar, Name, Position, Badge */}
+      <div className="sidebar-profile-header relative w-full mb-3">
+        <NavLink
+          to="/profile"
+          className={({ isActive }) => `sidebar-profile ${isActive ? 'active' : ''}`}
+          title={`โปรไฟล์ของ ${profileName}`}
+          onClick={handleNavClick}
         >
           <div className="sidebar-profile-avatar-wrapper">
             <span className={`sidebar-profile-avatar ${profileAvatar ? 'has-image' : 'has-initial'}`} aria-hidden="true">
@@ -118,81 +92,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
               </span>
             </div>
           </div>
-          <div
-            className={`sidebar-profile-gear-icon ${profileMenuOpen ? 'active' : ''}`}
-            title="การตั้งค่าและโปรไฟล์"
-          >
-            <Settings className="w-4 h-4" />
-          </div>
-        </button>
-
-        {/* Premium Floating Profile Dropdown Card */}
-        {profileMenuOpen && (
-          <div className="sidebar-profile-popover" id="sidebar-profile-menu">
-            {/* Header info inside popover */}
-            <div className="popover-user-header">
-              <div className={`popover-avatar ${profileAvatar ? 'has-image' : 'has-initial'}`}>
-                {profileAvatar ? <img src={profileAvatar} alt="" /> : profileInitial}
-              </div>
-              <div className="popover-user-info">
-                <div className="popover-name" title={profileName}>{profileName}</div>
-                <div className="popover-meta">
-                  <span>{positionText}</span>
-                  <span className={`popover-badge ${isAdmin ? 'admin' : 'staff'}`}>
-                    {roleBadgeText}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="popover-divider" />
-
-            {/* Menu options */}
-            <div className="popover-actions">
-              <NavLink
-                to="/profile"
-                className={({ isActive }) => `popover-item ${isActive ? 'active' : ''}`}
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  onClose();
-                }}
-              >
-                <div className="popover-item-icon blue">
-                  <UserIcon className="w-4 h-4" />
-                </div>
-                <span className="popover-item-label">โปรไฟล์ของฉัน</span>
-              </NavLink>
-
-              <button
-                type="button"
-                className="popover-item"
-                onClick={toggleTheme}
-                aria-label={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
-              >
-                <div className="popover-item-icon purple">
-                  {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </div>
-                <div className="flex-1 text-left">
-                  <span className="popover-item-label">{resolvedTheme === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}</span>
-                </div>
-                <span className="popover-tag">{mode === 'system' ? 'อัตโนมัติ' : resolvedTheme === 'dark' ? 'มืด' : 'สว่าง'}</span>
-              </button>
-
-              <div className="popover-divider" />
-
-              <button
-                type="button"
-                className="popover-item danger"
-                onClick={handleLogout}
-              >
-                <div className="popover-item-icon red">
-                  <LogOut className="w-4 h-4" />
-                </div>
-                <span className="popover-item-label">ออกจากระบบ</span>
-              </button>
-            </div>
-          </div>
-        )}
+        </NavLink>
       </div>
 
       {/* Navigation Sections */}

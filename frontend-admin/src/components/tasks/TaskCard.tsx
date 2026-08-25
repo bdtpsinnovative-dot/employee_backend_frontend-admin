@@ -25,7 +25,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const brand = task.brand_id ? brandMap[task.brand_id] : null;
   const isCompleted = task.status === 'completed';
-  const dueInfo = formatRelativeDueDate(task.due_date, isCompleted);
+  const dueInfo = formatRelativeDueDate(task.due_date, isCompleted, task.status, task.latest_submission?.submitted_at);
   const priority = getTaskPriority(task);
 
   // Collect assignees

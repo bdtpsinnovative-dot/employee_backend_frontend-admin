@@ -61,7 +61,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const canEdit = isAdmin || isCreator;
   const brand = task?.brand_id ? brandMap[task.brand_id] : null;
   const category = task?.category_id ? categoryMap[task.category_id] : null;
-  const dueInfo = formatRelativeDueDate(task?.due_date ?? '', isCompleted);
+  const dueInfo = formatRelativeDueDate(task?.due_date ?? '', isCompleted, task?.status, task?.latest_submission?.submitted_at);
 
   // Assignees
   const assigneeIds = task && task.assignee_ids && task.assignee_ids.length > 0

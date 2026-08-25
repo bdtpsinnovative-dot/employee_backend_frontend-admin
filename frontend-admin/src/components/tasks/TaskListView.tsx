@@ -159,7 +159,12 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               const brand = task.brand_id ? brandMap[task.brand_id] : null;
               const category = task.category_id ? categoryMap[task.category_id] : null;
               const isDone = task.status === 'completed';
-              const dueInfo = formatRelativeDueDate(task.due_date, isDone);
+              const dueInfo = formatRelativeDueDate(
+                task.due_date,
+                isDone,
+                task.status,
+                task.latest_submission?.submitted_at
+              );
               const priority = getTaskPriority(task);
               const isCreator = task.assigned_by === currentUser?.id;
               const isAdmin = currentUser?.role === 'admin';
@@ -193,14 +198,17 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   {/* 1. Due Date Column */}
                   <td data-label="Due Date" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle font-medium">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${dueInfo.variant === 'overdue'
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${
+                        dueInfo.variant === 'overdue'
                           ? 'bg-red-50 text-red-700 border-red-200 font-extrabold shadow-xs'
-                          : dueInfo.variant === 'today'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold shadow-xs'
-                            : dueInfo.variant === 'tomorrow'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
+                          : dueInfo.variant === 'in_review'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 font-bold shadow-xs'
+                            : dueInfo.variant === 'today'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold shadow-xs'
+                              : dueInfo.variant === 'tomorrow'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
                     >
                       {dueInfo.variant === 'overdue' && (
                         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
