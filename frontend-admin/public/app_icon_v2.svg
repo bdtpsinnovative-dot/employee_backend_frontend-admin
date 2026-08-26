@@ -5,15 +5,11 @@
       <stop offset="100%" stop-color="#1450E0"/>
     </linearGradient>
     <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#1450E0" flood-opacity="0.18"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#1450E0" flood-opacity="0.22"/>
     </filter>
   </defs>
 
-  <!-- squircle background -->
-  <rect x="32" y="32" width="960" height="960" rx="216" fill="#FFFFFF"/>
-  <rect x="32" y="32" width="960" height="960" rx="216" fill="none" stroke="#F0F1F5" stroke-width="4"/>
-
-  <g filter="url(#soft)" transform="translate(512,512)">
+  <g filter="url(#soft)" transform="translate(512,512) scale(1.68)">
     <!-- ring + long checkmark arm as ONE continuous connected path -->
     <path d="M 172.0 120.4 A 210 210 0 1 1 120.4 -172.0 L 15 75"
           fill="none"

@@ -78,9 +78,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </svg>
         </button>
 
-        <div className="hidden sm:flex items-center gap-2">
-          <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-7 h-7 rounded-lg object-contain shadow-xs" />
-          <span className="font-extrabold text-[15px] text-blue-600">
+        <div className="hidden sm:flex items-center gap-2.5">
+          <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-8 h-8 object-contain shrink-0 drop-shadow-xs" />
+          <span className="font-black text-[16px] text-blue-600 tracking-tight">
             HR Studio
           </span>
         </div>

@@ -130,22 +130,15 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 			distanceM = &closestDistance
 		}
 	} else {
-		pendingOffsite, pendingErr := s.offsiteRepo.HasPendingForDate(ctx, req.UserID, today)
-		if pendingErr != nil {
-			return nil, fmt.Errorf("ตรวจสอบคำขอออกหน้างานล้มเหลว: %w", pendingErr)
+		if closest != nil {
+			distanceM = &closestDistance
 		}
-		if pendingOffsite {
-			return nil, errors.New("คำขอออกหน้างานยังไม่ได้รับอนุมัติ")
+		addr := reverseGeocode(req.Lat, req.Lng)
+		if addr != "" {
+			locationName = fmt.Sprintf("นอกพื้นที่ (%s)", addr)
+		} else {
+			locationName = "นอกพื้นที่"
 		}
-		if closest == nil {
-			return nil, errors.New("ยังไม่มีจุดทำงานในระบบ กรุณาแจ้งแอดมินเพิ่มจุดทำงานก่อน")
-		}
-		return nil, fmt.Errorf(
-			"ไม่สามารถเช็คอินได้ คุณอยู่นอกพื้นที่ %s (ห่าง %.0f เมตร กำหนดไม่เกิน %d เมตร)",
-			closest.Name,
-			closestDistance,
-			closest.RadiusM,
-		)
 	}
 
 	// 3. Calculate lateness from the employee's own schedule. Seconds are
