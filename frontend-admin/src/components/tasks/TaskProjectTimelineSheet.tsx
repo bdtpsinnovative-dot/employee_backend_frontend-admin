@@ -1674,45 +1674,75 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     <button
                       type="button"
                       onClick={() => setShowCardAssigneePopover(!showCardAssigneePopover)}
-                      className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                      className={`w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center transition-all cursor-pointer ${
+                        showCardAssigneePopover
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-600'
+                          : 'border-slate-300 text-slate-400 hover:border-slate-500 hover:text-slate-600 bg-slate-50'
+                      }`}
                       title="เลือกผู้รับผิดชอบการ์ด"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className={`w-4 h-4 transition-transform duration-150 ${showCardAssigneePopover ? 'rotate-45' : ''}`} />
                     </button>
                   </div>
 
                   {showCardAssigneePopover && (
-                    <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                      {projectMemberUsers.length > 0 ? (
-                        projectMemberUsers.map(u => {
-                          const isAssigned = cardAssigneesInput.includes(u.id);
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => {
-                                if (isAssigned) {
-                                  setCardAssigneesInput(cardAssigneesInput.filter(id => id !== u.id));
-                                } else {
-                                  setCardAssigneesInput([...cardAssigneesInput, u.id]);
-                                }
-                              }}
-                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                                <span>{u.nickname || u.first_name}</span>
-                              </div>
-                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="p-2.5 text-center text-xs text-slate-400 italic">
-                          ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                    <>
+                      <div
+                        className="fixed inset-0 z-[65]"
+                        onClick={() => setShowCardAssigneePopover(false)}
+                      />
+                      <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 max-h-56 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        <div className="flex items-center justify-between px-1.5 py-1 mb-1.5 border-b border-slate-100">
+                          <span className="text-[11px] font-bold text-slate-600">เลือกผู้รับผิดชอบการ์ด</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowCardAssigneePopover(false)}
+                            className="text-slate-400 hover:text-slate-700 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="ปิด"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      )}
-                    </div>
+                        {projectMemberUsers.length > 0 ? (
+                          projectMemberUsers.map(u => {
+                            const isAssigned = cardAssigneesInput.includes(u.id);
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isAssigned) {
+                                    setCardAssigneesInput(cardAssigneesInput.filter(id => id !== u.id));
+                                  } else {
+                                    setCardAssigneesInput([...cardAssigneesInput, u.id]);
+                                  }
+                                }}
+                                className="w-full flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                  <span className="text-slate-700">{u.nickname || u.first_name}</span>
+                                </div>
+                                {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                            ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                          </div>
+                        )}
+                        <div className="mt-2 pt-1.5 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setShowCardAssigneePopover(false)}
+                            className="w-full py-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer text-center"
+                          >
+                            เสร็จสิ้น / ปิด
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -1838,44 +1868,74 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <button
                         type="button"
                         onClick={() => setShowDrawerInvitePopover(!showDrawerInvitePopover)}
-                        className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                        className={`w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center transition-all cursor-pointer ${
+                          showDrawerInvitePopover
+                            ? 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-slate-300 text-slate-400 hover:border-slate-500 hover:text-slate-600 bg-slate-50'
+                        }`}
                         title="เลือกผู้รับผิดชอบ"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className={`w-4 h-4 transition-transform duration-150 ${showDrawerInvitePopover ? 'rotate-45' : ''}`} />
                       </button>
                     </div>
                     {showDrawerInvitePopover && (
-                      <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                        {projectMemberUsers.length > 0 ? (
-                          projectMemberUsers.map(u => {
-                            const isAssigned = drawerAssignees.includes(u.id);
-                            return (
-                              <button
-                                key={u.id}
-                                type="button"
-                                onClick={() => {
-                                  if (isAssigned) {
-                                    setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
-                                  } else {
-                                    setDrawerAssignees([...drawerAssignees, u.id]);
-                                  }
-                                }}
-                                className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                                  <span>{u.nickname || u.first_name}</span>
-                                </div>
-                                {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="p-2.5 text-center text-xs text-slate-400 italic">
-                            ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                      <>
+                        <div
+                          className="fixed inset-0 z-[65]"
+                          onClick={() => setShowDrawerInvitePopover(false)}
+                        />
+                        <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 max-h-56 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                          <div className="flex items-center justify-between px-1.5 py-1 mb-1.5 border-b border-slate-100">
+                            <span className="text-[11px] font-bold text-slate-600">เลือกผู้รับผิดชอบ</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowDrawerInvitePopover(false)}
+                              className="text-slate-400 hover:text-slate-700 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="ปิด"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        )}
-                      </div>
+                          {projectMemberUsers.length > 0 ? (
+                            projectMemberUsers.map(u => {
+                              const isAssigned = drawerAssignees.includes(u.id);
+                              return (
+                                <button
+                                  key={u.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isAssigned) {
+                                      setDrawerAssignees(drawerAssignees.filter(id => id !== u.id));
+                                    } else {
+                                      setDrawerAssignees([...drawerAssignees, u.id]);
+                                    }
+                                  }}
+                                  className="w-full flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                    <span className="text-slate-700">{u.nickname || u.first_name}</span>
+                                  </div>
+                                  {isAssigned && <span className="text-blue-600 font-bold text-sm">✓</span>}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                              ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                            </div>
+                          )}
+                          <div className="mt-2 pt-1.5 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => setShowDrawerInvitePopover(false)}
+                              className="w-full py-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer text-center"
+                            >
+                              เสร็จสิ้น / ปิด
+                            </button>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -2201,44 +2261,74 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     <button
                       type="button"
                       onClick={() => setShowInvitePopover(!showInvitePopover)}
-                      className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-slate-500 hover:text-slate-600 transition-all cursor-pointer bg-slate-50"
+                      className={`w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center transition-all cursor-pointer ${
+                        showInvitePopover
+                          ? 'border-blue-500 bg-blue-50 text-blue-600'
+                          : 'border-slate-300 text-slate-400 hover:border-slate-500 hover:text-slate-600 bg-slate-50'
+                      }`}
                       title="เลือกผู้รับผิดชอบ"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className={`w-4 h-4 transition-transform duration-150 ${showInvitePopover ? 'rotate-45' : ''}`} />
                     </button>
                   </div>
                   {showInvitePopover && (
-                    <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-40 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                      {projectMemberUsers.length > 0 ? (
-                        projectMemberUsers.map(u => {
-                          const isAssigned = createListAssigneeIds.includes(u.id);
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => {
-                                if (isAssigned) {
-                                  setCreateListAssigneeIds(createListAssigneeIds.filter(id => id !== u.id));
-                                } else {
-                                  setCreateListAssigneeIds([...createListAssigneeIds, u.id]);
-                                }
-                              }}
-                              className="w-full flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
-                                <span>{u.nickname || u.first_name}</span>
-                              </div>
-                              {isAssigned && <span className="text-blue-600 font-bold">✓</span>}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="p-2.5 text-center text-xs text-slate-400 italic">
-                          ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                    <>
+                      <div
+                        className="fixed inset-0 z-[65]"
+                        onClick={() => setShowInvitePopover(false)}
+                      />
+                      <div className="absolute z-[70] bottom-full mb-2 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 max-h-56 overflow-y-auto w-64 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                        <div className="flex items-center justify-between px-1.5 py-1 mb-1.5 border-b border-slate-100">
+                          <span className="text-[11px] font-bold text-slate-600">เลือกผู้รับผิดชอบ</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowInvitePopover(false)}
+                            className="text-slate-400 hover:text-slate-700 p-0.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="ปิด"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      )}
-                    </div>
+                        {projectMemberUsers.length > 0 ? (
+                          projectMemberUsers.map(u => {
+                            const isAssigned = createListAssigneeIds.includes(u.id);
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isAssigned) {
+                                    setCreateListAssigneeIds(createListAssigneeIds.filter(id => id !== u.id));
+                                  } else {
+                                    setCreateListAssigneeIds([...createListAssigneeIds, u.id]);
+                                  }
+                                }}
+                                className="w-full flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg text-left text-xs font-semibold cursor-pointer transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <img src={avatarUrl(u?.avatar_url) || undefined} className="w-5 h-5 rounded-full object-cover" />
+                                  <span className="text-slate-700">{u.nickname || u.first_name}</span>
+                                </div>
+                                {isAssigned && <span className="text-blue-600 font-bold text-sm">✓</span>}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="p-2.5 text-center text-xs text-slate-400 italic">
+                            ไม่มีสมาชิกในงานหลัก (กรุณาเพิ่มผู้รับผิดชอบที่งานหลักก่อน)
+                          </div>
+                        )}
+                        <div className="mt-2 pt-1.5 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setShowInvitePopover(false)}
+                            className="w-full py-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer text-center"
+                          >
+                            เสร็จสิ้น / ปิด
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
 
