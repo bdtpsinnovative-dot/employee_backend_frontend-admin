@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ func NewAuthHandler(supabaseURL, anonKey string) *AuthHandler {
 		supabaseURL: strings.TrimRight(supabaseURL, "/"),
 		anonKey:     anonKey,
 		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout: 35 * time.Second,
 		},
 	}
 }
@@ -47,7 +48,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) forwardPasswordRequest(c *gin.Context, path string) {
 	if h.supabaseURL == "" || h.anonKey == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "ระบบยืนยันตัวตนยังไม่ได้ตั้งค่า",
+			"error": "ระบบยืนยันตัวตนยังไม่ได้ตั้งค่า (SUPABASE_URL หรือ SUPABASE_ANON_KEY ขาดหาย)",
 		})
 		return
 	}
@@ -66,24 +67,48 @@ func (h *AuthHandler) forwardPasswordRequest(c *gin.Context, path string) {
 		return
 	}
 
-	req, err := http.NewRequestWithContext(
-		c.Request.Context(),
-		http.MethodPost,
-		h.supabaseURL+path,
-		bytes.NewReader(requestBody),
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างคำขอไม่สำเร็จ"})
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("apikey", h.anonKey)
-	req.Header.Set("Authorization", "Bearer "+h.anonKey)
+	targetURL := h.supabaseURL + path
+	log.Printf("[AUTH] Forwarding request to: %s", targetURL)
 
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
+	var resp *http.Response
+	var reqErr error
+
+	// ลองส่ง request สูงสุด 2 ครั้ง (กรณี Supabase Cold Start / Network Jitter)
+	for attempt := 1; attempt <= 2; attempt++ {
+		req, err := http.NewRequestWithContext(
+			c.Request.Context(),
+			http.MethodPost,
+			targetURL,
+			bytes.NewReader(requestBody),
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างคำขอไม่สำเร็จ"})
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("apikey", h.anonKey)
+		req.Header.Set("Authorization", "Bearer "+h.anonKey)
+
+		resp, reqErr = h.httpClient.Do(req)
+		if reqErr == nil {
+			break
+		}
+
+		log.Printf("[AUTH WARN] Attempt %d failed to reach Supabase: %v", attempt, reqErr)
+		if attempt < 2 {
+			select {
+			case <-c.Request.Context().Done():
+				c.JSON(http.StatusRequestTimeout, gin.H{"error": "คำขอยกเลิกหรือหมดเวลา"})
+				return
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}
+
+	if reqErr != nil {
+		log.Printf("[AUTH ERROR] All attempts failed to connect to Supabase (%s): %v", targetURL, reqErr)
 		c.JSON(http.StatusBadGateway, gin.H{
-			"error": "เชื่อมต่อระบบยืนยันตัวตนไม่ได้ กรุณาลองใหม่",
+			"error": "เชื่อมต่อระบบยืนยันตัวตน (Supabase) ไม่ได้: เซิร์ฟเวอร์ปลายทางไม่ตอบสนอง กรุณาลองใหม่อีกครั้ง",
 		})
 		return
 	}
@@ -91,18 +116,22 @@ func (h *AuthHandler) forwardPasswordRequest(c *gin.Context, path string) {
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("[AUTH ERROR] Failed to read Supabase response: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "อ่านผลการยืนยันตัวตนไม่ได้"})
 		return
 	}
 
 	var payload map[string]interface{}
 	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		log.Printf("[AUTH ERROR] Invalid JSON from Supabase (status %d): %s", resp.StatusCode, string(responseBody))
 		c.JSON(http.StatusBadGateway, gin.H{"error": "รูปแบบข้อมูลยืนยันตัวตนไม่ถูกต้อง"})
 		return
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		c.JSON(resp.StatusCode, gin.H{"error": authErrorMessage(payload)})
+		errMsg := authErrorMessage(payload)
+		log.Printf("[AUTH WARN] Supabase returned status %d: %s", resp.StatusCode, errMsg)
+		c.JSON(resp.StatusCode, gin.H{"error": errMsg})
 		return
 	}
 
