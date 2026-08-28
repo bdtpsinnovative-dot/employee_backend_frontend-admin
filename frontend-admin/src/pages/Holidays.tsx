@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchHolidays, createHoliday, deleteHoliday, fetchAdminTasks, fetchBrands, fetchUsers } from '../services/adminApi';
 import type { Holiday, User, AdminTask, Brand } from '../types';
-import { getTaskPriority, type TaskPriority } from '../components/tasks/taskUtils';
+import { getTaskPriority, type TaskPriority, avatarUrl } from '../components/tasks/taskUtils';
 import { queryKeys } from '../lib/queryKeys';
 
 interface LayoutContext {
@@ -21,6 +21,8 @@ export interface CalendarTaskItem {
   isCompleted: boolean;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   assignedToName?: string;
+  assignedToAvatarUrl?: string | null;
+  assignedToInitial?: string;
   dueDate?: string;
   completedAt?: string;
   rawTask: AdminTask;
@@ -110,6 +112,7 @@ export default function Holidays() {
   const [loading, setLoading] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isScrolledDown, setIsScrolledDown] = useState<boolean>(false);
 
   const taskScope = isAdmin ? 'all' : 'mine';
   const holidaysQuery = useQuery({
@@ -134,7 +137,7 @@ export default function Holidays() {
   const usersQuery = useQuery({
     queryKey: queryKeys.users(),
     queryFn: () => fetchUsers(),
-    enabled: Boolean(currentUser?.id && isAdmin),
+    enabled: Boolean(currentUser?.id),
     staleTime: 5 * 60_000,
   });
 
@@ -198,6 +201,76 @@ export default function Holidays() {
     return map;
   }, [brands]);
 
+  const usersMap = useMemo(() => {
+    const map = new Map<string, User>();
+    taskUsers.forEach(u => map.set(u.id, u));
+    if (currentUser) {
+      map.set(currentUser.id, currentUser);
+    }
+    return map;
+  }, [taskUsers, currentUser]);
+
+  const resolveAssigneeInfo = (
+    explicitName?: string,
+    userId?: string,
+    assigneeIds?: string[],
+    fallbackTask?: AdminTask
+  ): { name?: string; avatarUrl?: string | null; initial?: string } => {
+    if (userId && usersMap.has(userId)) {
+      const u = usersMap.get(userId)!;
+      const name = (u.nickname?.trim() || `${u.first_name} ${u.last_name}`).trim();
+      const av = avatarUrl(u.avatar_url);
+      const initial = (u.nickname || u.first_name || 'U').trim().charAt(0).toUpperCase();
+      return { name, avatarUrl: av, initial };
+    }
+    if (assigneeIds && assigneeIds.length > 0) {
+      const firstUser = usersMap.get(assigneeIds[0]);
+      const names = assigneeIds
+        .map(id => {
+          const u = usersMap.get(id);
+          return u ? (u.nickname?.trim() || u.first_name).trim() : '';
+        })
+        .filter(Boolean);
+      return {
+        name: names.length > 0 ? names.join(', ') : explicitName,
+        avatarUrl: firstUser ? avatarUrl(firstUser.avatar_url) : null,
+        initial: firstUser ? (firstUser.nickname || firstUser.first_name || 'U').trim().charAt(0).toUpperCase() : 'U',
+      };
+    }
+    if (fallbackTask) {
+      if (fallbackTask.assigned_to && usersMap.has(fallbackTask.assigned_to)) {
+        const u = usersMap.get(fallbackTask.assigned_to)!;
+        const name = fallbackTask.assigned_to_name?.trim() || (u.nickname?.trim() || `${u.first_name} ${u.last_name}`).trim();
+        const av = avatarUrl(u.avatar_url);
+        const initial = (u.nickname || u.first_name || 'U').trim().charAt(0).toUpperCase();
+        return { name, avatarUrl: av, initial };
+      }
+      if (fallbackTask.assigned_to_name && fallbackTask.assigned_to_name.trim()) {
+        const name = fallbackTask.assigned_to_name.trim();
+        const matchedUser = taskUsers.find(
+          u => `${u.first_name} ${u.last_name}`.trim() === name || u.nickname?.trim() === name
+        );
+        return {
+          name,
+          avatarUrl: matchedUser ? avatarUrl(matchedUser.avatar_url) : null,
+          initial: name.charAt(0).toUpperCase(),
+        };
+      }
+    }
+    if (explicitName && explicitName.trim()) {
+      const name = explicitName.trim();
+      const matchedUser = taskUsers.find(
+        u => `${u.first_name} ${u.last_name}`.trim() === name || u.nickname?.trim() === name
+      );
+      return {
+        name,
+        avatarUrl: matchedUser ? avatarUrl(matchedUser.avatar_url) : null,
+        initial: name.charAt(0).toUpperCase(),
+      };
+    }
+    return {};
+  };
+
   const taskFilterUsers = useMemo(() => {
     const assignedUserIDs = new Set<string>();
     tasks.forEach(task => {
@@ -219,13 +292,25 @@ export default function Holidays() {
   }, [taskUsers, tasks]);
 
   const visibleTasks = useMemo(() => {
-    if (!isAdmin || taskPersonFilter === 'all') return tasks;
-    return tasks.filter(task => isTaskAssignedTo(task, taskPersonFilter));
+    const activeTasks = tasks.filter(task => {
+      if ((task as any).deleted_at) return false;
+      const st = (task.status as string) || '';
+      if (st === 'trash' || st === 'deleted') return false;
+      return true;
+    });
+
+    if (!isAdmin || taskPersonFilter === 'all') return activeTasks;
+    return activeTasks.filter(task => isTaskAssignedTo(task, taskPersonFilter));
   }, [isAdmin, taskPersonFilter, tasks]);
 
   const monthNames = [
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  const monthNamesShort = [
+    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
   ];
 
   const weekDayNamesShort = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
@@ -268,41 +353,6 @@ export default function Holidays() {
   function isLongWeekend(dateIso: string, numDays: number = 1): boolean {
     return getConsecutiveDaysOff(dateIso, numDays) >= 3;
   }
-
-  // Find nearest upcoming holiday
-  const upcomingHolidayInfo = useMemo(() => {
-    const nowMs = today.getTime();
-
-    // Filter holidays that end today or later
-    const futureHolidays = holidays
-      .map(h => {
-        const startDate = new Date(h.date);
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = new Date(startDate.getTime() + ((h.num_days || 1) - 1) * 86400000);
-        const diffMs = startDate.getTime() - nowMs;
-        const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        return { holiday: h, startDate, endDate, daysLeft };
-      })
-      .filter(item => item.endDate.getTime() >= nowMs)
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-
-    return futureHolidays.length > 0 ? futureHolidays[0] : null;
-  }, [holidays, today]);
-
-  // Statistics calculation
-  const stats = useMemo(() => {
-    const totalDays = holidays.reduce((sum, h) => sum + (h.num_days || 1), 0);
-    const longWeekends = holidays.filter(h => isLongWeekend(h.date, h.num_days)).length;
-
-    // Remaining holidays this year
-    const remainingCount = holidays.filter(h => {
-      const d = new Date(h.date);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() >= today.getTime();
-    }).length;
-
-    return { totalHolidays: holidays.length, totalDays, longWeekends, remainingCount };
-  }, [holidays, today]);
 
   // Handle holiday creation (Admin only)
   async function handleCreate(e: React.FormEvent) {
@@ -386,6 +436,7 @@ export default function Holidays() {
       const taskCompletedDate = datePart(task.completed_at);
       const taskCompleted = task.status === 'completed';
       const taskPriority = getTaskPriority(task);
+      const taskAssignee = resolveAssigneeInfo(task.assigned_to_name, task.assigned_to, task.assignee_ids);
 
       if (taskDueDate || taskCompletedDate) {
         items.push({
@@ -397,7 +448,9 @@ export default function Holidays() {
           status: task.status,
           isCompleted: taskCompleted,
           priority: taskPriority,
-          assignedToName: task.assigned_to_name,
+          assignedToName: taskAssignee.name,
+          assignedToAvatarUrl: taskAssignee.avatarUrl,
+          assignedToInitial: taskAssignee.initial,
           dueDate: taskDueDate,
           completedAt: taskCompletedDate || (taskCompleted ? taskDueDate : undefined),
           rawTask: task,
@@ -406,6 +459,7 @@ export default function Holidays() {
       }
 
       task.sub_items?.forEach(sub => {
+        if ((sub as any).deleted_at || (sub as any).is_deleted || (sub as any).status === 'trash') return;
         const subDueDate = datePart(sub.due_date) || taskDueDate;
         const isSubDone = sub.is_done || sub.status === 'completed';
         const subCompletedDate = isSubDone
@@ -413,6 +467,8 @@ export default function Holidays() {
           : undefined;
 
         if (!subDueDate && !subCompletedDate) return;
+        const subAssignee = resolveAssigneeInfo(undefined, sub.assigned_to, undefined, task);
+
         items.push({
           id: `sub-${sub.id}`,
           taskId: task.id,
@@ -423,7 +479,9 @@ export default function Holidays() {
           status: isSubDone ? 'completed' : (sub.status || task.status),
           isCompleted: isSubDone,
           priority: sub.priority || taskPriority,
-          assignedToName: task.assigned_to_name,
+          assignedToName: subAssignee.name,
+          assignedToAvatarUrl: subAssignee.avatarUrl,
+          assignedToInitial: subAssignee.initial,
           dueDate: subDueDate,
           completedAt: subCompletedDate,
           rawTask: task,
@@ -432,6 +490,8 @@ export default function Holidays() {
       });
 
       task.lists?.forEach(list => {
+        const listSt = (list.status as string) || '';
+        if (list.deleted_at || listSt === 'trash' || listSt === 'deleted') return;
         const listDueDate = datePart(list.due_date) || taskDueDate;
         const isListDone = list.status === 'completed';
         const listCompletedDate = isListDone ? taskCompletedDate || listDueDate : undefined;
@@ -447,7 +507,9 @@ export default function Holidays() {
             status: isListDone ? 'completed' : (list.status || task.status),
             isCompleted: isListDone,
             priority: (list.priority as any) || taskPriority,
-            assignedToName: task.assigned_to_name,
+            assignedToName: taskAssignee.name,
+            assignedToAvatarUrl: taskAssignee.avatarUrl,
+            assignedToInitial: taskAssignee.initial,
             dueDate: listDueDate,
             completedAt: listCompletedDate,
             rawTask: task,
@@ -456,9 +518,12 @@ export default function Holidays() {
         }
 
         list.cards?.forEach(card => {
+          const cardSt = (card.status as string) || '';
+          if ((card as any).deleted_at || cardSt === 'trash' || cardSt === 'deleted') return;
           const cardDueDate = datePart(card.due_date) || listDueDate;
           const isCardDone = card.status === 'completed' || isListDone;
           const cardCompletedDate = isCardDone ? listCompletedDate || cardDueDate : undefined;
+          const cardAssignee = resolveAssigneeInfo(undefined, card.assigned_to, card.assignee_ids, task);
 
           if (cardDueDate || cardCompletedDate) {
             items.push({
@@ -471,7 +536,9 @@ export default function Holidays() {
               status: isCardDone ? 'completed' : card.status,
               isCompleted: isCardDone,
               priority: card.priority || (list.priority as any) || taskPriority,
-              assignedToName: task.assigned_to_name,
+              assignedToName: cardAssignee.name,
+              assignedToAvatarUrl: cardAssignee.avatarUrl,
+              assignedToInitial: cardAssignee.initial,
               dueDate: cardDueDate,
               completedAt: cardCompletedDate,
               rawTask: task,
@@ -480,6 +547,7 @@ export default function Holidays() {
           }
 
           card.sub_items?.forEach(sub => {
+            if ((sub as any).deleted_at || (sub as any).is_deleted || (sub as any).status === 'trash') return;
             const subDueDate = datePart(sub.due_date) || cardDueDate;
             const isSubDone = sub.is_done || sub.status === 'completed';
             const subCompletedDate = isSubDone
@@ -487,6 +555,8 @@ export default function Holidays() {
               : undefined;
 
             if (!subDueDate && !subCompletedDate) return;
+            const cardSubAssignee = resolveAssigneeInfo(undefined, sub.assigned_to, undefined, task);
+
             items.push({
               id: `card-sub-${sub.id}`,
               taskId: task.id,
@@ -497,7 +567,9 @@ export default function Holidays() {
               status: isSubDone ? 'completed' : (sub.status || task.status),
               isCompleted: isSubDone,
               priority: sub.priority || card.priority || (list.priority as any) || taskPriority,
-              assignedToName: task.assigned_to_name,
+              assignedToName: cardSubAssignee.name,
+              assignedToAvatarUrl: cardSubAssignee.avatarUrl,
+              assignedToInitial: cardSubAssignee.initial,
               dueDate: subDueDate,
               completedAt: subCompletedDate,
               rawTask: task,
@@ -509,70 +581,112 @@ export default function Holidays() {
     });
 
     return items.sort((a, b) => (a.dueDate || a.completedAt || '').localeCompare(b.dueDate || b.completedAt || ''));
-  }, [visibleTasks]);
+  }, [visibleTasks, usersMap]);
 
-  const taskOverview = useMemo(() => {
-    const todayKey = formatDateStr(today);
-    const upcoming = taskItems
-      .filter(item => !item.isCompleted && !!item.dueDate && item.dueDate >= todayKey)
-      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-    const completed = taskItems
-      .filter(item => item.isCompleted && !!(item.completedAt || item.dueDate))
-      .sort((a, b) => (b.completedAt || b.dueDate || '').localeCompare(a.completedAt || a.dueDate || ''));
-
-    return {
-      upcoming,
-      completed,
-      upcomingPreview: upcoming.slice(0, 5),
-      completedPreview: completed.slice(0, 5),
-    };
-  }, [taskItems, today]);
-
-  const upcomingTaskInfo = taskOverview.upcoming[0] ?? null;
-  const upcomingTaskLabel = upcomingTaskInfo
-    ? (upcomingTaskInfo.isSubItem && upcomingTaskInfo.parentTitle !== upcomingTaskInfo.displayTitle
-      ? `${upcomingTaskInfo.parentTitle} › ${upcomingTaskInfo.displayTitle}`
-      : upcomingTaskInfo.displayTitle)
-    : '';
-
-  // Calendar Grid builder for current month
-  const calendarCells = useMemo(() => {
-    const daysInMonth = new Date(year, currentMonth + 1, 0).getDate();
-    const firstDayOfWeek = new Date(year, currentMonth, 1).getDay(); // 0 = Sun
-    const prevMonthDays = new Date(year, currentMonth, 0).getDate();
-
-    // Map task items by due date and completed date
-    const dueTaskItemsMap = new Map<string, CalendarTaskItem[]>();
-    const completedTaskItemsMap = new Map<string, CalendarTaskItem[]>();
+  // Map task items by due date and completed date
+  const { dueTaskItemsMap, completedTaskItemsMap } = useMemo(() => {
+    const dueMap = new Map<string, CalendarTaskItem[]>();
+    const compMap = new Map<string, CalendarTaskItem[]>();
 
     taskItems.forEach(item => {
       if (item.isCompleted) {
         const cDate = item.completedAt || item.dueDate;
         if (cDate) {
-          if (!completedTaskItemsMap.has(cDate)) completedTaskItemsMap.set(cDate, []);
-          completedTaskItemsMap.get(cDate)!.push(item);
+          if (!compMap.has(cDate)) compMap.set(cDate, []);
+          compMap.get(cDate)!.push(item);
         }
       } else {
         const dDate = item.dueDate;
         if (dDate) {
-          if (!dueTaskItemsMap.has(dDate)) dueTaskItemsMap.set(dDate, []);
-          dueTaskItemsMap.get(dDate)!.push(item);
+          if (!dueMap.has(dDate)) dueMap.set(dDate, []);
+          dueMap.get(dDate)!.push(item);
         }
       }
     });
 
-    const cells: Array<{
+    return { dueTaskItemsMap: dueMap, completedTaskItemsMap: compMap };
+  }, [taskItems]);
+
+  // Dynamic continuous months list for infinite scrolling
+  const [visibleMonths, setVisibleMonths] = useState<Array<{ year: number; month: number }>>(() => {
+    const curYear = today.getFullYear();
+    const curMonth = today.getMonth();
+    const nextMonth = curMonth === 11 ? 0 : curMonth + 1;
+    const nextYear = curMonth === 11 ? curYear + 1 : curYear;
+    return [
+      { year: curYear, month: curMonth },
+      { year: nextYear, month: nextMonth },
+    ];
+  });
+
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadNextMonth = useCallback(() => {
+    setVisibleMonths(prev => {
+      const last = prev[prev.length - 1];
+      const nextM = last.month === 11 ? 0 : last.month + 1;
+      const nextY = last.month === 11 ? last.year + 1 : last.year;
+      if (prev.length >= 24) return prev;
+      return [...prev, { year: nextY, month: nextM }];
+    });
+  }, []);
+
+  // IntersectionObserver to auto-load next month on scrolling down
+  useEffect(() => {
+    const target = bottomSentinelRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          loadNextMonth();
+        }
+      },
+      { threshold: 0.05, rootMargin: '400px' }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadNextMonth, visibleMonths.length]);
+
+  // Seamless Continuous Calendar Days (Days flow naturally without duplicated padding dates)
+  const continuousCalendarDays = useMemo(() => {
+    if (visibleMonths.length === 0) return [];
+
+    const firstM = visibleMonths[0];
+    const lastM = visibleMonths[visibleMonths.length - 1];
+
+    // Start from 1st of the first visible month
+    const startMonthDate = new Date(firstM.year, firstM.month, 1);
+    const startDayOfWeek = startMonthDate.getDay(); // 0 = Sun
+    // Pad back to preceding Sunday
+    const startDate = new Date(startMonthDate);
+    startDate.setDate(startDate.getDate() - startDayOfWeek);
+
+    // End at the last day of last visible month
+    const endMonthDate = new Date(lastM.year, lastM.month + 1, 0);
+    const endDayOfWeek = endMonthDate.getDay(); // 0 = Sun, 6 = Sat
+    // Pad forward to succeeding Saturday
+    const endDate = new Date(endMonthDate);
+    endDate.setDate(endDate.getDate() + (6 - endDayOfWeek));
+
+    const days: Array<{
       dayNumber: number;
-      isCurrentMonth: boolean;
+      monthNumber: number;
+      yearNumber: number;
       dateStr: string;
       isToday: boolean;
+      isFirstDayOfMonth: boolean;
       holidayMatches: Holiday[];
       dueTaskItems: CalendarTaskItem[];
       completedTaskItems: CalendarTaskItem[];
     }> = [];
 
-    const createCellData = (dNum: number, isCurr: boolean, dateStr: string) => {
+    const curr = new Date(startDate);
+    while (curr <= endDate) {
+      const dateStr = formatDateStr(curr);
       const isToday = formatDateStr(today) === dateStr;
+      const isFirstDayOfMonth = curr.getDate() === 1;
 
       // Find matching holidays
       const matchedHolidays: Holiday[] = [];
@@ -587,44 +701,84 @@ export default function Holidays() {
         }
       }
 
-      return {
-        dayNumber: dNum,
-        isCurrentMonth: isCurr,
+      days.push({
+        dayNumber: curr.getDate(),
+        monthNumber: curr.getMonth(),
+        yearNumber: curr.getFullYear(),
         dateStr,
         isToday,
+        isFirstDayOfMonth,
         holidayMatches: matchedHolidays,
         dueTaskItems: dueTaskItemsMap.get(dateStr) || [],
         completedTaskItems: completedTaskItemsMap.get(dateStr) || [],
-      };
+      });
+
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    return days;
+  }, [visibleMonths, dueTaskItemsMap, completedTaskItemsMap, holidays, today]);
+
+  const isProgrammaticScrollRef = useRef(false);
+
+  // Keep the selected month in sync with the month currently in view.
+  useEffect(() => {
+    const handleScroll = () => {
+      const contentArea = document.querySelector('.content-area');
+      const scrollY = contentArea ? contentArea.scrollTop : (window.scrollY || document.documentElement.scrollTop || 0);
+      setIsScrolledDown(scrollY > 220);
+
+      if (isProgrammaticScrollRef.current) return;
+      const elAtCenter = document.elementFromPoint(window.innerWidth / 2, window.innerHeight * 0.45);
+      const dayCell = elAtCenter?.closest<HTMLElement>('[data-month]');
+      if (dayCell) {
+        const mAttr = dayCell.getAttribute('data-month');
+        const yAttr = dayCell.getAttribute('data-year');
+        if (mAttr !== null && yAttr !== null) {
+          const activeM = parseInt(mAttr, 10);
+          const activeY = parseInt(yAttr, 10);
+          if (!isNaN(activeM) && !isNaN(activeY)) {
+            if (activeM !== currentMonth) setCurrentMonth(activeM);
+            if (activeY !== year) setYear(activeY);
+          }
+        }
+      }
     };
 
-    // Previous month padding
-    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-      const dayNum = prevMonthDays - i;
-      const prevM = currentMonth === 0 ? 11 : currentMonth - 1;
-      const prevY = currentMonth === 0 ? year - 1 : year;
-      const dateStr = `${prevY}-${String(prevM + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-      cells.push(createCellData(dayNum, false, dateStr));
-    }
+    document.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
 
-    // Current month days
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = `${year}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      cells.push(createCellData(d, true, dateStr));
-    }
+    return () => {
+      document.removeEventListener('scroll', handleScroll, { capture: true });
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [currentMonth, year, continuousCalendarDays.length]);
 
-    // Next month padding
-    const totalCellsNeeded = cells.length > 35 ? 42 : 35;
-    const remaining = totalCellsNeeded - cells.length;
-    for (let i = 1; i <= remaining; i++) {
-      const nextM = currentMonth === 11 ? 0 : currentMonth + 1;
-      const nextY = currentMonth === 11 ? year + 1 : year;
-      const dateStr = `${nextY}-${String(nextM + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      cells.push(createCellData(i, false, dateStr));
+  const handleSelectMonth = (targetMonth: number, targetYear: number = year) => {
+    setCurrentMonth(targetMonth);
+    isProgrammaticScrollRef.current = true;
+    const existingIndex = visibleMonths.findIndex(m => m.year === targetYear && m.month === targetMonth);
+    if (existingIndex === -1) {
+      const nextM = targetMonth === 11 ? 0 : targetMonth + 1;
+      const nextY = targetMonth === 11 ? targetYear + 1 : targetYear;
+      setVisibleMonths([
+        { year: targetYear, month: targetMonth },
+        { year: nextY, month: nextM },
+      ]);
     }
-
-    return cells;
-  }, [year, currentMonth, holidays, taskItems, today]);
+    setTimeout(() => {
+      const padM = String(targetMonth + 1).padStart(2, '0');
+      const targetDateStr = `${targetYear}-${padM}-01`;
+      const el = document.getElementById(`day-cell-${targetDateStr}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 700);
+    }, 60);
+  };
 
   // Grouped Holidays by Month for List View
   const filteredGroupedHolidays = useMemo(() => {
@@ -647,321 +801,157 @@ export default function Holidays() {
   }, [holidays, searchTerm]);
 
   return (
-    <div id="holidays" className="page-section active flex w-full min-w-0 flex-none flex-col overflow-x-hidden max-w-7xl mx-auto pb-12" style={{ display: 'flex', flexDirection: 'column' }}>
-      {/* Header Section */}
-      <div className="order-1 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
+    <div id="holidays" className="page-section active flex w-full min-w-0 flex-none flex-col pb-12 content-area-flush px-4 sm:px-6 md:px-8 pt-0" style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Consolidated Master Toolbar: Sticky at Top-0 with Zero Gap */}
+      <div className="holiday-master-toolbar sticky z-30 bg-white border-b border-slate-200 shadow-xs -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 divide-y divide-slate-100">
+        {/* Deck 1: Page Title, Year Selector, View Mode, Add Holiday */}
+        <div className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 flex items-center justify-center text-base">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 flex items-center justify-center text-base">
                 <i className="fa-solid fa-calendar-days"></i>
               </span>
-              ปฏิทินวันหยุดบริษัท
-            </h2>
-            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-200">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
+                ปฏิทินวันหยุดบริษัท
+              </h2>
+            </div>
+            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
               ปี {year + 543}
             </span>
           </div>
-          <p className="text-xs md:text-sm text-slate-500 mt-1">
-            {isAdmin
-              ? 'ตรวจสอบวันหยุดประจำปี เพิ่มหรือจัดการวันหยุดสำหรับพนักงานในระบบ'
-              : ''}
-          </p>
-          {tasksQuery.isFetching ? (
-            <p className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-600" role="status" aria-live="polite">
-              <i className="fa-solid fa-rotate fa-spin" aria-hidden="true"></i>
-              กำลังซิงค์งานล่าสุด...
-            </p>
-          ) : null}
-        </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Year Selector */}
-          <div className="relative">
-            <select
-              className="appearance-none bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl px-4 py-2.5 pr-9 shadow-xs hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {[year - 1, year, year + 1].map(y => (
-                <option key={y} value={y}>พ.ศ. {y + 543} ({y})</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-              <i className="fa-solid fa-chevron-down text-xs"></i>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Year Selector */}
+            <div className="relative">
+              <select
+                className="appearance-none bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-1.5 pr-8 shadow-xs hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+              >
+                {[year - 1, year, year + 1].map(y => (
+                  <option key={y} value={y}>พ.ศ. {y + 543} ({y})</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                <i className="fa-solid fa-chevron-down text-[10px]"></i>
+              </div>
             </div>
-          </div>
 
-          {/* View Mode Switcher */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'calendar'
-                ? 'bg-white text-blue-600 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+            {/* View Mode Switcher */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'calendar'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
-            >
-              <i className="fa-solid fa-calendar-days text-sm"></i>
-              ปฏิทิน
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'list'
-                ? 'bg-white text-blue-600 shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800'
+              >
+                <i className="fa-solid fa-calendar-days text-xs"></i>
+                ปฏิทิน
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
-            >
-              <i className="fa-solid fa-list-ul text-sm"></i>
-              รายการ
-            </button>
+              >
+                <i className="fa-solid fa-list-ul text-xs"></i>
+                รายการ
+              </button>
+            </div>
+
+            {/* Add Holiday Button */}
+            {isAdmin && (
+              <button
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-3.5 py-1.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-98 transition-all flex items-center gap-1.5 cursor-pointer"
+                onClick={() => setShowAddModal(true)}
+              >
+                <i className="fa-solid fa-plus text-[10px]"></i>
+                เพิ่มวันหยุด
+              </button>
+            )}
           </div>
-
-          {/* Add Holiday Button (Admin only) */}
-          {isAdmin && (
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
-              onClick={() => setShowAddModal(true)}
-            >
-              <i className="fa-solid fa-plus text-xs"></i>
-              เพิ่มวันหยุด
-            </button>
-          )}
         </div>
-      </div>
 
-      {/* Top Banner: Upcoming Holiday Spotlight */}
-      {upcomingHolidayInfo ? (
-        <div className="hidden order-3 mb-8 pb-6 border-b border-slate-200/60">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-2.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/70 shadow-2xs">
-                <i className="fa-solid fa-sparkles text-[11px] text-amber-600"></i>
-                วันหยุดที่จะถึงถัดไป
-              </div>
-
-              <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-                {upcomingHolidayInfo.holiday.name}
-                {isLongWeekend(upcomingHolidayInfo.holiday.date, upcomingHolidayInfo.holiday.num_days) && (
-                  <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded-full font-semibold inline-flex items-center gap-1.5 shadow-2xs">
-                    <i className="fa-solid fa-plane text-[10px] text-emerald-600"></i> Long Weekend
-                  </span>
-                )}
+        {/* Deck 2: Calendar Controller (Month name + Pills + Filter) */}
+        {viewMode === 'calendar' && (
+          <div className="py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Left: Month title & Nav buttons */}
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
+                <i className="fa-regular fa-calendar text-blue-600 text-sm"></i>
+                เดือน{monthNames[currentMonth]} {year + 543}
               </h3>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600 font-medium">
-                <div className="flex items-center gap-2">
-                  <i className="fa-regular fa-calendar-check text-blue-600"></i>
-                  <span>{getWeekdayText(upcomingHolidayInfo.holiday.date)} {formatDateThai(upcomingHolidayInfo.holiday.date)}</span>
-                </div>
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                <div className="flex items-center gap-2">
-                  <i className="fa-regular fa-clock text-indigo-600"></i>
-                  <span>หยุดต่อเนื่อง {getConsecutiveDaysOff(upcomingHolidayInfo.holiday.date, upcomingHolidayInfo.holiday.num_days)} วัน</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Countdown Badge */}
-            <div className="w-full md:w-auto bg-amber-50/70 rounded-2xl px-6 py-3.5 border border-amber-200/60 flex items-center justify-between md:flex-col md:justify-center text-center shrink-0 min-w-[145px]">
-              <span className="text-xs text-amber-800/80 font-bold">จะถึงในอีก</span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                {upcomingHolidayInfo.daysLeft === 0 ? (
-                  <span className="text-lg font-extrabold text-amber-600">วันนี้วันหยุด! 🎉</span>
-                ) : (
-                  <>
-                    <span className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">{upcomingHolidayInfo.daysLeft}</span>
-                    <span className="text-xs font-bold text-amber-800">วัน</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="hidden order-3 mb-8 py-3 flex items-center gap-4 border-b border-slate-200/60">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-base border border-blue-100 shadow-2xs">
-            <i className="fa-solid fa-calendar-check"></i>
-          </div>
-          <div>
-            <div className="font-bold text-slate-800 text-sm">ไม่มีวันหยุดคงเหลือในปี {year + 543}</div>
-            <p className="text-xs text-slate-500">คุณสามารถเปลี่ยนปี พ.ศ. ด้านบนเพื่อตรวจสอบปฏิทินวันหยุดปีก่อนหน้าหรือปีถัดไป</p>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Stats Grid */}
-      <div className="hidden order-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
-            <i className="fa-solid fa-calendar-days"></i>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">วันหยุดทั้งหมด</div>
-            <div className="text-xl font-black text-slate-800 mt-0.5">{stats.totalDays} <span className="text-xs font-normal text-slate-500">วัน</span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg font-bold">
-            <i className="fa-solid fa-hourglass-half"></i>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">คงเหลือในปีนี้</div>
-            <div className="text-xl font-black text-amber-600 mt-0.5">{stats.remainingCount} <span className="text-xs font-normal text-slate-500">รายการ</span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg font-bold">
-            <i className="fa-solid fa-plane"></i>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">วันหยุดยาว 3+ วัน</div>
-            <div className="text-xl font-black text-purple-600 mt-0.5">{stats.longWeekends} <span className="text-xs font-normal text-slate-500">ครั้ง</span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-bold">
-            <i className="fa-solid fa-list-check"></i>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">งานใกล้ถึง</div>
-            <div className="text-xl font-black text-indigo-600 mt-0.5">{taskOverview.upcoming.length} <span className="text-xs font-normal text-slate-500">รายการ</span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
-            <i className="fa-solid fa-circle-check"></i>
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">งานเสร็จแล้ว</div>
-            <div className="text-xl font-black text-emerald-600 mt-0.5">{taskOverview.completed.length} <span className="text-xs font-normal text-slate-500">รายการ</span></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Assigned work overview */}
-      {(taskOverview.upcoming.length > 0 || taskOverview.completed.length > 0) && (
-        <section className="hidden order-5 grid grid-cols-1 lg:grid-cols-2 gap-5 mb-8" aria-labelledby="assigned-work-heading">
-          <h3 id="assigned-work-heading" className="sr-only">สรุปงานที่ได้รับมอบหมาย</h3>
-          {[
-            {
-              title: 'งานใกล้ถึง',
-              icon: 'fa-clock',
-              iconClass: 'text-indigo-600 bg-indigo-50',
-              itemClass: 'border-indigo-100 hover:border-indigo-300',
-              items: taskOverview.upcomingPreview,
-              emptyText: 'ไม่มีงานที่กำลังจะถึง',
-              dateKey: 'dueDate' as const,
-            },
-            {
-              title: 'งานที่เสร็จแล้ว',
-              icon: 'fa-circle-check',
-              iconClass: 'text-emerald-600 bg-emerald-50',
-              itemClass: 'border-emerald-100 hover:border-emerald-300',
-              items: taskOverview.completedPreview,
-              emptyText: 'ยังไม่มีงานที่เสร็จแล้ว',
-              dateKey: 'completedAt' as const,
-            },
-          ].map(group => (
-            <div key={group.title} className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${group.iconClass}`}>
-                    <i className={`fa-solid ${group.icon}`}></i>
-                  </span>
-                  <div>
-                    <h4 className="font-bold text-slate-800">{group.title}</h4>
-                    <p className="text-[11px] text-slate-500">{group.items.length > 0 ? `แสดง ${group.items.length} รายการล่าสุด` : 'อัปเดตจากงานที่ได้รับมอบหมาย'}</p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-                  {group.title === 'งานใกล้ถึง' ? taskOverview.upcoming.length : taskOverview.completed.length}
-                </span>
-              </div>
-              <div className="p-3 space-y-2">
-                {group.items.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-slate-400">{group.emptyText}</div>
-                ) : group.items.map(item => {
-                  const itemDate = item[group.dateKey] || item.dueDate;
-                  return (
-                    <div key={`${group.title}-${item.id}`} className={`p-3 rounded-xl border bg-slate-50/50 transition-colors ${group.itemClass}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {item.isSubItem && (
-                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">งานย่อย</span>
-                            )}
-                            {item.brandId && brandsMap.get(item.brandId) && (
-                              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md">{brandsMap.get(item.brandId)}</span>
-                            )}
-                          </div>
-                          <p className="font-semibold text-sm text-slate-800 truncate mt-1" title={item.displayTitle}>{item.displayTitle}</p>
-                          {item.isSubItem && <p className="text-[11px] text-slate-500 truncate">งานหลัก: {item.parentTitle}</p>}
-                        </div>
-                        <span className="text-[11px] font-semibold text-slate-500 shrink-0">{itemDate ? formatDateThai(itemDate) : '-'}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {/* Main View: Calendar View */}
-      {viewMode === 'calendar' && (
-        <div className="order-2 mb-8 flex-none bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Month Header Controller */}
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-              <h3 className="text-lg font-bold text-slate-800">
-                {monthNames[currentMonth]} {year + 543}
-              </h3>
-              <span className="text-xs bg-slate-200 text-slate-700 font-medium px-2.5 py-0.5 rounded-full">
+              <span className="text-[11px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full border border-slate-200">
                 {holidays.filter(h => new Date(h.date).getMonth() === currentMonth).length} วันหยุด
               </span>
-              {upcomingHolidayInfo && (
-                <span
-                  className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800"
-                  title={`วันหยุดที่จะถึง: ${upcomingHolidayInfo.holiday.name}`}
+
+              <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
+                <button
+                  type="button"
+                  onClick={() => handleSelectMonth(currentMonth === 0 ? 11 : currentMonth - 1, currentMonth === 0 ? year - 1 : year)}
+                  aria-label="ไปเดือนก่อนหน้า"
+                  className="w-6 h-6 rounded-md hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer text-[10px]"
+                  title="เดือนก่อนหน้า"
                 >
-                  <i className="fa-solid fa-clock text-[10px] text-amber-600" aria-hidden="true"></i>
-                  <span className="truncate">ถัดไป: {upcomingHolidayInfo.holiday.name} · {formatDateThai(upcomingHolidayInfo.holiday.date)}</span>
-                </span>
-              )}
-              {upcomingTaskInfo && (
-                <span
-                  className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-800"
-                  title={`งานใกล้ครบกำหนด: ${upcomingTaskLabel}`}
+                  <i className="fa-solid fa-chevron-left"></i>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectMonth(today.getMonth(), today.getFullYear())}
+                  className="px-2 py-0.5 rounded-md hover:bg-white text-slate-700 font-bold text-[11px] transition-all cursor-pointer"
+                  title="ไปเดือนปัจจุบัน"
                 >
-                  <i className="fa-solid fa-list-check text-[10px] text-indigo-600" aria-hidden="true"></i>
-                  <span className="truncate">งานใกล้ครบกำหนด: {upcomingTaskLabel} · {formatDateThai(upcomingTaskInfo.dueDate || '')}</span>
-                  {upcomingTaskInfo.priority && upcomingTaskInfo.priority !== 'low' && (
-                    <span className={`holiday-priority-pill shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold ${TASK_PRIORITY_META[upcomingTaskInfo.priority].className}`}>
-                      {TASK_PRIORITY_META[upcomingTaskInfo.priority].label}
-                    </span>
-                  )}
-                </span>
-              )}
+                  วันนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectMonth(currentMonth === 11 ? 0 : currentMonth + 1, currentMonth === 11 ? year + 1 : year)}
+                  aria-label="ไปเดือนถัดไป"
+                  className="w-6 h-6 rounded-md hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer text-[10px]"
+                  title="เดือนถัดไป"
+                >
+                  <i className="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
             </div>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* Center: Month Pills */}
+            <div className="overflow-x-auto flex items-center gap-1 scrollbar-none py-0.5">
+              {monthNamesShort.map((mShort, idx) => {
+                const isSelected = currentMonth === idx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectMonth(idx)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-slate-50 border border-slate-200/60'
+                    }`}
+                  >
+                    {mShort}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right: Assignee Filter */}
+            <div className="flex items-center gap-2">
               {isAdmin && (
-                <div className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-2 py-1.5">
-                  <label htmlFor="holiday-task-person-filter" className="hidden sm:inline text-[11px] font-bold text-indigo-700 whitespace-nowrap">
-                    ดูงานของ
-                  </label>
-                  <i className="fa-regular fa-user text-[11px] text-indigo-500 sm:hidden" aria-hidden="true"></i>
+                <div className="flex items-center gap-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-2.5 py-1 shadow-2xs">
+                  <i className="fa-solid fa-user-check text-[11px] text-indigo-600"></i>
+                  <span className="text-xs font-bold text-indigo-700 hidden xl:inline">ดูงานของ:</span>
                   <select
                     id="holiday-task-person-filter"
                     aria-label="กรองงานตามผู้รับผิดชอบ"
                     value={taskPersonFilter}
                     onChange={(event) => setTaskPersonFilter(event.target.value)}
-                    className="w-[118px] max-w-full bg-transparent text-xs font-bold text-indigo-800 outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500/40 rounded-md sm:w-[150px]"
+                    className="bg-transparent text-xs font-bold text-indigo-900 outline-none cursor-pointer max-w-[140px]"
                   >
                     <option value="all">ทุกคน ({tasks.length})</option>
                     {taskFilterUsers.map(user => {
@@ -979,83 +969,23 @@ export default function Holidays() {
                       type="button"
                       onClick={() => setTaskPersonFilter('all')}
                       aria-label="ล้างตัวกรองผู้รับผิดชอบ"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-indigo-500 hover:bg-indigo-100 hover:text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 hover:bg-indigo-200/80 hover:text-indigo-800"
                     >
-                      <i className="fa-solid fa-xmark text-[10px]" aria-hidden="true"></i>
+                      <i className="fa-solid fa-xmark text-[9px]" aria-hidden="true"></i>
                     </button>
                   )}
                 </div>
               )}
-
-              {/* Month Selector Tabs Dropdown */}
-              <select
-                className="w-[118px] bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-3 py-1.5 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:w-auto"
-                value={currentMonth}
-                onChange={(e) => setCurrentMonth(Number(e.target.value))}
-              >
-                {monthNames.map((mName, idx) => (
-                  <option key={idx} value={idx}>
-                    เดือน{mName}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentMonth(prev => (prev === 0 ? 11 : prev - 1))}
-                  aria-label="ไปเดือนก่อนหน้า"
-                  className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title="เดือนก่อนหน้า"
-                >
-                  <i className="fa-solid fa-chevron-left text-xs"></i>
-                </button>
-                <button
-                  onClick={() => setCurrentMonth(today.getMonth())}
-                  className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-                  title="ไปเดือนปัจจุบัน"
-                >
-                  เดือนนี้
-                </button>
-                <button
-                  onClick={() => setCurrentMonth(prev => (prev === 11 ? 0 : prev + 1))}
-                  aria-label="ไปเดือนถัดไป"
-                  className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title="เดือนถัดไป"
-                >
-                  <i className="fa-solid fa-chevron-right text-xs"></i>
-                </button>
-              </div>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Quick Month Pills */}
-          <div className="px-6 py-3 border-b border-slate-100 bg-white overflow-x-auto flex items-center gap-1.5 scrollbar-none">
-            {monthNames.map((mName, idx) => {
-              const countInMonth = holidays.filter(h => new Date(h.date).getMonth() === idx).length;
-              const isSelected = currentMonth === idx;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentMonth(idx)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${isSelected
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
-                    }`}
-                >
-                  {mName}
-                  {countInMonth > 0 && (
-                    <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                      {countInMonth}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Days of Week Header */}
-          <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/70 text-center text-xs font-bold text-slate-500 py-3">
+      {/* Main View: Calendar View */}
+      {viewMode === 'calendar' && (
+        <div className="order-2 mb-8 flex-none bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          {/* Weekday Row Header */}
+          <div className="grid grid-cols-7 bg-slate-50/80 border-b border-slate-200 text-center text-xs font-bold text-slate-500 py-3">
             {weekDayNamesShort.map((day, i) => (
               <div key={day} className={i === 0 || i === 6 ? 'text-rose-500' : ''}>
                 {day}
@@ -1063,200 +993,315 @@ export default function Holidays() {
             ))}
           </div>
 
+          {/* Seamless Unified Continuous Calendar Grid */}
+          {loading ? (
+            <div className="py-20 text-center text-slate-400">
+              <i className="fa-solid fa-spinner fa-spin text-2xl mb-2 text-blue-500 block"></i>
+              กำลังโหลดปฏิทินและข้อมูลงาน...
+            </div>
+          ) : (
+            <div>
+              {/* Unified Calendar Grid */}
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-200 bg-slate-200/50">
+                {continuousCalendarDays.map((cell, index) => {
+                  const isWeekend = (index % 7 === 0) || (index % 7 === 6);
+                  const urgentDueCount = cell.dueTaskItems.filter(item => item.priority === 'urgent' || item.priority === 'high').length;
 
+                  // Collect list of render items
+                  const renderItems: Array<{
+                    key: string;
+                    type: 'holiday' | 'due' | 'completed';
+                    title: string;
+                    parentTitle?: string;
+                    isSubItem?: boolean;
+                    brandName?: string;
+                    status?: string;
+                    priority?: TaskPriority;
+                    assignedToName?: string;
+                    assignedToAvatarUrl?: string | null;
+                    assignedToInitial?: string;
+                  }> = [];
 
-          {/* Monthly Calendar Grid */}
-          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100 bg-slate-50/30">
-            {loading ? (
-              <div className="col-span-7 py-20 text-center text-slate-400">
-                <i className="fa-solid fa-spinner fa-spin text-2xl mb-2 text-blue-500 block"></i>
-                กำลังโหลดปฏิทินและข้อมูลงาน...
-              </div>
-            ) : (
-              calendarCells.map((cell, index) => {
-                const isWeekend = (index % 7 === 0) || (index % 7 === 6);
-                const totalEvents = cell.holidayMatches.length + cell.dueTaskItems.length + cell.completedTaskItems.length;
-                const hasEvents = totalEvents > 0;
-                const urgentDueCount = cell.dueTaskItems.filter(item => item.priority === 'urgent' || item.priority === 'high').length;
-
-                // Collect list of render items up to 2 items max in cell
-                const renderItems: Array<{
-                  key: string;
-                  type: 'holiday' | 'due' | 'completed';
-                  title: string;
-                  parentTitle?: string;
-                  isSubItem?: boolean;
-                  brandName?: string;
-                  priority?: TaskPriority;
-                }> = [];
-
-                cell.holidayMatches.forEach(h => {
-                  renderItems.push({
-                    key: `h-${h.id}`,
-                    type: 'holiday',
-                    title: h.name,
-                  });
-                });
-
-                [...cell.dueTaskItems]
-                  .sort((a, b) => {
-                    const parentFirst = Number(Boolean(a.isSubItem)) - Number(Boolean(b.isSubItem));
-                    return parentFirst || TASK_PRIORITY_ORDER[b.priority || 'low'] - TASK_PRIORITY_ORDER[a.priority || 'low'];
-                  })
-                  .forEach(item => {
+                  cell.holidayMatches.forEach(h => {
                     renderItems.push({
-                      key: `due-${item.id}`,
-                      type: 'due',
-                      title: item.displayTitle,
-                      parentTitle: item.parentTitle,
-                      isSubItem: item.isSubItem,
-                      brandName: brandsMap.get(item.brandId || ''),
-                      priority: item.priority || 'low',
+                      key: `h-${h.id}`,
+                      type: 'holiday',
+                      title: h.name,
                     });
                   });
 
-                [...cell.completedTaskItems]
-                  .sort((a, b) => Number(Boolean(a.isSubItem)) - Number(Boolean(b.isSubItem)))
-                  .forEach(item => {
-                    renderItems.push({
-                      key: `comp-${item.id}`,
-                      type: 'completed',
-                      title: item.displayTitle,
-                      parentTitle: item.parentTitle,
-                      isSubItem: item.isSubItem,
-                      brandName: brandsMap.get(item.brandId || ''),
+                  [...cell.dueTaskItems]
+                    .sort((a, b) => {
+                      const parentFirst = Number(Boolean(a.isSubItem)) - Number(Boolean(b.isSubItem));
+                      return parentFirst || TASK_PRIORITY_ORDER[b.priority || 'low'] - TASK_PRIORITY_ORDER[a.priority || 'low'];
+                    })
+                    .forEach(item => {
+                      renderItems.push({
+                        key: `due-${item.id}`,
+                        type: 'due',
+                        title: item.displayTitle,
+                        parentTitle: item.parentTitle,
+                        isSubItem: item.isSubItem,
+                        brandName: brandsMap.get(item.brandId || ''),
+                        status: item.status,
+                        priority: item.priority || 'low',
+                        assignedToName: item.assignedToName,
+                        assignedToAvatarUrl: item.assignedToAvatarUrl,
+                        assignedToInitial: item.assignedToInitial,
+                      });
                     });
-                  });
 
-                const visibleItems = renderItems.slice(0, 2);
-                const extraCount = totalEvents - visibleItems.length;
+                  [...cell.completedTaskItems]
+                    .sort((a, b) => Number(Boolean(a.isSubItem)) - Number(Boolean(b.isSubItem)))
+                    .forEach(item => {
+                      renderItems.push({
+                        key: `comp-${item.id}`,
+                        type: 'completed',
+                        title: item.displayTitle,
+                        parentTitle: item.parentTitle,
+                        isSubItem: item.isSubItem,
+                        brandName: brandsMap.get(item.brandId || ''),
+                        status: 'completed',
+                        assignedToName: item.assignedToName,
+                        assignedToAvatarUrl: item.assignedToAvatarUrl,
+                        assignedToInitial: item.assignedToInitial,
+                      });
+                    });
 
-                return (
-                  <div
-                    key={index}
-                    role={hasEvents ? 'button' : undefined}
-                    tabIndex={hasEvents ? 0 : undefined}
-                    aria-label={hasEvents ? `ดูรายละเอียดกิจกรรม ${getWeekdayText(cell.dateStr)} ${formatDateThai(cell.dateStr)}` : undefined}
-                    onClick={() => {
-                      if (hasEvents) {
-                        setSelectedDayDetails({
-                          dateStr: cell.dateStr,
-                          holidayMatches: cell.holidayMatches,
-                          dueTaskItems: cell.dueTaskItems,
-                          completedTaskItems: cell.completedTaskItems,
-                        });
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (hasEvents && (event.key === 'Enter' || event.key === ' ')) {
-                        event.preventDefault();
-                        setSelectedDayDetails({
-                          dateStr: cell.dateStr,
-                          holidayMatches: cell.holidayMatches,
-                          dueTaskItems: cell.dueTaskItems,
-                          completedTaskItems: cell.completedTaskItems,
-                        });
-                      }
-                    }}
-                    className={`min-h-[125px] p-2 transition-all relative flex flex-col justify-between ${!cell.isCurrentMonth ? 'bg-slate-50/50 opacity-40' : 'bg-white hover:bg-slate-50/80'
-                      } ${hasEvents ? 'cursor-pointer group' : ''}`}
-                  >
-                    {/* Day Header */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-extrabold ${cell.isToday
-                          ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
-                          : isWeekend
-                            ? 'text-rose-500'
-                            : 'text-slate-700'
-                          }`}
-                      >
-                        {cell.dayNumber}
-                      </span>
+                  const totalEvents = renderItems.length;
+                  const hasEvents = totalEvents > 0;
+                  const visibleItems = renderItems.slice(0, 2);
+                  const extraCount = renderItems.length - visibleItems.length;
 
-                      {cell.isToday ? (
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                          วันนี้
-                        </span>
-                      ) : urgentDueCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-700 ring-1 ring-rose-200" title={`${urgentDueCount} งานเร่งด่วน`}>
-                          <i className="fa-solid fa-fire text-[9px]" aria-hidden="true"></i>
-                          ด่วน{urgentDueCount > 1 ? ` ${urgentDueCount}` : ''}
-                        </span>
-                      ) : hasEvents ? (
-                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                      ) : null}
-                    </div>
-
-                    {/* Events Pills */}
-                    {hasEvents && (
-                      <div className="mt-1.5 space-y-1">
-                        {visibleItems.map(item => {
-                          if (item.type === 'holiday') {
-                            return (
-                              <div
-                                key={item.key}
-                                className="px-1.5 py-1 rounded-lg bg-rose-50 border border-rose-200/80 text-rose-800 text-[10px] font-bold truncate flex items-center gap-1 shadow-2xs group-hover:border-rose-300 transition-all"
-                              >
-                                <i className="fa-solid fa-sparkles text-[9px] text-rose-500 shrink-0"></i>
-                                <span className="truncate">{item.title}</span>
-                              </div>
-                            );
-                          }
-
-                          if (item.type === 'due') {
-                            const priorityMeta = TASK_PRIORITY_META[item.priority || 'low'];
-                            return (
-                              <div
-                                key={item.key}
-                                className={`holiday-task-priority px-1.5 py-1 rounded-lg border text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:brightness-95 transition-all ${priorityMeta.className}`}
-                                title={`${priorityMeta.label}: ${item.isSubItem && item.parentTitle ? `งานหลัก ${item.parentTitle} › ` : ''}${item.title}`}
-                              >
-                                <span className="holiday-task-priority-label inline-flex shrink-0 items-center gap-1 rounded-md bg-white/70 px-1 py-0.5 text-[9px] font-extrabold">
-                                  <i className={`fa-solid ${priorityMeta.icon} text-[9px]`} aria-hidden="true"></i>
-                                  {priorityMeta.label}
-                                </span>
-                                <span className="min-w-0 truncate">
-                                  {item.brandName ? <strong className="font-bold mr-1">[{item.brandName}]</strong> : null}
-                                  {item.isSubItem && item.parentTitle && item.parentTitle !== item.title ? (
-                                    <span className="block truncate text-[9px] font-extrabold opacity-80">งานหลัก: {item.parentTitle}</span>
-                                  ) : null}
-                                  <span className="block truncate">{item.isSubItem ? `งานย่อย: ${item.title}` : item.title}</span>
-                                </span>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div
-                              key={item.key}
-                              className="px-1.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-[10px] font-medium truncate flex items-center gap-1 shadow-2xs group-hover:border-emerald-300 transition-all"
-                              title={`${item.isSubItem && item.parentTitle ? `งานหลัก ${item.parentTitle} › ` : ''}${item.title}`}
-                            >
-                              <i className="fa-solid fa-circle-check text-[9px] text-emerald-600 shrink-0"></i>
-                              <span className="min-w-0 truncate">
-                                {item.brandName ? <strong className="font-bold text-emerald-700 mr-1">[{item.brandName}]</strong> : null}
-                                {item.isSubItem && item.parentTitle && item.parentTitle !== item.title ? (
-                                  <span className="block truncate text-[9px] font-extrabold text-emerald-800/80">งานหลัก: {item.parentTitle}</span>
-                                ) : null}
-                                <span className="block truncate">{item.isSubItem ? `งานย่อย: ${item.title}` : item.title}</span>
-                              </span>
-                            </div>
-                          );
-                        })}
-
-                        {extraCount > 0 && (
-                          <div className="text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 px-1.5 py-0.5 rounded-md inline-block transition-all">
-                            +{extraCount} รายการเพิ่มเติม
-                          </div>
+                  return (
+                    <div
+                      key={cell.dateStr}
+                      id={`day-cell-${cell.dateStr}`}
+                      data-is-day-one={cell.isFirstDayOfMonth ? 'true' : 'false'}
+                      data-month={cell.monthNumber}
+                      data-year={cell.yearNumber}
+                      role={hasEvents ? 'button' : undefined}
+                      tabIndex={hasEvents ? 0 : undefined}
+                      aria-label={hasEvents ? `ดูรายละเอียดกิจกรรม ${getWeekdayText(cell.dateStr)} ${formatDateThai(cell.dateStr)}` : undefined}
+                      onClick={() => {
+                        if (hasEvents) {
+                          setSelectedDayDetails({
+                            dateStr: cell.dateStr,
+                            holidayMatches: cell.holidayMatches,
+                            dueTaskItems: cell.dueTaskItems,
+                            completedTaskItems: cell.completedTaskItems,
+                          });
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (hasEvents && (event.key === 'Enter' || event.key === ' ')) {
+                          event.preventDefault();
+                          setSelectedDayDetails({
+                            dateStr: cell.dateStr,
+                            holidayMatches: cell.holidayMatches,
+                            dueTaskItems: cell.dueTaskItems,
+                            completedTaskItems: cell.completedTaskItems,
+                          });
+                        }
+                      }}
+                      className={`min-h-[135px] p-2 transition-all relative flex flex-col justify-between ${
+                        cell.monthNumber === currentMonth && cell.yearNumber === year
+                          ? 'bg-white hover:bg-slate-50/90'
+                          : 'bg-slate-50/70 opacity-35 hover:opacity-70'
+                      } ${cell.isToday ? 'ring-2 ring-blue-500/40 bg-blue-50/20 opacity-100' : ''} ${hasEvents ? 'cursor-pointer group' : ''}`}
+                    >
+                      {/* Day Header */}
+                      <div className="flex items-center justify-between mb-1">
+                        {cell.isFirstDayOfMonth ? (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black shadow-xs ring-2 ${
+                              cell.isToday
+                                ? 'bg-blue-700 text-white ring-blue-300'
+                                : 'bg-blue-600 text-white ring-blue-200'
+                            }`}
+                          >
+                            <i className="fa-regular fa-calendar text-[10px]"></i>
+                            1 {monthNamesShort[cell.monthNumber]}
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${cell.isToday
+                              ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300'
+                              : isWeekend
+                                ? 'text-rose-500'
+                                : 'text-slate-700'
+                              }`}
+                          >
+                            {cell.dayNumber}
+                          </span>
                         )}
+
+                        {cell.isToday ? (
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                            วันนี้
+                          </span>
+                        ) : urgentDueCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-700 ring-1 ring-rose-200" title={`${urgentDueCount} งานเร่งด่วน`}>
+                            <i className="fa-solid fa-fire text-[9px]" aria-hidden="true"></i>
+                            ด่วน{urgentDueCount > 1 ? ` ${urgentDueCount}` : ''}
+                          </span>
+                        ) : hasEvents ? (
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        ) : null}
                       </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+
+                      {/* Events Cards Container */}
+                      {hasEvents && (
+                        <div className="space-y-1.5 flex-1 flex flex-col justify-start">
+                          {visibleItems.map(item => {
+                            if (item.type === 'holiday') {
+                              return (
+                                <div
+                                  key={item.key}
+                                  className="p-2 rounded-xl border border-rose-200 bg-rose-50/80 text-rose-900 shadow-2xs hover:shadow-xs transition-all"
+                                >
+                                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                                    <span className="px-1.5 py-0.5 rounded-md font-extrabold text-[9px] bg-rose-500 text-white flex items-center gap-1">
+                                      <i className="fa-solid fa-sparkles text-[8px]"></i> วันหยุด
+                                    </span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 border border-rose-200">
+                                      บริษัท
+                                    </span>
+                                  </div>
+                                  <div className="font-bold text-rose-900 text-xs line-clamp-1 leading-tight">
+                                    {item.title}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            const isComp = item.type === 'completed';
+                            const statusLabel = isComp
+                              ? 'เสร็จสิ้น'
+                              : item.status === 'in_review'
+                              ? 'รอตรวจ'
+                              : item.status === 'in_progress'
+                              ? 'กำลังผลิต'
+                              : 'ไอเดีย';
+                            const statusStyle = isComp
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : item.status === 'in_review'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : item.status === 'in_progress'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-purple-50 text-purple-700 border-purple-200';
+
+                            const priorityMeta = TASK_PRIORITY_META[item.priority || 'low'];
+
+                            return (
+                              <div
+                                key={item.key}
+                                className={`p-2 rounded-xl border text-xs transition-all hover:scale-[1.01] hover:shadow-xs bg-white ${
+                                  isComp
+                                    ? 'border-emerald-200 hover:border-emerald-300'
+                                    : item.priority === 'urgent'
+                                    ? 'border-rose-200 hover:border-rose-300'
+                                    : item.priority === 'high'
+                                    ? 'border-amber-200 hover:border-amber-300'
+                                    : 'border-slate-200 hover:border-blue-300'
+                                } shadow-2xs flex flex-col justify-between gap-1`}
+                                title={`${isComp ? 'เสร็จสิ้น' : priorityMeta.label}: ${item.isSubItem && item.parentTitle ? `งานหลัก ${item.parentTitle} › ` : ''}${item.title}${item.assignedToName ? ` (ผู้รับผิดชอบ: ${item.assignedToName})` : ''}`}
+                              >
+                                {/* Top Bar: Left Priority/Type + Right Status */}
+                                <div className="flex items-center justify-between gap-1">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded-md font-extrabold text-[9px] flex items-center gap-1 ${
+                                      isComp
+                                        ? 'bg-blue-600 text-white'
+                                        : item.priority === 'urgent'
+                                        ? 'bg-rose-600 text-white'
+                                        : item.priority === 'high'
+                                        ? 'bg-orange-500 text-white'
+                                        : item.priority === 'medium'
+                                        ? 'bg-amber-500 text-white'
+                                        : 'bg-blue-600 text-white'
+                                    }`}
+                                  >
+                                    {isComp ? (
+                                      'งาน'
+                                    ) : (
+                                      <>
+                                        <i className={`fa-solid ${priorityMeta.icon} text-[8px]`}></i> {priorityMeta.label}
+                                      </>
+                                    )}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${statusStyle}`}>
+                                    {statusLabel}
+                                  </span>
+                                </div>
+
+                                {/* Title */}
+                                <div className="my-0.5">
+                                  {item.isSubItem && item.parentTitle && item.parentTitle !== item.title && (
+                                    <div className="text-[10px] font-semibold text-slate-400 truncate leading-tight">
+                                      {item.parentTitle}
+                                    </div>
+                                  )}
+                                  <div className="font-bold text-slate-800 line-clamp-1 leading-tight text-xs">
+                                    {item.title}
+                                  </div>
+                                </div>
+
+                                {/* Footer: Brand on Left + Avatar on Right */}
+                                <div className="flex items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-100 mt-0.5">
+                                  {item.brandName ? (
+                                    <span className="font-bold text-amber-600 truncate max-w-[80px] flex items-center gap-0.5 text-[10px]">
+                                      🔥 {item.brandName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-medium truncate">
+                                      {item.isSubItem ? 'งานย่อย' : 'งานหลัก'}
+                                    </span>
+                                  )}
+
+                                  {/* Avatar */}
+                                  {item.assignedToName && (
+                                    <div className="flex items-center gap-1 shrink-0" title={item.assignedToName}>
+                                      <span className="w-5 h-5 rounded-full overflow-hidden bg-slate-100 ring-1 ring-white shadow-2xs flex items-center justify-center text-[9px] font-bold text-slate-700 shrink-0">
+                                        {item.assignedToAvatarUrl ? (
+                                          <img src={item.assignedToAvatarUrl} alt={item.assignedToName} className="w-full h-full object-cover" />
+                                        ) : (
+                                          item.assignedToInitial || <i className="fa-solid fa-user text-[7px]" aria-hidden="true"></i>
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {extraCount > 0 && (
+                            <div className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg flex items-center justify-between transition-all mt-auto shadow-2xs">
+                              <span>+{extraCount} รายการเพิ่มเติม</span>
+                              <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Infinite Scroll Trigger & Manual Load Button */}
+              <div ref={bottomSentinelRef} className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={loadNextMonth}
+                  className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+                >
+                  <i className="fa-solid fa-angles-down text-blue-600 text-sm"></i>
+                  <span>เลื่อนลงเพื่อดูเดือนถัดไปต่อเนื่อง (หรือคลิกโหลดเพิ่ม)</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1373,27 +1418,29 @@ export default function Holidays() {
       {/* Day Activity Details Modal */}
       {selectedDayDetails && (
         <div className="holiday-day-details-overlay fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="holiday-day-details-modal bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+          <div className="holiday-day-details-modal bg-white rounded-3xl max-w-2xl sm:max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div className="bg-slate-900 p-6 text-white relative shrink-0">
+            <div className="bg-white px-6 py-5 border-b border-slate-100 relative shrink-0 flex items-center justify-between">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-[11px] font-bold mb-1.5">
+                  <i className="fa-solid fa-calendar-day text-[10px] text-blue-600"></i>
+                  รายละเอียดกิจกรรมประจำวัน
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                  <span className="text-blue-600">{getWeekdayText(selectedDayDetails.dateStr)}</span> {formatDateThai(selectedDayDetails.dateStr)}
+                </h3>
+              </div>
               <button
                 onClick={() => setSelectedDayDetails(null)}
                 aria-label="ปิดรายละเอียดกิจกรรมประจำวัน"
-                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all cursor-pointer"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-all cursor-pointer shrink-0"
               >
-                <i className="fa-solid fa-xmark text-sm"></i>
+                <i className="fa-solid fa-xmark text-base"></i>
               </button>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold mb-2">
-                <i className="fa-solid fa-calendar-day text-[10px]"></i>
-                รายละเอียดกิจกรรมประจำวัน
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {getWeekdayText(selectedDayDetails.dateStr)} {formatDateThai(selectedDayDetails.dateStr)}
-              </h3>
             </div>
 
             {/* Content List */}
-            <div className="holiday-day-details-content p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            <div className="holiday-day-details-content p-6 space-y-5 overflow-y-auto custom-scrollbar bg-slate-50/50">
               {/* Holidays section */}
               {selectedDayDetails.holidayMatches.length > 0 && (
                 <div className="space-y-2.5">
@@ -1402,15 +1449,15 @@ export default function Holidays() {
                     วันหยุดบริษัท
                   </div>
                   {selectedDayDetails.holidayMatches.map(h => (
-                    <div key={h.id} className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex items-center justify-between">
+                    <div key={h.id} className="p-4 rounded-2xl bg-white border border-rose-200 shadow-xs flex items-center justify-between">
                       <div>
                         <div className="font-extrabold text-rose-900 text-base">{h.name}</div>
-                        <div className="text-xs text-rose-700/80 mt-0.5">
+                        <div className="text-xs text-rose-600/80 mt-0.5">
                           วันหยุดประจำปีบริษัท ({h.num_days} วัน)
                         </div>
                       </div>
                       {isLongWeekend(h.date, h.num_days) && (
-                        <span className="text-xs bg-rose-100 text-rose-800 border border-rose-300/80 px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1">
+                        <span className="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1 rounded-full font-bold inline-flex items-center gap-1.5">
                           <i className="fa-solid fa-plane text-[10px]"></i> Long Weekend
                         </span>
                       )}
@@ -1423,28 +1470,48 @@ export default function Holidays() {
               {selectedDayDetails.dueTaskItems.length > 0 && (
                 <div className="space-y-2.5">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <i className="fa-solid fa-clock text-indigo-500"></i>
+                    <i className="fa-solid fa-clock text-blue-600"></i>
                     งานย่อยและกำหนดส่งวันนี้ ({selectedDayDetails.dueTaskItems.length} รายการ)
                   </div>
                   <div className="space-y-3">
                     {selectedDayDetails.dueTaskItems.map(item => {
                       const brandName = brandsMap.get(item.brandId || '');
                       const rawTask = item.rawTask;
-                      const subItems = rawTask.sub_items || [];
+                      const subItems = (rawTask.sub_items || []).filter(s => !(s as any).deleted_at && !(s as any).is_deleted && ((s as any).status as string) !== 'trash');
+                      const deliverableLists = (rawTask.lists || []).filter(l => {
+                        const st = (l.status as string) || '';
+                        return !l.deleted_at && st !== 'trash' && st !== 'deleted';
+                      });
 
                       return (
-                        <div key={item.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-indigo-300 transition-all space-y-3">
+                        <div key={item.id} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-blue-300 transition-all space-y-3">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
+                            <div className="space-y-1.5 flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
+                                {item.assignedToName && (
+                                  <div className="text-xs text-slate-700 font-bold flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200 shadow-2xs">
+                                    {item.assignedToAvatarUrl ? (
+                                      <img
+                                        src={item.assignedToAvatarUrl}
+                                        alt={item.assignedToName}
+                                        className="w-4 h-4 rounded-full object-cover shrink-0 border border-slate-300 shadow-2xs"
+                                      />
+                                    ) : (
+                                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 font-bold text-[8px] flex items-center justify-center shrink-0">
+                                        {item.assignedToInitial || <i className="fa-solid fa-user text-[7px]" aria-hidden="true"></i>}
+                                      </span>
+                                    )}
+                                    <span>{item.assignedToName}</span>
+                                  </div>
+                                )}
                                 {brandName && (
-                                  <span className="inline-block text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
-                                    {brandName}
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-full">
+                                    🔥 {brandName}
                                   </span>
                                 )}
                                 {item.isSubItem && (
-                                  <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md">
-                                    งานย่อย (Sub-item)
+                                  <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                                    งานย่อย
                                   </span>
                                 )}
                               </div>
@@ -1457,8 +1524,9 @@ export default function Holidays() {
                             </div>
 
                             <span className={`holiday-priority-status text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${item.priority === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                              item.priority === 'high' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                'bg-blue-50 text-blue-700 border-blue-200'
+                              item.priority === 'high' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                              item.priority === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                'bg-slate-100 text-slate-600 border-slate-200'
                               }`}>
                               {item.priority ? item.priority.toUpperCase() : 'NORMAL'}
                             </span>
@@ -1466,75 +1534,80 @@ export default function Holidays() {
 
                           {/* Raw task description */}
                           {rawTask.description && (
-                            <p className="text-xs text-slate-600 line-clamp-2 bg-white/70 p-2.5 rounded-xl border border-slate-100">{rawTask.description}</p>
+                            <p className="text-xs text-slate-600 line-clamp-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">{rawTask.description}</p>
                           )}
 
                           {/* Sub-items Checklist breakdown if available */}
                           {subItems.length > 0 && (
                             <div className="space-y-1.5 pt-1">
                               <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-                                <span>รายการงานย่อยทั้งหมดในโครงการ ({subItems.filter(s => s.is_done || s.status === 'completed').length}/{subItems.length})</span>
+                                <span>รายการงานย่อยทั้งหมด ({subItems.filter(s => s.is_done || s.status === 'completed').length}/{subItems.length})</span>
                               </div>
-                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                                {subItems.map(s => (
-                                  <div
-                                    key={s.id}
-                                    className={`text-xs px-2.5 py-1.5 rounded-xl border flex items-center justify-between gap-2 ${s.is_done || s.status === 'completed' ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200/80 text-slate-700'
+                              <div className="space-y-1 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                                {subItems.map(s => {
+                                  const isDone = s.is_done || s.status === 'completed';
+                                  return (
+                                    <div
+                                      key={s.id}
+                                      className={`text-xs px-3 py-1.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                                        isDone
+                                          ? 'bg-emerald-50/50 border-emerald-100 text-slate-700'
+                                          : 'bg-slate-50/70 border-slate-100 text-slate-700 hover:bg-slate-100/70'
                                       }`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate">
-                                      <i className={`fa-solid ${s.is_done || s.status === 'completed' ? 'fa-square-check text-emerald-600' : 'fa-square text-slate-300'} text-sm`}></i>
-                                      <span className={`truncate font-medium ${s.is_done || s.status === 'completed' ? 'line-through opacity-80' : ''}`}>{s.title}</span>
+                                    >
+                                      <div className="flex items-center gap-2 truncate">
+                                        <i className={`fa-solid ${isDone ? 'fa-circle-check text-emerald-600 text-sm' : 'fa-circle text-slate-300 text-xs'}`}></i>
+                                        <span className={`truncate font-medium ${isDone ? 'line-through text-slate-400' : 'text-slate-700'}`}>{s.title}</span>
+                                      </div>
+                                      {s.due_date && (
+                                        <span className="text-[10px] text-slate-400 font-medium shrink-0 bg-white border border-slate-100 px-2 py-0.5 rounded-md">ส่ง: {s.due_date.split('T')[0]}</span>
+                                      )}
                                     </div>
-                                    {s.due_date && (
-                                      <span className="text-[10px] text-slate-400 shrink-0">{s.due_date.split('T')[0]}</span>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
 
                           {/* Lists (Deliverables) breakdown if available */}
-                          {rawTask.lists && rawTask.lists.length > 0 && (
+                          {deliverableLists.length > 0 && (
                             <div className="space-y-1.5 pt-1">
                               <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-                                <span>รายการงานย่อย (Deliverables) ({rawTask.lists.filter(l => l.status === 'completed').length}/{rawTask.lists.length})</span>
+                                <span>รายการงานย่อย (Deliverables) ({deliverableLists.filter(l => l.status === 'completed').length}/{deliverableLists.length})</span>
                               </div>
-                              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                                {rawTask.lists.map(l => (
-                                  <div
-                                    key={l.id}
-                                    className={`text-xs p-2 rounded-xl border flex items-center justify-between gap-2 ${l.status === 'completed' ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200/80 text-slate-800'
+                              <div className="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                                {deliverableLists.map(l => {
+                                  const isDone = l.status === 'completed';
+                                  return (
+                                    <div
+                                      key={l.id}
+                                      className={`text-xs px-3 py-2 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                                        isDone
+                                          ? 'bg-emerald-50/50 border-emerald-100 text-slate-700'
+                                          : 'bg-slate-50/70 border-slate-100 text-slate-700 hover:bg-slate-100/70'
                                       }`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate">
-                                      <i className={`fa-solid ${l.status === 'completed' ? 'fa-circle-check text-emerald-600' : 'fa-list-check text-indigo-500'} text-sm`}></i>
-                                      <span className={`truncate font-semibold ${l.status === 'completed' ? 'line-through opacity-80' : ''}`}>{l.name}</span>
+                                    >
+                                      <div className="flex items-center gap-2 truncate">
+                                        <i className={`fa-solid ${isDone ? 'fa-circle-check text-emerald-600 text-sm' : 'fa-list-check text-indigo-500 text-sm'}`}></i>
+                                        <span className={`truncate font-medium ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>{l.name}</span>
+                                      </div>
+                                      {l.due_date && (
+                                        <span className="text-[10px] text-slate-400 font-medium shrink-0 bg-white border border-slate-100 px-2 py-0.5 rounded-md">ส่ง: {l.due_date.split('T')[0]}</span>
+                                      )}
                                     </div>
-                                    {l.due_date && (
-                                      <span className="text-[10px] text-slate-500 font-medium shrink-0 bg-slate-100 px-2 py-0.5 rounded-md">ส่ง: {l.due_date.split('T')[0]}</span>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs text-slate-500">
-                            {item.assignedToName && (
-                              <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                                <i className="fa-regular fa-user text-slate-400"></i>
-                                {item.assignedToName}
-                              </span>
-                            )}
-
+                          <div className="flex items-center justify-end pt-2 border-t border-slate-100 text-xs">
                             <button
                               onClick={() => {
                                 setSelectedDayDetails(null);
                                 navigate('/tasks');
                               }}
-                              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-all cursor-pointer ml-auto"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer"
                             >
                               จัดการงานในโครงการ <i className="fa-solid fa-arrow-right text-[10px]"></i>
                             </button>
@@ -1557,12 +1630,28 @@ export default function Holidays() {
                     {selectedDayDetails.completedTaskItems.map(item => {
                       const brandName = brandsMap.get(item.brandId || '');
                       return (
-                        <div key={item.id} className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-center justify-between gap-3">
-                          <div className="space-y-1">
+                        <div key={item.id} className="p-4 rounded-2xl bg-white border border-emerald-200/80 shadow-xs flex items-center justify-between gap-3">
+                          <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
+                              {item.assignedToName && (
+                                <div className="text-xs text-slate-700 font-bold flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200 shadow-2xs">
+                                  {item.assignedToAvatarUrl ? (
+                                    <img
+                                      src={item.assignedToAvatarUrl}
+                                      alt={item.assignedToName}
+                                      className="w-4 h-4 rounded-full object-cover shrink-0 border border-slate-300 shadow-2xs"
+                                    />
+                                  ) : (
+                                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[8px] flex items-center justify-center shrink-0">
+                                      {item.assignedToInitial || <i className="fa-solid fa-user text-[7px] text-emerald-600" aria-hidden="true"></i>}
+                                    </span>
+                                  )}
+                                  <span>{item.assignedToName}</span>
+                                </div>
+                              )}
                               {brandName && (
-                                <span className="inline-block text-[11px] font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-300/60 px-2 py-0.5 rounded-md">
-                                  {brandName}
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-full">
+                                  🔥 {brandName}
                                 </span>
                               )}
                             </div>
@@ -1570,13 +1659,8 @@ export default function Holidays() {
                             {item.parentTitle && item.parentTitle !== item.displayTitle && (
                               <p className="text-xs text-slate-500">งานหลัก: {item.parentTitle}</p>
                             )}
-                            {item.assignedToName && (
-                              <div className="text-xs text-slate-500 flex items-center gap-1">
-                                <i className="fa-regular fa-circle-user text-emerald-600"></i> {item.assignedToName}
-                              </div>
-                            )}
                           </div>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1 shrink-0">
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5 shrink-0">
                             <i className="fa-solid fa-check text-[10px]"></i> เสร็จสิ้น
                           </span>
                         </div>
@@ -1588,10 +1672,10 @@ export default function Holidays() {
             </div>
 
             {/* Footer */}
-            <div className="holiday-day-details-footer p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+            <div className="holiday-day-details-footer p-4 bg-white border-t border-slate-100 flex items-center justify-end shrink-0">
               <button
                 onClick={() => setSelectedDayDetails(null)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200/80 transition-all cursor-pointer shadow-2xs"
               >
                 ปิดหน้าต่าง
               </button>
@@ -1671,18 +1755,20 @@ export default function Holidays() {
       {showAddModal && isAdmin && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
+            <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <i className="fa-solid fa-calendar-plus text-amber-400"></i>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm border border-blue-100">
+                    <i className="fa-solid fa-calendar-plus"></i>
+                  </span>
                   เพิ่มวันหยุดใหม่
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">กำหนดวันหยุดบริษัทและบันทึกลงในระบบ</p>
+                <p className="text-xs text-slate-500 mt-1">กำหนดวันหยุดบริษัทและบันทึกลงในระบบ</p>
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
                 aria-label="ปิดฟอร์มเพิ่มวันหยุด"
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition-all cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all cursor-pointer"
               >
                 <i className="fa-solid fa-xmark text-sm"></i>
               </button>
@@ -1748,6 +1834,72 @@ export default function Holidays() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Floating Quick Action Filter Dock (Appears smoothly when scrolling down) */}
+      {isScrolledDown && viewMode === 'calendar' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 hover:bg-slate-900 text-white backdrop-blur-xl px-4 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 transition-all">
+          {/* Current Month & Year Badge */}
+          <div className="flex items-center gap-1.5 font-bold text-xs text-white pr-2.5 border-r border-slate-700">
+            <i className="fa-regular fa-calendar-days text-blue-400"></i>
+            <span>{monthNamesShort[currentMonth]} {year + 543}</span>
+          </div>
+
+          {/* Quick Month Dropdown */}
+          <select
+            value={currentMonth}
+            onChange={(e) => handleSelectMonth(Number(e.target.value))}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-2.5 py-1.5 rounded-xl border border-slate-700 outline-none cursor-pointer"
+          >
+            {monthNames.map((mName, idx) => (
+              <option key={idx} value={idx}>
+                เดือน{mName}
+              </option>
+            ))}
+          </select>
+
+          {/* Assignee Filter Dropdown */}
+          {isAdmin && (
+            <div className="flex items-center gap-1.5 pl-1 border-l border-slate-700">
+              <i className="fa-solid fa-user-check text-xs text-indigo-400"></i>
+              <select
+                id="floating-task-person-filter"
+                aria-label="กรองงานตามผู้รับผิดชอบ"
+                value={taskPersonFilter}
+                onChange={(event) => setTaskPersonFilter(event.target.value)}
+                className="bg-slate-800 hover:bg-slate-700 text-indigo-200 text-xs font-bold px-2.5 py-1.5 rounded-xl border border-slate-700 outline-none cursor-pointer max-w-[150px]"
+              >
+                <option value="all">ทุกคน ({tasks.length})</option>
+                {taskFilterUsers.map(user => {
+                  const displayName = user.nickname?.trim() || `${user.first_name} ${user.last_name}`.trim();
+                  const taskCount = tasks.filter(task => isTaskAssignedTo(task, user.id)).length;
+                  return (
+                    <option key={user.id} value={user.id}>
+                      {displayName || user.email} ({taskCount})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Scroll to Top Action Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const contentArea = document.querySelector('.content-area');
+              if (contentArea) {
+                contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+            className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center text-xs transition-all shadow-md active:scale-95 ml-1 cursor-pointer"
+            title="กลับขึ้นบนสุด"
+          >
+            <i className="fa-solid fa-arrow-up"></i>
+          </button>
         </div>
       )}
     </div>

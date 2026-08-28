@@ -4835,9 +4835,20 @@ td {
   margin: -40px;
 }
 
+/* `content-area-flush` makes this page edge-to-edge, while its scroll parent
+   still has 40px of padding. Offset the sticky toolbar by the same amount so
+   calendar cells cannot appear in the band above it during scrolling. */
+#holidays .holiday-master-toolbar {
+  top: -40px;
+}
+
 @media (max-width: 900px) {
   .content-area-flush {
     margin: -15px;
+  }
+
+  #holidays .holiday-master-toolbar {
+    top: -15px;
   }
 }
 
