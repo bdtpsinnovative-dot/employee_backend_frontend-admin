@@ -800,6 +800,91 @@ export default function Holidays() {
     return groups;
   }, [holidays, searchTerm]);
 
+  const renderModalTaskCard = (item: CalendarTaskItem) => {
+    const brandName = brandsMap.get(item.brandId || '');
+    const isCompleted = item.isCompleted;
+    const priority = TASK_PRIORITY_META[item.priority || 'low'];
+    const statusLabel = isCompleted
+      ? 'เสร็จสิ้น'
+      : item.status === 'in_review'
+      ? 'รอตรวจ'
+      : item.status === 'in_progress'
+      ? 'กำลังผลิต'
+      : 'ไอเดีย';
+    const statusStyle = isCompleted
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : item.status === 'in_review'
+      ? 'bg-blue-50 text-blue-700 border-blue-200'
+      : item.status === 'in_progress'
+      ? 'bg-amber-50 text-amber-700 border-amber-200'
+      : 'bg-purple-50 text-purple-700 border-purple-200';
+    const priorityStyle = isCompleted
+      ? 'bg-blue-600 text-white'
+      : item.priority === 'urgent'
+      ? 'bg-rose-600 text-white'
+      : item.priority === 'high'
+      ? 'bg-orange-500 text-white'
+      : item.priority === 'medium'
+      ? 'bg-amber-500 text-white'
+      : 'bg-blue-600 text-white';
+
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => {
+          setSelectedDayDetails(null);
+          navigate('/tasks');
+        }}
+        className={`w-full rounded-2xl border bg-white p-3 text-left shadow-2xs transition-all hover:-translate-y-0.5 hover:shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
+          isCompleted
+            ? 'border-emerald-200 hover:border-emerald-300'
+            : item.priority === 'urgent'
+            ? 'border-rose-200 hover:border-rose-300'
+            : item.priority === 'high'
+            ? 'border-amber-200 hover:border-amber-300'
+            : 'border-slate-200 hover:border-blue-300'
+        }`}
+        title="เปิดหน้าจัดการงาน"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-extrabold ${priorityStyle}`}>
+            {!isCompleted && <i className={`fa-solid ${priority.icon} text-[9px]`} aria-hidden="true"></i>}
+            {isCompleted ? 'งาน' : priority.label}
+          </span>
+          <span className={`rounded border px-2 py-1 text-[10px] font-bold ${statusStyle}`}>{statusLabel}</span>
+        </div>
+
+        <div className="mt-2 min-w-0">
+          {item.isSubItem && item.parentTitle && item.parentTitle !== item.displayTitle && (
+            <p className="truncate text-[11px] font-semibold text-slate-400">{item.parentTitle}</p>
+          )}
+          <p className={`truncate text-sm font-extrabold ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{item.displayTitle}</p>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+          {brandName ? (
+            <span className="truncate text-[11px] font-bold text-amber-600">🔥 {brandName}</span>
+          ) : (
+            <span className="text-[11px] font-medium text-slate-400">{item.isSubItem ? 'งานย่อย' : 'งานหลัก'}</span>
+          )}
+          {item.assignedToName && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-[9px] ring-1 ring-white shadow-2xs">
+                {item.assignedToAvatarUrl ? (
+                  <img src={item.assignedToAvatarUrl} alt={item.assignedToName} className="h-full w-full object-cover" />
+                ) : (
+                  item.assignedToInitial || <i className="fa-solid fa-user text-[7px]" aria-hidden="true"></i>
+                )}
+              </span>
+              <span className="max-w-32 truncate">{item.assignedToName}</span>
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div id="holidays" className="page-section active flex w-full min-w-0 flex-none flex-col pb-12 content-area-flush px-4 sm:px-6 md:px-8 pt-0" style={{ display: 'flex', flexDirection: 'column' }}>
       {/* Consolidated Master Toolbar: Sticky at Top-0 with Zero Gap */}
@@ -1466,9 +1551,28 @@ export default function Holidays() {
                 </div>
               )}
 
+              {/* Use the same compact task-card language as the calendar cell. */}
+              {(selectedDayDetails.dueTaskItems.length > 0 || selectedDayDetails.completedTaskItems.length > 0) && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <i className="fa-solid fa-list-check text-blue-600"></i>
+                    งานในวันนี้ ({selectedDayDetails.dueTaskItems.length + selectedDayDetails.completedTaskItems.length} รายการ)
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {[...selectedDayDetails.dueTaskItems, ...selectedDayDetails.completedTaskItems]
+                      .sort((a, b) => {
+                        const completedLast = Number(a.isCompleted) - Number(b.isCompleted);
+                        return completedLast || TASK_PRIORITY_ORDER[b.priority || 'low'] - TASK_PRIORITY_ORDER[a.priority || 'low'];
+                      })
+                      .map(renderModalTaskCard)}
+                  </div>
+                  <p className="text-center text-[11px] font-medium text-slate-400">กดการ์ดเพื่อเปิดหน้าจัดการงาน</p>
+                </div>
+              )}
+
               {/* Due Tasks Section */}
               {selectedDayDetails.dueTaskItems.length > 0 && (
-                <div className="space-y-2.5">
+                <div className="hidden">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <i className="fa-solid fa-clock text-blue-600"></i>
                     งานย่อยและกำหนดส่งวันนี้ ({selectedDayDetails.dueTaskItems.length} รายการ)
@@ -1621,7 +1725,7 @@ export default function Holidays() {
 
               {/* Completed Tasks Section */}
               {selectedDayDetails.completedTaskItems.length > 0 && (
-                <div className="space-y-2.5">
+                <div className="hidden">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <i className="fa-solid fa-circle-check text-emerald-500"></i>
                     งานที่เสร็จสมบูรณ์วันนี้ ({selectedDayDetails.completedTaskItems.length} รายการ)
