@@ -35,6 +35,37 @@ export function computeWorkHours(checkInAt: string | undefined, checkOutAt: stri
   return diffMs > 0 ? Math.round((diffMs / 3600000) * 100) / 100 : 0;
 }
 
+export function parseCompactDateParts(iso: string) {
+  if (!iso) return { weekday: '-', weekdayClean: '-', dateStr: '-', isWeekend: false };
+  try {
+    const d = new Date(iso);
+    const dayOfWeek = d.getDay();
+    const weekday = d.toLocaleDateString('th-TH', { weekday: 'short' });
+    const weekdayClean = weekday.replace(/\./g, '').trim();
+    const day = d.getDate();
+    const monthShort = THAI_MONTHS_SHORT[d.getMonth()] || '';
+    const yearBuddhistShort = ((d.getFullYear() + 543) % 100).toString().padStart(2, '0');
+    return {
+      weekday,
+      weekdayClean,
+      dateStr: `${day} ${monthShort} ${yearBuddhistShort}`,
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+    };
+  } catch {
+    return { weekday: '', weekdayClean: '', dateStr: iso, isWeekend: false };
+  }
+}
+
+export function formatCompactDate(iso: string) {
+  if (!iso) return '-';
+  try {
+    const parts = parseCompactDateParts(iso);
+    return `${parts.weekday} ${parts.dateStr}`;
+  } catch {
+    return iso;
+  }
+}
+
 export function formatDate(iso: string) {
   if (!iso) return '-';
   try {
@@ -60,6 +91,7 @@ export function translateType(t: string) {
   if (t === 'attendance') return 'เข้างาน';
   if (t === 'leave') return 'ลา';
   if (t === 'offsite') return 'ออกหน้างาน';
+  if (t === 'not_checked_in' || t === 'absent') return 'ยังไม่มาทำงาน';
   return t;
 }
 
@@ -72,7 +104,7 @@ export function translateStatus(raw: string, isoDate?: string) {
   }
   if (raw === 'on_time') return 'มาทำงาน (ตรงเวลา)';
   if (raw === 'late') return 'มาทำงาน (สาย)';
-  if (raw === 'no_record') return 'ไม่มีบันทึก';
+  if (raw === 'no_record' || raw === 'not_checked_in' || raw === 'absent') return 'ยังไม่มาทำงาน';
   
   let result = raw;
   if (result.startsWith('offsite')) {
@@ -88,19 +120,35 @@ export function translateStatus(raw: string, isoDate?: string) {
   if (result.includes('shift_swap')) result = result.replace('shift_swap', 'สลับวันหยุด');
   if (result === 'unknown') return 'ไม่ทราบสาเหตุ';
 
-  // Translate status suffixes from backend
+  // Support space-separated leave types from backend
+  result = result.replace(/sick_leave\s+full/gi, 'ลาป่วย (เต็มวัน)');
+  result = result.replace(/sick_leave\s+morning/gi, 'ลาป่วย (ครึ่งเช้า)');
+  result = result.replace(/sick_leave\s+afternoon/gi, 'ลาป่วย (ครึ่งบ่าย)');
+  result = result.replace(/sick_leave/gi, 'ลาป่วย');
+  result = result.replace(/personal_leave\s+full/gi, 'ลากิจ (เต็มวัน)');
+  result = result.replace(/personal_leave\s+morning/gi, 'ลากิจ (ครึ่งเช้า)');
+  result = result.replace(/personal_leave\s+afternoon/gi, 'ลากิจ (ครึ่งบ่าย)');
+  result = result.replace(/personal_leave/gi, 'ลากิจ');
+  result = result.replace(/annual_leave/gi, 'ลาพักร้อน');
+
+  // Strip approved tags as requested by user (approved will be shown in green badge instead)
+  result = result.replace(/\s*\(approved\)/gi, '');
+  result = result.replace(/\s*\(อนุมัติ\)/gi, '');
   result = result.replace('(pending)', '(รออนุมัติ)');
-  result = result.replace('(approved)', '(อนุมัติ)');
   result = result.replace('(rejected)', '(ปฏิเสธ)');
   
-  return result;
+  return result.trim();
 }
 
-export function getStatusClass(status: string) {
-  if (status.includes('ตรงเวลา')) return 'st-ontime';
+export function getStatusClass(status: string, rawStatus?: string) {
+  const isApproved = (rawStatus && (rawStatus.includes('approved') || rawStatus.includes('อนุมัติ')))
+    || (!rawStatus && (status.includes('อนุมัติ') || status.includes('approved')));
+  if (isApproved || status.includes('ตรงเวลา')) return 'st-ontime';
   if (status.includes('สาย')) return 'st-late';
   if (status.includes('ออกหน้างาน')) return 'st-offsite';
   if (status.includes('ลา')) return 'st-leave';
   if (status.includes('วันหยุด')) return 'st-weekend';
+  if (status.includes('ยังไม่มาทำงาน')) return 'st-absent';
+  if (status.includes('รออนุมัติ')) return 'st-pending';
   return 'st-unknown';
 }

@@ -8,7 +8,6 @@ import {
   Calendar,
   CalendarDays,
   CalendarCheck,
-  History,
   Kanban,
   LogOut,
 } from 'lucide-react';
@@ -137,13 +136,9 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
         {/* 3. เวลา & การปฏิบัติงาน */}
         <div className="sidebar-nav-section space-y-1">
           <div className="menu-category">การปฏิบัติงาน</div>
-          <NavLink to="/daily-record" className={navLinkClass}>
-            <CalendarCheck className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
-            <span>บันทึกเวลา & การลา</span>
-          </NavLink>
           <NavLink to="/history" className={navLinkClass}>
-            <History className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
-            <span>ประวัติย้อนหลัง</span>
+            <CalendarCheck className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
+            <span>บันทึก & ประวัติเวลา</span>
           </NavLink>
         </div>
 

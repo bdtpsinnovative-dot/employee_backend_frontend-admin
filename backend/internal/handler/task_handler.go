@@ -60,8 +60,9 @@ type createTaskReq struct {
 	CategoryID  string   `json:"category_id"`
 	SubItems    []string `json:"sub_items"` // list of sub-item titles
 	ListNames   []string `json:"list_names"`
-	Priority    string   `json:"priority"`
-	Status      string   `json:"status"`
+	Priority      string  `json:"priority"`
+	Status        string  `json:"status"`
+	AttachmentURL *string `json:"attachment_url"`
 }
 
 // CreateTask POST /admin/tasks (Admin only)
@@ -139,7 +140,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames, req.Priority, req.Status)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames, req.Priority, req.Status, req.AttachmentURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -302,6 +303,21 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "ลบงานสำเร็จ"})
 }
 
+// GetTask GET /api/tasks/:id — ดึงรายละเอียดงานหลักตาม ID
+func (h *TaskHandler) GetTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID งานไม่ถูกต้อง"})
+		return
+	}
+	task, err := h.taskSvc.GetTask(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบงาน"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
+}
+
 // ListMyTasks GET /api/tasks (Employee view)
 func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 	startedAt := time.Now()
@@ -385,6 +401,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		categoryID,
 		req.Priority,
 		req.Status,
+		req.AttachmentURL,
 	)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

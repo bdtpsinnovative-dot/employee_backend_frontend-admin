@@ -406,6 +406,7 @@ export async function createAdminTask(body: {
   sub_items?: string[];
   priority?: string;
   status?: string;
+  attachment_url?: string;
 }): Promise<AdminTask> {
   try {
     const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
@@ -442,6 +443,7 @@ export async function updateAdminTask(id: string, body: {
   category_id?: string;
   priority?: string;
   status?: string;
+  attachment_url?: string;
 }): Promise<AdminTask> {
   const { data } = await api.put<ApiResponse<AdminTask>>(`/api/tasks/${id}`, body);
   return data.data;

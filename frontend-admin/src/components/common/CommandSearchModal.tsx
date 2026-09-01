@@ -8,7 +8,6 @@ import {
   Calendar,
   CalendarDays,
   CalendarCheck,
-  History,
   LayoutDashboard,
   CheckSquare,
   Building2,
@@ -85,18 +84,11 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
       icon: CalendarDays,
     },
     {
-      id: 'daily-record',
-      title: 'บันทึกเวลาปฏิบัติงาน & การลา',
-      category: 'การปฏิบัติงาน',
-      path: '/daily-record',
-      icon: CalendarCheck,
-    },
-    {
       id: 'history',
-      title: 'ประวัติเวลาปฏิบัติงานย้อนหลัง',
+      title: 'บันทึก & ประวัติเวลาปฏิบัติงาน',
       category: 'การปฏิบัติงาน',
       path: '/history',
-      icon: History,
+      icon: CalendarCheck,
     },
     {
       id: 'employees',

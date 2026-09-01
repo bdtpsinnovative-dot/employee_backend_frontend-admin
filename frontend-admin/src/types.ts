@@ -105,9 +105,11 @@ export interface OffsiteRequest {
 }
 
 export interface HistoryRecord {
+  user_id?: string;
   date: string;
   user_name: string;
   email: string;
+  avatar_url?: string;
   department: string;
   position: string;
   status: string;
@@ -117,6 +119,12 @@ export interface HistoryRecord {
   check_out_at?: string;
   check_in_photo?: string;
   check_out_photo?: string;
+  check_in_lat?: number;
+  check_in_lng?: number;
+  check_out_lat?: number;
+  check_out_lng?: number;
+  location_name?: string;
+  check_out_location_name?: string;
   created_at: string;
 }
 
@@ -299,6 +307,7 @@ export interface AdminTask {
   assigned_by?: string;
   brand_id?: string;
   category_id?: string;
+  attachment_url?: string;
   created_at: string;
   
   // Joined Fields

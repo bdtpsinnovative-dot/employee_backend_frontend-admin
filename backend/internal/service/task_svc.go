@@ -60,7 +60,7 @@ func (s *TaskService) GetTask(ctx context.Context, id uuid.UUID) (*domain.Task, 
 	return s.taskRepo.FindByID(ctx, id)
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string, priority string, status string) (*domain.Task, error) {
+func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, assignedBy uuid.UUID, brandID *uuid.UUID, categoryID *uuid.UUID, projectID *uuid.UUID, groupID *uuid.UUID, listNames []string, priority string, status string, attachmentURL *string) (*domain.Task, error) {
 	if err := s.taskRepo.ValidateAssignees(ctx, assigneeIDs, projectID); err != nil {
 		return nil, fmt.Errorf("invalid assignees: %w", err)
 	}
@@ -76,19 +76,20 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 		status = "pending"
 	}
 	t := &domain.Task{
-		ID:          uuid.New(),
-		AssignedTo:  primaryAssignee,
-		Title:       title,
-		Description: description,
-		DueDate:     dueDate,
-		Status:      status,
-		Priority:    priority,
-		AssignedBy:  &assignedBy,
-		BrandID:     brandID,
-		CategoryID:  categoryID,
-		ProjectID:   projectID,
-		GroupID:     groupID,
-		AssigneeIDs: assigneeIDs,
+		ID:            uuid.New(),
+		AssignedTo:    primaryAssignee,
+		Title:         title,
+		Description:   description,
+		DueDate:       dueDate,
+		Status:        status,
+		Priority:      priority,
+		AssignedBy:    &assignedBy,
+		BrandID:       brandID,
+		CategoryID:    categoryID,
+		ProjectID:     projectID,
+		GroupID:       groupID,
+		AssigneeIDs:   assigneeIDs,
+		AttachmentURL: attachmentURL,
 	}
 
 	err := s.taskRepo.CreateWithLists(ctx, t, listNames)
@@ -125,7 +126,7 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	return t, nil
 }
 
-func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID, priority string, status string) (*domain.Task, error) {
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID, priority string, status string, attachmentURL *string) (*domain.Task, error) {
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
@@ -157,6 +158,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	task.CategoryID = categoryID
 	task.AssigneeIDs = assigneeIDs
 	task.AssignedTo = primaryAssignee
+	task.AttachmentURL = attachmentURL
 	if priority != "" {
 		task.Priority = priority
 	}

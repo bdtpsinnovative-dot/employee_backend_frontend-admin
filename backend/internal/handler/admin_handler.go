@@ -265,10 +265,12 @@ func (h *AdminHandler) GetAllRequests(c *gin.Context) {
 }
 
 type HistoryRecord struct {
+	UserID               string     `json:"user_id,omitempty"`
 	AttendanceID         string     `json:"attendance_id,omitempty"`
 	Date                 string     `json:"date"`
 	UserName             string     `json:"user_name"`
 	Email                string     `json:"email"`
+	AvatarURL            *string    `json:"avatar_url,omitempty"`
 	Department           string     `json:"department"`
 	Position             string     `json:"position"`
 	Status               string     `json:"status"`
@@ -278,6 +280,10 @@ type HistoryRecord struct {
 	CheckOutAt           *time.Time `json:"check_out_at,omitempty"`
 	CheckInPhoto         *string    `json:"check_in_photo,omitempty"`
 	CheckOutPhoto        *string    `json:"check_out_photo,omitempty"`
+	CheckInLat           *float64   `json:"check_in_lat,omitempty"`
+	CheckInLng           *float64   `json:"check_in_lng,omitempty"`
+	CheckOutLat          *float64   `json:"check_out_lat,omitempty"`
+	CheckOutLng          *float64   `json:"check_out_lng,omitempty"`
 	WorkStartTime        string     `json:"work_start_time,omitempty"`
 	WorkEndTime          string     `json:"work_end_time,omitempty"`
 	LateMinutes          int        `json:"late_minutes"`
@@ -329,10 +335,12 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			createdAt = *a.CheckInAt
 		}
 		records = append(records, HistoryRecord{
+			UserID:               u.ID.String(),
 			AttendanceID:         a.ID.String(),
 			Date:                 a.Date.Format("2006-01-02"),
 			UserName:             u.FullName(),
 			Email:                u.Email,
+			AvatarURL:            u.AvatarURL,
 			Department:           u.Department,
 			Position:             u.Position,
 			Status:               a.Status,
@@ -342,6 +350,10 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			CheckOutAt:           a.CheckOutAt,
 			CheckInPhoto:         a.CheckInPhoto,
 			CheckOutPhoto:        a.CheckOutPhoto,
+			CheckInLat:           a.CheckInLat,
+			CheckInLng:           a.CheckInLng,
+			CheckOutLat:          a.CheckOutLat,
+			CheckOutLng:          a.CheckOutLng,
 			WorkStartTime:        a.WorkStartTime,
 			WorkEndTime:          a.WorkEndTime,
 			LateMinutes:          a.LateMinutes,
@@ -358,9 +370,11 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			continue
 		}
 		records = append(records, HistoryRecord{
+			UserID:       u.ID.String(),
 			Date:         l.Date.Format("2006-01-02"),
 			UserName:     u.FullName(),
 			Email:        u.Email,
+			AvatarURL:    u.AvatarURL,
 			Department:   u.Department,
 			Position:     u.Position,
 			Status:       l.LeaveType + " " + l.Duration + " (" + l.Status + ")",
@@ -377,9 +391,11 @@ func (h *AdminHandler) GetMonthlyHistory(c *gin.Context) {
 			continue
 		}
 		records = append(records, HistoryRecord{
+			UserID:     u.ID.String(),
 			Date:       o.Date.Format("2006-01-02"),
 			UserName:   u.FullName(),
 			Email:      u.Email,
+			AvatarURL:  u.AvatarURL,
 			Department: u.Department,
 			Position:   u.Position,
 			Status:     "offsite" + " (" + o.Status + ")",
@@ -432,12 +448,22 @@ func (h *AdminHandler) UpdateLeaveStatus(c *gin.Context) {
 		if body.Status == "approved" {
 			statusThai = "อนุมัติ"
 		}
+		meta := map[string]string{
+			"actor_id": adminID.(uuid.UUID).String(),
+		}
+		if adminUser, aErr := h.userSvc.GetByID(c.Request.Context(), adminID.(uuid.UUID)); aErr == nil && adminUser != nil {
+			meta["actor_name"] = adminUser.FullName()
+			if adminUser.AvatarURL != nil {
+				meta["avatar_url"] = *adminUser.AvatarURL
+			}
+		}
 		h.notifSvc.Notify(
 			context.Background(),
 			req.UserID,
 			"ผลการอนุมัติใบลา",
 			"ใบลาของคุณได้รับการ"+statusThai+"แล้ว",
 			fmt.Sprintf("leave:%s", req.ID.String()),
+			meta,
 		)
 	}
 
@@ -473,12 +499,22 @@ func (h *AdminHandler) UpdateOffsiteStatus(c *gin.Context) {
 		if body.Status == "approved" {
 			statusThai = "อนุมัติ"
 		}
+		meta := map[string]string{
+			"actor_id": adminID.(uuid.UUID).String(),
+		}
+		if adminUser, aErr := h.userSvc.GetByID(c.Request.Context(), adminID.(uuid.UUID)); aErr == nil && adminUser != nil {
+			meta["actor_name"] = adminUser.FullName()
+			if adminUser.AvatarURL != nil {
+				meta["avatar_url"] = *adminUser.AvatarURL
+			}
+		}
 		h.notifSvc.Notify(
 			context.Background(),
 			req.UserID,
 			"ผลการอนุมัติใบปฏิบัติงานนอกสถานที่",
 			"คำขอออกหน้างานของคุณได้รับการ"+statusThai+"แล้ว",
 			fmt.Sprintf("leave:%s", req.ID.String()),
+			meta,
 		)
 	}
 

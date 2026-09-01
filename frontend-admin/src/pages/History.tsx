@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Download, FileText, BarChart, Search, CheckCircle } from 'lucide-react';
+import { Download, FileText, BarChart, Search, CheckCircle, MapPin, UserCheck } from 'lucide-react';
 import {
   fetchAttendanceHistory,
   fetchHolidays,
   fetchMonthlyHistory,
   fetchMyLeaves,
   fetchMyOffsite,
+  fetchUsers,
+  manualAttendance,
 } from '../services/adminApi';
 import type { Attendance, HistoryRecord, Holiday, LeaveRequest, OffsiteRequest, User } from '../types';
 import MonthPicker from '../components/MonthPicker';
+import { avatarUrl } from '../components/tasks/taskUtils';
 import {
-  formatDate,
+  parseCompactDateParts,
   formatTime,
   translateType,
   translateStatus,
@@ -25,6 +28,7 @@ const PAGE_SIZE = 20;
 interface UserSummary {
   email: string;
   name: string;
+  avatar_url?: string;
   department: string;
   scheduledDays: number;
   presentCount: number;
@@ -66,6 +70,7 @@ function mapEmployeeHistory(
   const userFields = {
     user_name: userName,
     email: user.email || '',
+    avatar_url: user.avatar_url,
     department: user.department || '',
     position: user.position || '',
   };
@@ -83,6 +88,10 @@ function mapEmployeeHistory(
         check_out_at: record.check_out_at,
         check_in_photo: record.check_in_photo,
         check_out_photo: record.check_out_photo,
+        check_in_lat: record.check_in_lat,
+        check_in_lng: record.check_in_lng,
+        check_out_lat: record.check_out_lat,
+        check_out_lng: record.check_out_lng,
         created_at: record.created_at || record.check_in_at || record.date,
       })),
     ...leaves
@@ -123,6 +132,7 @@ export default function History() {
   }>();
   const [allRows, setAllRows] = useState<HistoryRecord[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
   const [filterType, setFilterType] = useState('All');
@@ -135,6 +145,12 @@ export default function History() {
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState<'log' | 'summary'>('log');
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualUser, setManualUser] = useState<User | null>(null);
+  const [manualDate, setManualDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [manualStatus, setManualStatus] = useState<string>('on_time');
+  const [savingManual, setSavingManual] = useState(false);
+  const [manualError, setManualError] = useState('');
   const loadSequence = useRef(0);
 
   const [selectedYear, selectedMonth] = useMemo(() => {
@@ -155,12 +171,14 @@ export default function History() {
       const [year, month] = filterMonth.split('-').map(Number);
       let records: HistoryRecord[];
       let holidaysData: Holiday[];
+      let usersData: User[] = [];
 
       if (currentUser.role === 'admin') {
         // Keep the admin report on its existing all-users endpoint.
-        [records, holidaysData] = await Promise.all([
+        [records, holidaysData, usersData] = await Promise.all([
           fetchMonthlyHistory(filterMonth),
           fetchHolidays(year),
+          fetchUsers(),
         ]);
       } else {
         // Self-scoped endpoints are intentionally requested in parallel. The
@@ -173,11 +191,13 @@ export default function History() {
         ]);
         records = mapEmployeeHistory(currentUser, attendance, leaves, offsite, year, month);
         holidaysData = employeeHolidays;
+        usersData = [currentUser];
       }
 
       if (sequence === loadSequence.current) {
         setAllRows(records);
         setHolidays(holidaysData ?? []);
+        setUsers(usersData ?? []);
         setPage(1);
       }
     } catch (err) {
@@ -269,9 +289,75 @@ export default function History() {
     return set;
   }, [allRows]);
 
+  // ดึง Avatar ของพนักงาน
+  const userAvatarMap = useMemo(() => {
+    const map = new Map<string, string | undefined>();
+    users.forEach(u => {
+      if (u.email) {
+        map.set(u.email, u.avatar_url);
+        map.set(u.email.toLowerCase(), u.avatar_url);
+      }
+      const displayName = getEmployeeDisplayName(u);
+      if (displayName) map.set(displayName, u.avatar_url);
+      if (u.first_name) map.set(u.first_name, u.avatar_url);
+      if (u.nickname) map.set(u.nickname, u.avatar_url);
+    });
+    return map;
+  }, [users]);
+
+  // ──── รวมรายการบันทึกกับพนักงานที่ยังไม่มาทำงาน (ในวันทำการย้อนหลังจนถึงวันนี้) ────
+  const combinedRows = useMemo(() => {
+    const activeEmployees = users.filter(u => u.status === 'active');
+    if (activeEmployees.length === 0) return allRows;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newRows = [...allRows];
+
+    // สร้าง Set เพื่อเช็คว่าใครมีบันทึกอะไรในวันไหนแล้วบ้าง
+    const hasRecordMap = new Set<string>();
+    allRows.forEach(r => {
+      const d = r.date.split('T')[0];
+      hasRecordMap.add(`${r.email}_${d}`);
+      hasRecordMap.add(`${r.user_name}_${d}`);
+    });
+
+    // วนลูปวันทำงานที่ผ่านมา (ไม่เกินวันปัจจุบัน)
+    scheduledYMDs.forEach(ymd => {
+      if (ymd > todayStr) return; // ไม่สร้างล่วงหน้าสำหรับวันในอนาคต
+
+      activeEmployees.forEach(u => {
+        const userName = getEmployeeDisplayName(u);
+        const keyByEmail = `${u.email}_${ymd}`;
+        const keyByName = `${userName}_${ymd}`;
+        if (!hasRecordMap.has(keyByEmail) && !hasRecordMap.has(keyByName)) {
+          newRows.push({
+            date: ymd,
+            user_name: userName,
+            email: u.email,
+            avatar_url: u.avatar_url,
+            department: u.department || '',
+            position: u.position || '',
+            status: 'not_checked_in',
+            type: 'not_checked_in',
+            reason: '',
+            created_at: `${ymd}T09:00:00Z`,
+          });
+        }
+      });
+    });
+
+    newRows.sort((a, b) => {
+      const dateOrder = b.date.localeCompare(a.date);
+      if (dateOrder !== 0) return dateOrder;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return newRows;
+  }, [allRows, users, scheduledYMDs]);
+
   // ──── Filtering สำหรับ Log ────
   const filteredRows = useMemo(() => {
-    return allRows.filter(r => {
+    return combinedRows.filter(r => {
       if (searchName && !r.user_name.toLowerCase().includes(searchName.toLowerCase())) return false;
       
       // ฟิลเตอร์เฉพาะวัน
@@ -282,12 +368,13 @@ export default function History() {
       }
 
       const thStatus = translateStatus(r.status, r.date);
+      const thType = translateType(r.type);
       if (filterType !== 'All') {
-        if (!thStatus.includes(filterType)) return false;
+        if (!thStatus.includes(filterType) && !thType.includes(filterType)) return false;
       }
       return true;
     });
-  }, [allRows, searchName, filterType, filterDay]);
+  }, [combinedRows, searchName, filterType, filterDay]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -297,10 +384,13 @@ export default function History() {
     const map = new Map<string, UserSummary>();
     const coveredDaysByUser = new Map<string, Set<string>>();
 
-    const getUserSummary = (name: string, email: string, dept: string) => {
+    const getUserSummary = (name: string, email: string, dept: string, avatarUrlParam?: string) => {
       if (!map.has(name)) {
         map.set(name, {
-          email, name, department: dept,
+          email,
+          name,
+          avatar_url: avatarUrlParam || userAvatarMap.get(email) || userAvatarMap.get(name),
+          department: dept,
           scheduledDays: scheduledWorkDays,
           presentCount: 0, lateCount: 0, lateMinutes: 0,
           absentDays: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0,
@@ -311,8 +401,14 @@ export default function History() {
       return map.get(name)!;
     };
 
+    // แสดงรายชื่อพนักงาน Active ทุกคนพร้อมรูปภาพในสรุปประจำเดือน
+    users.filter(u => u.status === 'active').forEach(u => {
+      const displayName = getEmployeeDisplayName(u);
+      getUserSummary(displayName, u.email, u.department || '', u.avatar_url);
+    });
+
     allRows.forEach(r => {
-      const stat = getUserSummary(r.user_name, r.email, r.department);
+      const stat = getUserSummary(r.user_name, r.email, r.department, r.avatar_url);
       const ymd = r.date.split('T')[0];
       const covered = coveredDaysByUser.get(r.user_name)!;
 
@@ -396,7 +492,7 @@ export default function History() {
     }
     result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
-  }, [allRows, searchName, scheduledWorkDays, scheduledYMDs, approvedLeaveMap, approvedOffsiteMap, morningLeaveMap]);
+  }, [allRows, users, userAvatarMap, searchName, scheduledWorkDays, scheduledYMDs, approvedLeaveMap, approvedOffsiteMap, morningLeaveMap]);
 
   // Pagination สำหรับ Summary
   const summaryTotalPages = Math.max(1, Math.ceil(summaryData.length / PAGE_SIZE));
@@ -437,9 +533,29 @@ export default function History() {
     <div id="history" className="page-section active">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <h2>รายงานการเข้างาน</h2>
-        <button className="btn-primary" onClick={handleExport} style={{ backgroundColor: '#217346', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Download size={18} /> Export Excel
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                const firstUser = users.find(u => u.status === 'active') || null;
+                setManualUser(firstUser);
+                const todayYMD = new Date().toISOString().split('T')[0];
+                setManualDate(filterDay !== 'All' ? `${filterMonth}-${filterDay}` : todayYMD);
+                setManualStatus('on_time');
+                setManualError('');
+                setManualModalOpen(true);
+              }}
+              style={{ backgroundColor: '#4F46E5', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <UserCheck size={18} /> บันทึกลงเวลาแทน
+            </button>
+          )}
+          <button className="btn-primary" onClick={handleExport} style={{ backgroundColor: '#217346', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Download size={18} /> Export Excel
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
@@ -481,6 +597,7 @@ export default function History() {
             <option value="All">ทุกประเภท</option>
             <option value="มาทำงาน (ตรงเวลา)">มาทำงาน (ตรงเวลา)</option>
             <option value="มาทำงาน (สาย)">มาทำงาน (สาย)</option>
+            <option value="ยังไม่มาทำงาน">ยังไม่มาทำงาน</option>
             <option value="ลาป่วย">ลาป่วย</option>
             <option value="ลากิจ">ลากิจ</option>
             <option value="ลาพักร้อน">ลาพักร้อน</option>
@@ -517,9 +634,7 @@ export default function History() {
               <thead>
                 <tr>
                   <th style={{ whiteSpace: 'nowrap' }}>วันที่</th>
-                  <th className="hide-email" style={{ whiteSpace: 'nowrap' }}>Email</th>
                   <th style={{ whiteSpace: 'nowrap' }}>พนักงาน</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>แผนก</th>
                   <th style={{ whiteSpace: 'nowrap' }}>ตำแหน่ง</th>
                   <th className="hide-type" style={{ whiteSpace: 'nowrap' }}>ประเภท</th>
                   <th style={{ whiteSpace: 'nowrap' }}>สถานะ</th>
@@ -533,13 +648,13 @@ export default function History() {
               <tbody id="history-table">
                 {loading ? (
                   <tr>
-                    <td colSpan={12} style={{ textAlign: 'center', padding: '30px' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '30px' }}>
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : pagedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-gray)' }}>
                       ไม่พบข้อมูล
                     </td>
                   </tr>
@@ -548,55 +663,218 @@ export default function History() {
                     const ymd = row.date.split('T')[0];
                     const late = row.type === 'attendance' ? computeLateMinutes(row.check_in_at, row.user_name, ymd, morningLeaveMap) : 0;
                     const wh = row.type === 'attendance' ? computeWorkHours(row.check_in_at, row.check_out_at) : 0;
+                    const avatar = row.avatar_url || userAvatarMap.get(row.email);
+                    const statusText = translateStatus(row.status, row.date);
+                    const typeText = translateType(row.type);
+                    const isAbsent = statusText === 'ยังไม่มาทำงาน' || typeText === 'ยังไม่มาทำงาน';
+
                     return (
                       <tr key={`${row.date}-${row.user_name}-${idx}`}>
-                        <td data-label="วันที่" style={{ whiteSpace: 'nowrap' }}>{formatDate(row.date)}</td>
-                        <td className="hide-email" data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
-                        <td data-label="พนักงาน" style={{ fontWeight: 600 }}>{row.user_name}</td>
-                        <td data-label="แผนก">{row.department || '-'}</td>
+                        {/* 1. วันที่ กระชับขึ้น พร้อมชื่อวันในสัปดาห์ */}
+                        {/* 1. วันที่: บรรทัดบนบอกวัน (จ), บรรทัดล่างบอกวันที่ (31 ส.ค. 69) */}
+                        <td data-label="วันที่" style={{ whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            const { weekdayClean, dateStr, isWeekend } = parseCompactDateParts(row.date);
+                            return (
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '1px',
+                                lineHeight: '1.25',
+                              }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: isWeekend ? '#DC2626' : '#4F46E5',
+                                }}>
+                                  {weekdayClean}
+                                </span>
+                                <span style={{
+                                  fontSize: '12.5px',
+                                  fontWeight: 600,
+                                  color: '#1E293B',
+                                }}>
+                                  {dateStr}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </td>
+
+                        {/* 2. พนักงาน พร้อมรูป Avatar (เมล เอาออก) */}
+                        <td data-label="พนักงาน">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {avatarUrl(avatar) ? (
+                              <img
+                                src={avatarUrl(avatar)!}
+                                alt={row.user_name}
+                                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', flexShrink: 0 }}
+                              />
+                            ) : (
+                              <div style={{
+                                width: '28px', height: '28px', borderRadius: '50%',
+                                backgroundColor: '#EEF2FF', color: '#4F46E5', fontWeight: 700, fontSize: '11px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                border: '1px solid #E0E7FF'
+                              }}>
+                                {row.user_name ? row.user_name.charAt(0).toUpperCase() : 'U'}
+                              </div>
+                            )}
+                            <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.user_name}</span>
+                          </div>
+                        </td>
+
+                        {/* 3. ตำแหน่ง (แผนก เอาออก) */}
                         <td data-label="ตำแหน่ง">{row.position || '-'}</td>
-                        <td className="hide-type" data-label="ประเภท">{translateType(row.type)}</td>
+
+                        {/* 4. ประเภท (มี ยังไม่มาทำงาน) */}
+                        <td className="hide-type" data-label="ประเภท">
+                          <span style={typeText === 'ยังไม่มาทำงาน' ? { color: '#DC2626', fontWeight: 600 } : undefined}>
+                            {typeText}
+                          </span>
+                        </td>
+
+                        {/* 5. สถานะ (มี ยังไม่มาทำงาน) */}
                         <td data-label="สถานะ">
-                          <span className={`status-badge ${getStatusClass(translateStatus(row.status, row.date))}`}>{translateStatus(row.status, row.date)}</span>
+                          <span
+                            className={`status-badge ${getStatusClass(statusText, row.status)}`}
+                            style={{
+                              width: '128px',
+                              minWidth: '128px',
+                              maxWidth: '128px',
+                              height: '28px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              boxSizing: 'border-box',
+                              whiteSpace: 'nowrap',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: currentUser?.role === 'admin' && isAbsent ? 'pointer' : 'default',
+                              ...(isAbsent ? {
+                                backgroundColor: '#FEF2F2',
+                                color: '#DC2626',
+                                border: '1px solid #FECACA',
+                              } : {}),
+                            }}
+                            onClick={() => {
+                              if (currentUser?.role === 'admin' && isAbsent) {
+                                const matchedUser = users.find(u => u.email === row.email || getEmployeeDisplayName(u) === row.user_name);
+                                setManualUser(matchedUser || null);
+                                setManualDate(row.date.split('T')[0]);
+                                setManualStatus('on_time');
+                                setManualError('');
+                                setManualModalOpen(true);
+                              }
+                            }}
+                            title={currentUser?.role === 'admin' && isAbsent ? 'คลิกเพื่อลงเวลาแทน' : undefined}
+                          >
+                            {statusText}
+                          </span>
                         </td>
+
+                        {/* 6. เข้า พร้อมพิกัด GPS */}
                         <td data-label="เข้า" style={{ textAlign: 'center', color: row.type === 'attendance' && row.status === 'late' ? 'var(--danger-color)' : 'inherit', fontWeight: row.type === 'attendance' && row.status === 'late' ? 'bold' : 'normal' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center', width: '100%' }}>
-                            {row.type === 'attendance' ? formatTime(row.check_in_at) : '-'}
-                            {row.check_in_photo && (
-                              <i
-                                className="fa-solid fa-image"
-                                style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
-                                onClick={() => {
-                                  const rawUrl = row.check_in_photo!;
-                                  const httpUrl = rawUrl.startsWith('r2://')
-                                    ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
-                                    : rawUrl;
-                                  setActivePhotoUrl(httpUrl);
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span>{row.type === 'attendance' && row.check_in_at ? formatTime(row.check_in_at) : '-'}</span>
+                              {row.check_in_photo && (
+                                <i
+                                  className="fa-solid fa-image"
+                                  style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
+                                  onClick={() => {
+                                    const rawUrl = row.check_in_photo!;
+                                    const httpUrl = rawUrl.startsWith('r2://')
+                                      ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                                      : rawUrl;
+                                    setActivePhotoUrl(httpUrl);
+                                  }}
+                                  title="ดูรูปถ่ายเช็คอิน"
+                                />
+                              )}
+                            </div>
+                            {(row.check_in_lat != null && row.check_in_lng != null) ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${row.check_in_lat},${row.check_in_lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  fontSize: '10px',
+                                  color: '#4F46E5',
+                                  textDecoration: 'none',
+                                  backgroundColor: '#EEF2FF',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #E0E7FF',
+                                  marginTop: '2px',
+                                  cursor: 'pointer'
                                 }}
-                                title="ดูรูปถ่ายเช็คอิน"
-                              ></i>
-                            )}
+                                title="คลิกเพื่อดูพิกัดบน Google Maps"
+                              >
+                                <MapPin size={9} style={{ color: '#6366F1', flexShrink: 0 }} />
+                                <span>{row.check_in_lat.toFixed(4)}, {row.check_in_lng.toFixed(4)}</span>
+                              </a>
+                            ) : row.location_name ? (
+                              <span style={{ fontSize: '10px', color: '#64748b' }}>{row.location_name}</span>
+                            ) : null}
                           </div>
                         </td>
+
+                        {/* 7. ออก พร้อมพิกัด GPS */}
                         <td data-label="ออก" style={{ textAlign: 'center', color: row.check_out_at ? 'inherit' : 'orange' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center', width: '100%' }}>
-                            {row.type === 'attendance' ? (row.check_out_at ? formatTime(row.check_out_at) : 'ยังไม่ออก') : '-'}
-                            {row.check_out_photo && (
-                              <i
-                                className="fa-solid fa-image"
-                                style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
-                                onClick={() => {
-                                  const rawUrl = row.check_out_photo!;
-                                  const httpUrl = rawUrl.startsWith('r2://')
-                                    ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
-                                    : rawUrl;
-                                  setActivePhotoUrl(httpUrl);
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span>{row.type === 'attendance' ? (row.check_out_at ? formatTime(row.check_out_at) : 'ยังไม่ออก') : '-'}</span>
+                              {row.check_out_photo && (
+                                <i
+                                  className="fa-solid fa-image"
+                                  style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}
+                                  onClick={() => {
+                                    const rawUrl = row.check_out_photo!;
+                                    const httpUrl = rawUrl.startsWith('r2://')
+                                      ? rawUrl.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/')
+                                      : rawUrl;
+                                    setActivePhotoUrl(httpUrl);
+                                  }}
+                                  title="ดูรูปถ่ายเช็คเอาท์"
+                                />
+                              )}
+                            </div>
+                            {(row.check_out_lat != null && row.check_out_lng != null) ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${row.check_out_lat},${row.check_out_lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  fontSize: '10px',
+                                  color: '#4F46E5',
+                                  textDecoration: 'none',
+                                  backgroundColor: '#EEF2FF',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #E0E7FF',
+                                  marginTop: '2px',
+                                  cursor: 'pointer'
                                 }}
-                                title="ดูรูปถ่ายเช็คเอาท์"
-                              ></i>
-                            )}
+                                title="คลิกเพื่อดูพิกัดบน Google Maps"
+                              >
+                                <MapPin size={9} style={{ color: '#6366F1', flexShrink: 0 }} />
+                                <span>{row.check_out_lat.toFixed(4)}, {row.check_out_lng.toFixed(4)}</span>
+                              </a>
+                            ) : row.check_out_location_name ? (
+                              <span style={{ fontSize: '10px', color: '#64748b' }}>{row.check_out_location_name}</span>
+                            ) : null}
                           </div>
                         </td>
+
                         <td data-label="นาทีสาย" style={{ textAlign: 'center', color: late > 0 ? 'var(--danger-color)' : 'inherit', fontWeight: late > 0 ? 600 : 400 }}>
                           {row.type === 'attendance' && late > 0 ? late : '-'}
                         </td>
@@ -618,10 +896,7 @@ export default function History() {
             <table>
               <thead>
                 <tr>
-                  <th className="hide-email" style={{ whiteSpace: 'nowrap' }}>Email</th>
                   <th style={{ whiteSpace: 'nowrap' }}>พนักงาน</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>แผนก</th>
-                  <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>วันทำงาน<br/><small>(ตามตาราง)</small></th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>มาทำงาน<br/><small>(วัน)</small></th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>มาสาย<br/><small>(ครั้ง)</small></th>
                   <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>สายรวม<br/><small>(นาที)</small></th>
@@ -637,11 +912,11 @@ export default function History() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={14} style={{ textAlign: 'center', padding: '30px' }}>กำลังโหลดข้อมูล...</td>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '30px' }}>กำลังโหลดข้อมูล...</td>
                   </tr>
                 ) : pagedSummary.length === 0 ? (
                   <tr>
-                    <td colSpan={14} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-gray)' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-gray)' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         <CheckCircle size={32} color="var(--success-color)" />
                         <span>ไม่พบข้อมูลในเดือนนี้</span>
@@ -649,24 +924,44 @@ export default function History() {
                     </td>
                   </tr>
                 ) : (
-                  pagedSummary.map((row) => (
-                    <tr key={row.email}>
-                      <td className="hide-email" data-label="Email" style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{row.email}</td>
-                      <td data-label="พนักงาน" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.name}</td>
-                      <td data-label="แผนก">{row.department || '-'}</td>
-                      <td data-label="วันทำงาน (ตามตาราง)" style={{ textAlign: 'center' }}>{row.scheduledDays}</td>
-                      <td data-label="มาทำงาน (วัน)" style={{ textAlign: 'center' }}>{row.presentCount || '-'}</td>
-                      <td data-label="มาสาย (ครั้ง)" style={{ textAlign: 'center', color: row.lateCount > 3 ? 'var(--danger-color)' : 'inherit', fontWeight: row.lateCount > 3 ? 'bold' : 'normal' }}>{row.lateCount || '-'}</td>
-                      <td data-label="สายรวม (นาที)" style={{ textAlign: 'center', color: row.lateMinutes ? 'var(--danger-color)' : 'inherit', fontWeight: row.lateMinutes ? 'bold' : 'normal' }}>{row.lateMinutes || '-'}</td>
-                      <td data-label="ขาดงาน (วัน)" style={{ textAlign: 'center', color: row.absentDays ? 'var(--danger-color)' : 'inherit', fontWeight: row.absentDays ? 'bold' : 'normal' }}>{row.absentDays || '-'}</td>
-                      <td data-label="ลาป่วย (วัน)" style={{ textAlign: 'center', color: row.sickLeave ? 'var(--danger-color)' : 'inherit' }}>{row.sickLeave || '-'}</td>
-                      <td data-label="ลากิจ (วัน)" style={{ textAlign: 'center', color: row.personalLeave ? 'var(--danger-color)' : 'inherit' }}>{row.personalLeave || '-'}</td>
-                      <td data-label="ลาพักร้อน (วัน)" style={{ textAlign: 'center', color: row.annualLeave ? 'var(--primary-color)' : 'inherit' }}>{row.annualLeave || '-'}</td>
-                      <td data-label="ออกหน้างาน (ครั้ง)" style={{ textAlign: 'center' }}>{row.offsite || '-'}</td>
-                      <td data-label="ชม.ทำงานรวม" style={{ textAlign: 'center' }}>{row.totalWorkHours > 0 ? row.totalWorkHours : '-'}</td>
-                      <td data-label="% ตรงเวลา" style={{ textAlign: 'center', fontWeight: 600, color: row.onTimeRate >= 90 ? 'var(--success-color)' : row.onTimeRate >= 75 ? 'var(--gold)' : 'var(--danger-color)' }}>{row.onTimeRate}%</td>
-                    </tr>
-                  ))
+                  pagedSummary.map((row) => {
+                    const avatar = row.avatar_url || userAvatarMap.get(row.email) || userAvatarMap.get(row.name);
+                    return (
+                      <tr key={row.email || row.name}>
+                        <td data-label="พนักงาน">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {avatarUrl(avatar) ? (
+                              <img
+                                src={avatarUrl(avatar)!}
+                                alt={row.name}
+                                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', flexShrink: 0 }}
+                              />
+                            ) : (
+                              <div style={{
+                                width: '28px', height: '28px', borderRadius: '50%',
+                                backgroundColor: '#EEF2FF', color: '#4F46E5', fontWeight: 700, fontSize: '11px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                border: '1px solid #E0E7FF'
+                              }}>
+                                {row.name ? row.name.charAt(0).toUpperCase() : 'U'}
+                              </div>
+                            )}
+                            <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.name}</span>
+                          </div>
+                        </td>
+                        <td data-label="มาทำงาน (วัน)" style={{ textAlign: 'center' }}>{row.presentCount || '-'}</td>
+                        <td data-label="มาสาย (ครั้ง)" style={{ textAlign: 'center', color: row.lateCount > 3 ? 'var(--danger-color)' : 'inherit', fontWeight: row.lateCount > 3 ? 'bold' : 'normal' }}>{row.lateCount || '-'}</td>
+                        <td data-label="สายรวม (นาที)" style={{ textAlign: 'center', color: row.lateMinutes ? 'var(--danger-color)' : 'inherit', fontWeight: row.lateMinutes ? 'bold' : 'normal' }}>{row.lateMinutes || '-'}</td>
+                        <td data-label="ขาดงาน (วัน)" style={{ textAlign: 'center', color: row.absentDays ? 'var(--danger-color)' : 'inherit', fontWeight: row.absentDays ? 'bold' : 'normal' }}>{row.absentDays || '-'}</td>
+                        <td data-label="ลาป่วย (วัน)" style={{ textAlign: 'center', color: row.sickLeave ? 'var(--danger-color)' : 'inherit' }}>{row.sickLeave || '-'}</td>
+                        <td data-label="ลากิจ (วัน)" style={{ textAlign: 'center', color: row.personalLeave ? 'var(--danger-color)' : 'inherit' }}>{row.personalLeave || '-'}</td>
+                        <td data-label="ลาพักร้อน (วัน)" style={{ textAlign: 'center', color: row.annualLeave ? 'var(--primary-color)' : 'inherit' }}>{row.annualLeave || '-'}</td>
+                        <td data-label="ออกหน้างาน (ครั้ง)" style={{ textAlign: 'center' }}>{row.offsite || '-'}</td>
+                        <td data-label="ชม.ทำงานรวม" style={{ textAlign: 'center' }}>{row.totalWorkHours > 0 ? row.totalWorkHours : '-'}</td>
+                        <td data-label="% ตรงเวลา" style={{ textAlign: 'center', fontWeight: 600, color: row.onTimeRate >= 90 ? 'var(--success-color)' : row.onTimeRate >= 75 ? 'var(--gold)' : 'var(--danger-color)' }}>{row.onTimeRate}%</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -743,6 +1038,160 @@ export default function History() {
             >
               ปิดหน้าต่าง
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal บันทึกลงเวลาแทนพนักงาน (Manual Attendance) */}
+      {manualModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+          onClick={() => setManualModalOpen(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#EEF2FF', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>บันทึกลงเวลาแทน</h3>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>สำหรับกรณีพนักงานลืมสแกนหรือสแกนไม่ติด</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManualModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '18px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {manualError && (
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+                {manualError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                  พนักงาน
+                </label>
+                <select
+                  className="form-control"
+                  style={{ width: '100%', margin: 0 }}
+                  value={manualUser?.id || ''}
+                  onChange={(e) => {
+                    const u = users.find(user => user.id === e.target.value);
+                    setManualUser(u || null);
+                  }}
+                >
+                  {users.filter(u => u.status === 'active').map(u => (
+                    <option key={u.id} value={u.id}>
+                      {getEmployeeDisplayName(u)} {u.nickname ? `(${u.nickname})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                  วันที่
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  style={{ width: '100%', margin: 0 }}
+                  value={manualDate}
+                  onChange={(e) => setManualDate(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                  สถานะการเข้างาน
+                </label>
+                <select
+                  className="form-control"
+                  style={{ width: '100%', margin: 0 }}
+                  value={manualStatus}
+                  onChange={(e) => setManualStatus(e.target.value)}
+                >
+                  <option value="on_time">มาทำงาน (ตรงเวลา)</option>
+                  <option value="late">มาทำงาน (สาย)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
+              <button
+                type="button"
+                className="btn-reset"
+                onClick={() => setManualModalOpen(false)}
+                disabled={savingManual}
+                style={{ padding: '8px 16px' }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={async () => {
+                  if (!manualUser) {
+                    setManualError('กรุณาเลือกพนักงาน');
+                    return;
+                  }
+                  if (!manualDate) {
+                    setManualError('กรุณาเลือกวันที่');
+                    return;
+                  }
+                  setSavingManual(true);
+                  setManualError('');
+                  try {
+                    await manualAttendance({
+                      user_id: manualUser.id,
+                      date: manualDate,
+                      status: manualStatus,
+                    });
+                    setManualModalOpen(false);
+                    await loadData();
+                  } catch (err: any) {
+                    setManualError(err?.response?.data?.error || err?.message || 'บันทึกล้มเหลว');
+                  } finally {
+                    setSavingManual(false);
+                  }
+                }}
+                disabled={savingManual}
+                style={{ padding: '8px 20px', backgroundColor: '#4F46E5' }}
+              >
+                {savingManual ? 'กำลังบันทึก...' : 'บันทึกเวลา'}
+              </button>
+            </div>
           </div>
         </div>
       )}

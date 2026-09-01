@@ -167,7 +167,7 @@ export default function AdminLayout() {
         location.pathname === route || location.pathname.startsWith(route + '/')
       );
       if (isAdminRoute) {
-        navigate('/daily-record', { replace: true });
+        navigate('/history', { replace: true });
       }
     }
   }, [currentUser, location.pathname, navigate]);

@@ -199,9 +199,10 @@ func registerRoutes(
 	// ─── เส้นทางสาธารณะ (ไม่ต้องล็อกอิน) ──────────────────
 	auth := r.Group("/auth")
 	{
-		auth.POST("/signup", authH.SignUp)     // สมัคร Supabase Auth ผ่าน backend
-		auth.POST("/login", authH.Login)       // ล็อกอิน Supabase Auth ผ่าน backend
-		auth.POST("/register", userH.Register) // ล็อกอินครั้งแรก → สร้าง user สถานะ pending
+		auth.POST("/signup", authH.SignUp)        // สมัคร Supabase Auth ผ่าน backend
+		auth.POST("/login", authH.Login)          // ล็อกอิน Supabase Auth ผ่าน backend
+		auth.POST("/refresh", authH.RefreshToken) // ต่ออายุ Token ผ่าน backend
+		auth.POST("/register", userH.Register)    // ล็อกอินครั้งแรก → สร้าง user สถานะ pending
 	}
 
 	// ─── เส้นทางพนักงาน (ต้องล็อกอิน + บัญชี active) ──────
@@ -260,6 +261,7 @@ func registerRoutes(
 
 		// มอบหมายงาน (Tasks)
 		api.GET("/tasks", taskH.ListMyTasks)                                       // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.GET("/tasks/:id", taskH.GetTask)                                       // ดึงรายละเอียดงานหลักตาม ID
 		api.GET("/tasks/daily-lists", taskH.ListAllDailyTaskLists)                 // ดูรายการงานทั้งหมด (รายวัน)
 		api.GET("/tasks/trash", taskH.ListTrashTasks)                              // ดูงานในถังขยะ
 		api.POST("/tasks", taskH.CreateTask)                                       // เพิ่มงานใหม่

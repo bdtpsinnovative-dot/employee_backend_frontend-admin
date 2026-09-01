@@ -8,6 +8,48 @@ export function avatarUrl(url?: string | null): string | null {
   return url;
 }
 
+export function toPublicAttachmentUrl(url?: string | null): string {
+  if (!url || !url.trim()) return '';
+  if (url.startsWith('r2://')) {
+    return url.replace('r2://', 'https://pub-2a877f7cc07b481ca09dec82cb240465.r2.dev/');
+  }
+  return url;
+}
+
+export function isImageUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\.(avif|bmp|gif|jpe?g|png|svg|webp)(?:$|[?#])/i.test(url);
+}
+
+export interface ExampleAttachment {
+  name: string;
+  url: string;
+}
+
+export function parseTaskAttachments(attachmentUrl?: string | null): ExampleAttachment[] {
+  if (!attachmentUrl || !attachmentUrl.trim()) return [];
+  const trimmed = attachmentUrl.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item: any) => ({
+            name: typeof item === 'string' ? (item.split('/').pop() || 'ไฟล์ตัวอย่าง') : (item.name || item.url?.split('/').pop() || 'ไฟล์ตัวอย่าง'),
+            url: typeof item === 'string' ? item : item.url,
+          }))
+          .filter(a => Boolean(a.url));
+      }
+    } catch {
+      // fallback to single
+    }
+  }
+  return [{
+    name: trimmed.split('/').pop() || 'ไฟล์ตัวอย่างงาน',
+    url: trimmed,
+  }];
+}
+
 export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'completed';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 

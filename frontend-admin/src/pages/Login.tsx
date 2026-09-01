@@ -25,7 +25,7 @@ export default function Login() {
           if (user.role === 'admin') {
             navigate('/dashboard');
           } else {
-            navigate('/daily-record');
+            navigate('/history');
           }
         } catch (err) {
           console.log('ตรวจพบเซสชัน Supabase แต่เรียกข้อมูลโปรไฟล์ไม่สำเร็จ (อาจเพราะ API ออฟไลน์ หรือไม่มีสิทธิ์):', err);
@@ -61,7 +61,7 @@ export default function Login() {
         if (user.role === 'admin') {
           navigate('/dashboard');
         } else {
-          navigate('/daily-record');
+          navigate('/history');
         }
       } catch (err) {
         console.error('ไม่สามารถตรวจสอบสิทธิ์ได้:', err);

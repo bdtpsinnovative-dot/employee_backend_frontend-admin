@@ -36,7 +36,7 @@ export default function Dashboard() {
       if (currentUser.role === 'admin') {
         loadData();
       } else {
-        navigate('/daily-record', { replace: true });
+        navigate('/history', { replace: true });
       }
     }
   }, [currentUser, navigate]);

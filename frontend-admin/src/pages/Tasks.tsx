@@ -422,6 +422,7 @@ export default function Tasks() {
     boards?: { name: string; due_date?: string; priority?: 'low' | 'medium' | 'high' | 'urgent'; description?: string }[];
     priority?: string;
     status?: string;
+    attachment_url?: string;
   }) => {
     const newTask = await createAdminTask({
       title: data.title,
@@ -432,6 +433,7 @@ export default function Tasks() {
       category_id: data.category_id,
       priority: data.priority,
       status: data.status,
+      attachment_url: data.attachment_url,
     });
 
     if (data.boards && data.boards.length > 0) {
@@ -460,6 +462,7 @@ export default function Tasks() {
     category_id?: string;
     priority?: string;
     status?: string;
+    attachment_url?: string;
   }) => {
     if (!editingTask) return;
     const updatedTask = await updateAdminTask(editingTask.id, {
@@ -471,6 +474,7 @@ export default function Tasks() {
       category_id: data.category_id,
       priority: data.priority,
       status: data.status,
+      attachment_url: data.attachment_url,
     });
 
     setTasks((prev) => prev.map((task) => (

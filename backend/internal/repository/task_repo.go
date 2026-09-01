@@ -176,7 +176,7 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority,
+		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
@@ -217,7 +217,7 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority,
+		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
@@ -256,7 +256,7 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority,
+		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
@@ -302,10 +302,12 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 	measureDB := perf.MeasureDB(ctx, "db.tasks.by_id")
 	err := r.db.GetContext(ctx, &row, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
-		       t.start_date, t.due_date, t.priority, t.status, t.record_kind, t.sort_order,
+		       t.start_date, t.due_date, t.priority, t.attachment_url, t.status, t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
+		       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
+		       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0) AS card_done,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
 		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
@@ -343,8 +345,8 @@ func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listName
 	}
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, created_at)
-		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, :priority, NOW())
+		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, attachment_url, created_at)
+		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, :priority, :attachment_url, NOW())
 	`, t)
 	if err != nil {
 		return err
@@ -427,9 +429,10 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		    category_id = $5,
 		    assigned_to = $6,
 		    priority = $7,
-		    status = $8
-		WHERE id = $9
-	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.ID)
+		    status = $8,
+		    attachment_url = $9
+		WHERE id = $10
+	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.AttachmentURL, t.ID)
 	if err != nil {
 		return err
 	}

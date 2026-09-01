@@ -78,6 +78,13 @@ func (h *LeaveHandler) Create(c *gin.Context) {
 		employee, userErr := h.userSvc.GetByID(c.Request.Context(), userID.(uuid.UUID))
 		if userErr == nil && employee != nil {
 			employeeName := employee.FullName()
+			meta := map[string]string{
+				"actor_id":   employee.ID.String(),
+				"actor_name": employeeName,
+			}
+			if employee.AvatarURL != nil {
+				meta["avatar_url"] = *employee.AvatarURL
+			}
 			admins, listErr := h.userSvc.ListAll(c.Request.Context())
 			if listErr == nil {
 				for _, admin := range admins {
@@ -88,6 +95,7 @@ func (h *LeaveHandler) Create(c *gin.Context) {
 							"คำขอลาใหม่",
 							employeeName+" ยื่นคำขอ"+body.LeaveType+" วันที่ "+body.Date,
 							fmt.Sprintf("leave:%s", req.ID.String()),
+							meta,
 						)
 					}
 				}
@@ -311,6 +319,13 @@ func (h *OffsiteHandler) Create(c *gin.Context) {
 		employee, userErr := h.userSvc.GetByID(c.Request.Context(), userID.(uuid.UUID))
 		if userErr == nil && employee != nil {
 			employeeName := employee.FullName()
+			meta := map[string]string{
+				"actor_id":   employee.ID.String(),
+				"actor_name": employeeName,
+			}
+			if employee.AvatarURL != nil {
+				meta["avatar_url"] = *employee.AvatarURL
+			}
 			admins, listErr := h.userSvc.ListAll(c.Request.Context())
 			if listErr == nil {
 				for _, admin := range admins {
@@ -321,6 +336,7 @@ func (h *OffsiteHandler) Create(c *gin.Context) {
 							"คำขอออกหน้างานใหม่",
 							employeeName+" ยื่นคำขอปฏิบัติงานนอกสถานที่ วันที่ "+body.Date,
 							fmt.Sprintf("leave:%s", req.ID.String()),
+							meta,
 						)
 					}
 				}

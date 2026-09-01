@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Calendar, User, Check, Lock, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Plus, Trash2, Calendar, User, Check, Lock, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2, Paperclip, UploadCloud, FileText, ExternalLink, Loader2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
-import { avatarUrl } from './taskUtils';
-import { fetchTaskEvents } from '../../services/adminApi';
+import { avatarUrl, toPublicAttachmentUrl, isImageUrl, parseTaskAttachments, type ExampleAttachment } from './taskUtils';
+import { fetchTaskEvents, uploadFile } from '../../services/adminApi';
 import {
   getVisibleBrandResponsibilityGroups,
   getAutoBrandAssigneeIDs,
@@ -33,6 +33,7 @@ interface TaskCreateModalProps {
     boards?: { name: string; description?: string }[];
     priority?: string;
     status?: string;
+    attachment_url?: string;
   }) => Promise<void>;
 }
 
@@ -81,6 +82,10 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   const [priority, setPriority] = useState<string>(initialData?.priority || 'low');
   const [status, setStatus] = useState<string>(initialData?.status || defaultStatus || 'pending');
+  const [attachments, setAttachments] = useState<ExampleAttachment[]>(() => parseTaskAttachments(initialData?.attachment_url));
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Replace subItems with boards
   const [boards, setBoards] = useState<BoardInput[]>([]);
@@ -138,6 +143,9 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setCategoryId(initialData?.category_id || '');
       setPriority(initialData?.priority || 'low');
       setStatus(initialData?.status || defaultStatus || 'pending');
+      setAttachments(parseTaskAttachments(initialData?.attachment_url));
+      setIsUploading(false);
+      setUploadError(null);
       setModalAlert(null);
       setActiveTab('form');
       
@@ -187,6 +195,28 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
     setBrandId(nextBrandId);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      for (const file of files) {
+        const res = await uploadFile(file);
+        if (res.ok && res.url) {
+          setAttachments(prev => [...prev, { name: file.name, url: res.url }]);
+        } else {
+          throw new Error(`อัปโหลดไฟล์ ${file.name} ไม่สำเร็จ`);
+        }
+      }
+    } catch (err: any) {
+      setUploadError(err?.message || 'อัปโหลดไฟล์ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !dueDate) {
@@ -219,6 +249,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
         boards: validBoards.length > 0 ? validBoards : undefined,
         priority: priority,
         status: status,
+        attachment_url: attachments.length > 0 ? JSON.stringify(attachments) : '',
       });
 
       // Reset form
@@ -226,6 +257,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       setSelectedAssignees([]); setBrandId(''); setCategoryId('');
       setLockedAssigneeIds([]);
       setPriority('low'); setStatus('pending');
+      setAttachments([]);
       setBoards([{ name: '', due_date: '', priority: 'medium', description: '' }]);
       onClose();
     } catch (e: any) {
@@ -359,6 +391,133 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                 onChange={e => setDesc(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
               />
+            </div>
+
+            {/* แนบตัวอย่างงาน (Attachment / Sample) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700 flex items-center gap-1">
+                  <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                  <span>แนบตัวอย่างงาน (รูปภาพ / เอกสาร)</span>
+                </label>
+                {attachments.length > 0 && (
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    อัปโหลดแล้ว ({attachments.length})
+                  </span>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+
+              {attachments.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {attachments.map((att, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {isImageUrl(att.url) ? (
+                            <img
+                              src={toPublicAttachmentUrl(att.url)}
+                              alt={att.name}
+                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-700 truncate max-w-[220px]" title={att.name}>
+                              {att.name || 'ไฟล์ตัวอย่างงาน'}
+                            </p>
+                            <a
+                              href={toPublicAttachmentUrl(att.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1"
+                            >
+                              <span>เปิดดูตัวอย่าง</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="ลบไฟล์ตัวอย่างนี้"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ปุ่ม + แนบไฟล์ตัวอย่างเพิ่ม */}
+                  <button
+                    type="button"
+                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-full py-2 px-3 border border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>กำลังอัปโหลดไฟล์ไปที่ Cloudflare...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ แนบไฟล์ตัวอย่างเพิ่ม</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 ${
+                    isUploading
+                      ? 'bg-slate-50 border-indigo-300 cursor-wait'
+                      : 'border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 bg-slate-50/50'
+                  }`}
+                >
+                  {isUploading ? (
+                    <div className="flex items-center gap-2 text-indigo-600 py-1">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-medium">กำลังอัปโหลดไฟล์ไปที่ Cloudflare...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mb-0.5">
+                        <UploadCloud className="w-4 h-4" />
+                      </div>
+                      <p className="text-xs font-medium text-slate-600">
+                        คลิกเพื่อแนบไฟล์ตัวอย่างงาน <span className="text-indigo-600 font-bold">(รูปภาพ, PDF, ไฟล์)</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        สามารถเลือกพร้อมกันหลายไฟล์ และจะถูกอัปโหลดขึ้น Cloudflare R2 โดยตรง
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {uploadError && (
+                <p className="mt-1 text-[11px] text-rose-500 font-medium">
+                  {uploadError}
+                </p>
+              )}
             </div>
 
             {/* Assignees Selector (Circular Avatars) */}

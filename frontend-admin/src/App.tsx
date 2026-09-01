@@ -8,7 +8,6 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Requests = lazy(() => import('./pages/Requests'));
 const Employees = lazy(() => import('./pages/Employees'));
 const Holidays = lazy(() => import('./pages/Holidays'));
-const DailyRecord = lazy(() => import('./pages/DailyRecord'));
 const History = lazy(() => import('./pages/History'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const TaskDetail = lazy(() => import('./pages/TaskDetail'));
@@ -152,7 +151,7 @@ export default function App() {
             <Route path="holidays" element={<Holidays />} />
             <Route path="backups" element={<BackupCenter />} />
             <Route path="profile" element={<Profile />} />
-            <Route path="daily-record" element={<DailyRecord />} />
+            <Route path="daily-record" element={<Navigate to="/history" replace />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="content-calendar" element={<ContentCalendar />} />
