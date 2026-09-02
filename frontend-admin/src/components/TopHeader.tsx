@@ -9,13 +9,15 @@ import {
   Moon,
 } from 'lucide-react';
 import type { User } from '../types';
-import type { AppNotification } from '../services/adminApi';
+import { type AppNotification, fetchUsers, markNotificationRead, markAllNotificationsRead } from '../services/adminApi';
 import { useTheme } from '../theme/ThemeProvider';
 import { avatarUrl } from './tasks/taskUtils';
+import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
 
 interface TopHeaderProps {
   currentUser: User | null;
   notifications: AppNotification[];
+  setNotifications?: React.Dispatch<React.SetStateAction<AppNotification[]>>;
   onOpenSearch: () => void;
   onToggleSidebar: () => void;
 }
@@ -23,6 +25,7 @@ interface TopHeaderProps {
 export const TopHeader: React.FC<TopHeaderProps> = ({
   currentUser,
   notifications = [],
+  setNotifications,
   onOpenSearch,
   onToggleSidebar,
 }) => {
@@ -35,9 +38,46 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const notifRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
 
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => {});
+  }, []);
+
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
+
+  const handleNotificationClick = async (notif: AppNotification) => {
+    if (!notif.is_read) {
+      try {
+        await markNotificationRead(notif.id);
+        if (setNotifications) {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to mark notification read:', err);
+      }
+    }
+
+    setNotifOpen(false);
+
+    const targetUrl = getNotificationTargetUrl(notif);
+    navigate(targetUrl);
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      if (setNotifications) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      }
+    } catch (err) {
+      console.error('Failed to mark all read:', err);
+    }
+  };
 
   // Click outside handlers
   useEffect(() => {
@@ -136,10 +176,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           {/* Notifications Popover */}
           {notifOpen && (
-            <div className="top-header-popover absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="top-header-popover-header flex items-center justify-between px-4 py-3">
+            <div className="top-header-popover absolute right-0 mt-2 w-84 sm:w-96 rounded-2xl overflow-hidden z-50 shadow-xl border border-slate-200/80 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150">
+              <div className="top-header-popover-header flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <strong className="text-sm font-bold">
+                  <strong className="text-sm font-bold text-slate-800 dark:text-slate-100">
                     การแจ้งเตือน
                   </strong>
                   {unreadCount > 0 && (
@@ -148,45 +188,96 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
-                  onClick={() => setNotifOpen(false)}
-                >
-                  ปิด
-                </button>
+                <div className="flex items-center gap-2.5">
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      className="text-xs text-slate-500 hover:text-blue-600 font-medium cursor-pointer transition-colors"
+                    >
+                      อ่านทั้งหมด
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                    onClick={() => setNotifOpen(false)}
+                  >
+                    ปิด
+                  </button>
+                </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto">
+              <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
                 {notifications.length > 0 ? (
-                  notifications.slice(0, 8).map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`top-notif-item p-3.5 ${
-                        !notif.is_read ? 'top-notif-unread' : ''
-                      }`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold">
-                            {notif.title}
+                  notifications.slice(0, 10).map((notif) => {
+                    const sender = getNotificationSender(notif, users);
+                    return (
+                      <div
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`top-notif-item p-3.5 flex items-start gap-3 transition-all cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
+                          !notif.is_read ? 'top-notif-unread' : ''
+                        }`}
+                      >
+                        {/* Profile Picture of the person */}
+                        <div className="relative shrink-0 mt-0.5">
+                          <div className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs border border-slate-200/60 dark:border-slate-700">
+                            {sender.avatarUrl ? (
+                              <img
+                                src={sender.avatarUrl}
+                                alt={sender.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span>{sender.initial}</span>
+                            )}
                           </div>
-                          <p className="text-[11.5px] opacity-75 mt-0.5 line-clamp-2">
+                          {/* Unread indicator dot badge */}
+                          {!notif.is_read && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 border-2 border-white dark:border-slate-900 rounded-full shadow-2xs" />
+                          )}
+                        </div>
+
+                        {/* Notification content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {notif.title}
+                            </span>
+                            <span className="text-[10px] text-slate-400 shrink-0">
+                              {new Date(notif.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
                             {notif.body}
                           </p>
-                          <span className="text-[10px] opacity-50 mt-1 block">
-                            {new Date(notif.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="py-8 text-center opacity-60 text-xs">
                     ไม่มีการแจ้งเตือนใหม่ในขณะนี้
                   </div>
                 )}
+              </div>
+
+              {/* View all notifications footer */}
+              <div className="p-2 border-t border-slate-100 dark:border-slate-800 text-center bg-slate-50/50 dark:bg-slate-900/50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifOpen(false);
+                    navigate('/notifications');
+                  }}
+                  className="w-full py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800/80 rounded-xl transition-all cursor-pointer"
+                >
+                  ดูการแจ้งเตือนทั้งหมด
+                </button>
               </div>
             </div>
           )}

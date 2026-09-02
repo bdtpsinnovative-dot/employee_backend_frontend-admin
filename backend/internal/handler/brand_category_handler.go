@@ -1057,12 +1057,16 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 		go func() {
 			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
 			actorName := "ทีมงาน"
+			actorAvatar := ""
 			if actor != nil {
 				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
 				if name != "" {
 					actorName = name
 				} else if actor.Nickname != "" {
 					actorName = actor.Nickname
+				}
+				if actor.AvatarURL != nil {
+					actorAvatar = *actor.AvatarURL
 				}
 			}
 			recipients := make(map[uuid.UUID]struct{}, len(capturedAssigneeIDs))
@@ -1077,7 +1081,14 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 					"เพิ่มงานย่อยใหม่",
 					actorName+` เพิ่มงานย่อย "`+capturedListName+`" ในงานของคุณ`,
 					"task_list_update",
-					map[string]string{"task_id": taskID.String(), "list_id": capturedListID.String(), "type": "task_list_assignment"},
+					map[string]string{
+						"task_id":      taskID.String(),
+						"list_id":      capturedListID.String(),
+						"type":         "task_list_assignment",
+						"actor_id":     actorID.String(),
+						"actor_name":   actorName,
+						"actor_avatar": actorAvatar,
+					},
 				)
 			}
 		}()
@@ -1345,12 +1356,16 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		go func() {
 			actor, _ := h.userRepo.FindByID(context.Background(), actorID)
 			actorName := "ทีมงาน"
+			actorAvatar := ""
 			if actor != nil {
 				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
 				if name != "" {
 					actorName = name
 				} else if actor.Nickname != "" {
 					actorName = actor.Nickname
+				}
+				if actor.AvatarURL != nil {
+					actorAvatar = *actor.AvatarURL
 				}
 			}
 
@@ -1364,7 +1379,14 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 					"มอบหมายงานย่อยใหม่",
 					actorName+` เพิ่มคุณเป็นผู้รับผิดชอบงานย่อย "`+updated.Name+`"`,
 					"task_list_update",
-					map[string]string{"task_id": taskID.String(), "list_id": listID.String(), "type": "task_list_assignment"},
+					map[string]string{
+						"task_id":      taskID.String(),
+						"list_id":      listID.String(),
+						"type":         "task_list_assignment",
+						"actor_id":     actorID.String(),
+						"actor_name":   actorName,
+						"actor_avatar": actorAvatar,
+					},
 				)
 			}
 
@@ -1424,7 +1446,14 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 				if uID == actorID && len(userIDs) > 1 && (capturedReq.Status == nil || *capturedReq.Status != "revision") {
 					continue // ไม่แจ้งเตือนผู้ทำการแก้ไขเอง เมื่อมีผู้อื่นให้แจ้งเตือน
 				}
-				metadata := map[string]string{"task_id": taskID.String(), "list_id": listID.String(), "type": "task_list_update"}
+				metadata := map[string]string{
+					"task_id":      taskID.String(),
+					"list_id":      listID.String(),
+					"type":         "task_list_update",
+					"actor_id":     actorID.String(),
+					"actor_name":   actorName,
+					"actor_avatar": actorAvatar,
+				}
 				statusChanged := capturedReq.Status != nil && *capturedReq.Status != capturedExistingList.Status
 				if statusChanged {
 					metadata["type"] = "task_list_status"
@@ -2197,10 +2226,27 @@ func (h *BrandCategoryHandler) CreateCardComment(c *gin.Context) {
 
 	// Notifications: mentioned users + card assignees (excluding author)
 	if h.notifSvc != nil {
+		author, _ := h.userRepo.FindByID(context.Background(), authorID)
+		authorName := "สมาชิกในทีม"
+		authorAvatar := ""
+		if author != nil {
+			name := strings.TrimSpace(author.FirstName + " " + author.LastName)
+			if name != "" {
+				authorName = name
+			} else if author.Nickname != "" {
+				authorName = author.Nickname
+			}
+			if author.AvatarURL != nil {
+				authorAvatar = *author.AvatarURL
+			}
+		}
 		meta := map[string]string{
-			"task_id": taskID.String(),
-			"card_id": cardID.String(),
-			"type":    "card_comment",
+			"task_id":      taskID.String(),
+			"card_id":      cardID.String(),
+			"type":         "card_comment",
+			"actor_id":     authorID.String(),
+			"actor_name":   authorName,
+			"actor_avatar": authorAvatar,
 		}
 		notifySet := map[uuid.UUID]bool{authorID: true}
 		for _, uid := range mentionIDs {

@@ -237,6 +237,7 @@ export default function AdminLayout() {
         <TopHeader
           currentUser={currentUser}
           notifications={notifications}
+          setNotifications={setNotifications}
           onOpenSearch={() => setIsSearchOpen(true)}
           onToggleSidebar={toggleSidebar}
         />

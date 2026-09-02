@@ -108,6 +108,19 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 
 	// บันทึก notification ลง DB + ส่ง push ผ่าน notifSvc สำหรับทุกคน
 	if s.notifSvc != nil {
+		actorName := "ใครบางคน"
+		actorAvatar := ""
+		if actor, err := s.userRepo.FindByID(context.Background(), assignedBy); err == nil && actor != nil {
+			if actor.Nickname != "" {
+				actorName = actor.Nickname
+			} else if actor.FirstName != "" {
+				actorName = actor.FirstName
+			}
+			if actor.AvatarURL != nil {
+				actorAvatar = *actor.AvatarURL
+			}
+		}
+
 		for _, uID := range assigneeIDs {
 			if uID == assignedBy {
 				continue // ไม่แจ้งเตือนผู้สร้าง หากเพิ่มตัวเองเป็นผู้รับผิดชอบ
@@ -118,7 +131,13 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 				"มอบหมายงานใหม่",
 				"คุณได้รับมอบหมายงานใหม่: "+title,
 				"system",
-				map[string]string{"task_id": t.ID.String(), "type": "task_assignment"},
+				map[string]string{
+					"task_id":      t.ID.String(),
+					"type":         "task_assignment",
+					"actor_id":     assignedBy.String(),
+					"actor_name":   actorName,
+					"actor_avatar": actorAvatar,
+				},
 			)
 		}
 	}
@@ -208,11 +227,15 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 	// Trigger in-app notifications for task updates (excluding the editor)
 	if s.notifSvc != nil {
 		actorName := "ใครบางคน"
+		actorAvatar := ""
 		if actor, err := s.userRepo.FindByID(ctx, userID); err == nil && actor != nil {
 			if actor.Nickname != "" {
 				actorName = actor.Nickname
 			} else {
 				actorName = actor.FirstName
+			}
+			if actor.AvatarURL != nil {
+				actorAvatar = *actor.AvatarURL
 			}
 		}
 
@@ -227,7 +250,13 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 
 		statusChanged := status != "" && status != oldStatus
 		for recipientID := range recipients {
-			metadata := map[string]string{"task_id": task.ID.String(), "type": "task_update"}
+			metadata := map[string]string{
+				"task_id":      task.ID.String(),
+				"type":         "task_update",
+				"actor_id":     userID.String(),
+				"actor_name":   actorName,
+				"actor_avatar": actorAvatar,
+			}
 			if statusChanged {
 				metadata["type"] = "task_status"
 				title := "อัปเดตสถานะงานหลัก"
@@ -302,11 +331,15 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 	// Trigger in-app notifications for status change (excluding the editor)
 	if s.notifSvc != nil {
 		actorName := "ใครบางคน"
+		actorAvatar := ""
 		if employee, userErr := s.userRepo.FindByID(ctx, userID); userErr == nil && employee != nil {
 			if employee.Nickname != "" {
 				actorName = employee.Nickname
 			} else {
 				actorName = employee.FirstName
+			}
+			if employee.AvatarURL != nil {
+				actorAvatar = *employee.AvatarURL
 			}
 		}
 
@@ -324,7 +357,13 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 		for recipientID := range recipients {
 			title := "อัปเดตสถานะงานหลัก"
 			body := actorName + " ได้เปลี่ยนสถานะงานหลัก \"" + task.Title + "\" เป็น [" + statusThai + "]"
-			metadata := map[string]string{"task_id": task.ID.String(), "type": "task_status"}
+			metadata := map[string]string{
+				"task_id":      task.ID.String(),
+				"type":         "task_status",
+				"actor_id":     userID.String(),
+				"actor_name":   actorName,
+				"actor_avatar": actorAvatar,
+			}
 			if shouldPushTaskStatus(status) {
 				s.notifSvc.Notify(ctx, recipientID, title, body, "system", metadata)
 			} else {
@@ -373,9 +412,17 @@ func (s *TaskService) AddTaskComment(ctx context.Context, taskID, userID uuid.UU
 	// Fetch task and user details for notification
 	task, err := s.taskRepo.FindByID(ctx, taskID)
 	var commenterName string = "ผู้ใช้"
+	var commenterAvatar string = ""
 	if s.userRepo != nil {
 		if u, _ := s.userRepo.FindByID(ctx, userID); u != nil {
-			commenterName = u.FirstName + " " + u.LastName
+			if u.Nickname != "" {
+				commenterName = u.Nickname
+			} else {
+				commenterName = strings.TrimSpace(u.FirstName + " " + u.LastName)
+			}
+			if u.AvatarURL != nil {
+				commenterAvatar = *u.AvatarURL
+			}
 		}
 	}
 
@@ -399,7 +446,13 @@ func (s *TaskService) AddTaskComment(ctx context.Context, taskID, userID uuid.UU
 				"ความคิดเห็นใหม่",
 				msg,
 				"task_comment",
-				map[string]string{"task_id": task.ID.String()},
+				map[string]string{
+					"task_id":      task.ID.String(),
+					"type":         "task_comment",
+					"actor_id":     userID.String(),
+					"actor_name":   commenterName,
+					"actor_avatar": commenterAvatar,
+				},
 			)
 		}
 	}

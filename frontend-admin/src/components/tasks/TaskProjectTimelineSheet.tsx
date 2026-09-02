@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Bell,
   ArrowLeft,
@@ -895,6 +896,21 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     setDrawerAttachments(list.attachments || []);
     setDrawerUploadState({ uploadingCount: 0, failedCount: 0 });
   };
+
+  const [searchParams] = useSearchParams();
+  const targetListId = searchParams.get('listId');
+  const handledTargetListIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!targetListId || handledTargetListIdRef.current === targetListId) return;
+    const lists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
+    if (lists.length === 0) return;
+    const matched = lists.find((l) => l.id === targetListId);
+    if (matched) {
+      handledTargetListIdRef.current = targetListId;
+      openDrawerForList(matched);
+    }
+  }, [targetListId, trelloLists, task.lists]);
 
   const drawerHasUnsavedChanges = (): boolean => {
     if (!editingList) return false;

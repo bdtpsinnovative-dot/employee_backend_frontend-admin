@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchNotifications, markNotificationRead, markAllNotificationsRead, type AppNotification } from '../services/adminApi';
+import { useNavigate } from 'react-router-dom';
+import { fetchNotifications, fetchUsers, markNotificationRead, markAllNotificationsRead, type AppNotification } from '../services/adminApi';
+import type { User } from '../types';
+import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
 
 const TYPE_ICON: Record<string, string> = {
   task_list_update: 'fa-solid fa-list-check',
@@ -42,14 +45,20 @@ function groupByDate(notifications: AppNotification[]) {
 }
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
       setLoading(true);
-      const data = await fetchNotifications();
-      setNotifications(data);
+      const [notifData, userData] = await Promise.all([
+        fetchNotifications().catch(() => []),
+        fetchUsers().catch(() => []),
+      ]);
+      setNotifications(notifData);
+      setUsers(userData);
     } catch {
       /* ignore */
     } finally {
@@ -69,6 +78,14 @@ export default function Notifications() {
   async function handleMarkOne(id: string) {
     await markNotificationRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+  }
+
+  async function handleNotificationClick(notif: AppNotification) {
+    if (!notif.is_read) {
+      await handleMarkOne(notif.id);
+    }
+    const targetUrl = getNotificationTargetUrl(notif);
+    navigate(targetUrl);
   }
 
   const groups = groupByDate(notifications);
@@ -142,20 +159,45 @@ export default function Notifications() {
                   {items.map(n => {
                     const icon = TYPE_ICON[n.type] ?? 'fa-solid fa-bell';
                     const colorClass = TYPE_COLOR[n.type] ?? 'bg-slate-100 text-slate-500';
+                    const sender = getNotificationSender(n, users);
                     return (
                       <div
                         key={n.id}
-                        className={`flex gap-3.5 px-4 py-3.5 hover:bg-slate-50 transition-colors group ${!n.is_read ? 'bg-blue-50/50' : ''}`}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`flex gap-3.5 px-4 py-3.5 hover:bg-slate-50 transition-colors group cursor-pointer ${!n.is_read ? 'bg-blue-50/50' : ''}`}
                       >
-                        {/* Icon */}
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${colorClass}`}>
-                          <i className={`${icon} text-sm`}></i>
+                        {/* Avatar or Icon */}
+                        <div className="relative shrink-0 mt-0.5">
+                          {sender.avatarUrl ? (
+                            <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200/80 shadow-2xs">
+                              <img
+                                src={sender.avatarUrl}
+                                alt={sender.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          ) : sender.isUser ? (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs border border-slate-200/60">
+                              {sender.initial}
+                            </div>
+                          ) : (
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-2xs ${colorClass}`}>
+                              <i className={`${icon} text-sm`}></i>
+                            </div>
+                          )}
+
+                          {!n.is_read && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 border-2 border-white rounded-full shadow-2xs" />
+                          )}
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm leading-snug ${!n.is_read ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
+                            <p className={`text-sm leading-snug group-hover:text-blue-600 transition-colors ${!n.is_read ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
                               {n.title}
                             </p>
                             {!n.is_read && (
@@ -176,7 +218,10 @@ export default function Notifications() {
                         {/* Mark Read button (shows on hover) */}
                         {!n.is_read && (
                           <button
-                            onClick={() => handleMarkOne(n.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkOne(n.id);
+                            }}
                             className="opacity-0 group-hover:opacity-100 shrink-0 self-center w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-all cursor-pointer"
                             title="ทำเครื่องหมายว่าอ่านแล้ว"
                           >
