@@ -13,6 +13,7 @@ import { type AppNotification, fetchUsers, markNotificationRead, markAllNotifica
 import { useTheme } from '../theme/ThemeProvider';
 import { avatarUrl } from './tasks/taskUtils';
 import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
+import { NotificationAvatar } from './common/NotificationAvatar';
 
 interface TopHeaderProps {
   currentUser: User | null;
@@ -220,27 +221,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                           !notif.is_read ? 'top-notif-unread' : ''
                         }`}
                       >
-                        {/* Profile Picture of the person */}
-                        <div className="relative shrink-0 mt-0.5">
-                          <div className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs border border-slate-200/60 dark:border-slate-700">
-                            {sender.avatarUrl ? (
-                              <img
-                                src={sender.avatarUrl}
-                                alt={sender.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <span>{sender.initial}</span>
-                            )}
-                          </div>
-                          {/* Unread indicator dot badge */}
-                          {!notif.is_read && (
-                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 border-2 border-white dark:border-slate-900 rounded-full shadow-2xs" />
-                          )}
-                        </div>
+                        {/* Profile Picture with Action Badge */}
+                        <NotificationAvatar
+                          notification={notif}
+                          sender={sender}
+                          size="md"
+                          className="mt-0.5"
+                        />
 
                         {/* Notification content */}
                         <div className="min-w-0 flex-1">

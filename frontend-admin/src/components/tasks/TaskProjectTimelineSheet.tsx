@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { getNotificationSender, getNotificationTargetUrl } from '../../utils/notificationHelpers';
+import { NotificationAvatar } from '../common/NotificationAvatar';
 import {
   Bell,
   ArrowLeft,
@@ -160,6 +162,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   notifications = [],
   setNotifications,
 }) => {
+  const navigate = useNavigate();
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
 
   const allTasksMap = useMemo(() => {
@@ -275,6 +278,43 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         } catch {}
       }
     }
+  };
+
+  const handleProjectNotifClick = async (notif: AppNotification) => {
+    if (!notif.is_read) {
+      try {
+        await markNotificationRead(notif.id);
+        if (setNotifications) {
+          setNotifications(prev =>
+            prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to mark read:', err);
+      }
+    }
+    setMainTaskNotifModalOpen(false);
+
+    let meta: Record<string, any> | null = null;
+    if (notif.metadata) {
+      if (typeof notif.metadata === 'string') {
+        try { meta = JSON.parse(notif.metadata); } catch {}
+      } else if (typeof notif.metadata === 'object') {
+        meta = notif.metadata;
+      }
+    }
+
+    if (meta?.task_id === task.id && meta?.list_id) {
+      const lists = trelloLists.length > 0 ? trelloLists : (task.lists || []);
+      const matched = lists.find(l => l.id === meta.list_id);
+      if (matched) {
+        openDrawerForList(matched);
+        return;
+      }
+    }
+
+    const targetUrl = getNotificationTargetUrl(notif);
+    navigate(targetUrl);
   };
 
 
@@ -2834,20 +2874,47 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                   );
                 }
 
-                return listNotifs.map(n => (
-                  <div key={n.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                    <div className="flex justify-between items-start gap-2">
-                      <p className="text-xs font-bold text-slate-850 leading-snug">{n.title}</p>
-                      <span className="text-[9px] text-slate-450 font-semibold shrink-0">
-                        {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                const usersList = Object.values(userMap);
+                return listNotifs.map(n => {
+                  const sender = getNotificationSender(n, usersList);
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => handleProjectNotifClick(n)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer group flex items-start gap-3 hover:shadow-xs hover:border-indigo-300 hover:bg-white ${
+                        !n.is_read
+                          ? 'bg-blue-50/60 border-blue-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      {/* Avatar with Action Badge / Fallback Icon */}
+                      <NotificationAvatar
+                        notification={n}
+                        sender={sender}
+                        size="md"
+                        className="mt-0.5"
+                      />
+
+                      {/* Content */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="text-xs font-bold text-slate-850 group-hover:text-blue-600 transition-colors leading-snug">
+                            {n.title}
+                          </p>
+                          <span className="text-[9px] text-slate-450 font-semibold shrink-0">
+                            {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-605 leading-snug">
+                          {n.body}
+                        </p>
+                        <p className="text-[9px] text-slate-405 font-medium pt-0.5">
+                          {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-605 leading-snug">{n.body}</p>
-                    <p className="text-[9px] text-slate-405 font-medium pt-0.5">
-                      {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
 

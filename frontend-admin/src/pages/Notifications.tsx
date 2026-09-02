@@ -3,24 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, fetchUsers, markNotificationRead, markAllNotificationsRead, type AppNotification } from '../services/adminApi';
 import type { User } from '../types';
 import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
-
-const TYPE_ICON: Record<string, string> = {
-  task_list_update: 'fa-solid fa-list-check',
-  task_comment: 'fa-solid fa-comment-dots',
-  leave: 'fa-solid fa-calendar-xmark',
-  attendance: 'fa-solid fa-clock',
-  announcement: 'fa-solid fa-bullhorn',
-  system: 'fa-solid fa-gear',
-};
-
-const TYPE_COLOR: Record<string, string> = {
-  task_list_update: 'bg-indigo-100 text-indigo-600',
-  task_comment: 'bg-sky-100 text-sky-600',
-  leave: 'bg-amber-100 text-amber-600',
-  attendance: 'bg-green-100 text-green-600',
-  announcement: 'bg-rose-100 text-rose-600',
-  system: 'bg-slate-100 text-slate-600',
-};
+import { NotificationAvatar } from '../components/common/NotificationAvatar';
 
 function groupByDate(notifications: AppNotification[]) {
   const groups: Record<string, AppNotification[]> = {};
@@ -157,8 +140,6 @@ export default function Notifications() {
                 {/* Notifications */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs divide-y divide-slate-100 overflow-hidden">
                   {items.map(n => {
-                    const icon = TYPE_ICON[n.type] ?? 'fa-solid fa-bell';
-                    const colorClass = TYPE_COLOR[n.type] ?? 'bg-slate-100 text-slate-500';
                     const sender = getNotificationSender(n, users);
                     return (
                       <div
@@ -166,33 +147,13 @@ export default function Notifications() {
                         onClick={() => handleNotificationClick(n)}
                         className={`flex gap-3.5 px-4 py-3.5 hover:bg-slate-50 transition-colors group cursor-pointer ${!n.is_read ? 'bg-blue-50/50' : ''}`}
                       >
-                        {/* Avatar or Icon */}
-                        <div className="relative shrink-0 mt-0.5">
-                          {sender.avatarUrl ? (
-                            <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200/80 shadow-2xs">
-                              <img
-                                src={sender.avatarUrl}
-                                alt={sender.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          ) : sender.isUser ? (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs border border-slate-200/60">
-                              {sender.initial}
-                            </div>
-                          ) : (
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-2xs ${colorClass}`}>
-                              <i className={`${icon} text-sm`}></i>
-                            </div>
-                          )}
-
-                          {!n.is_read && (
-                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 border-2 border-white rounded-full shadow-2xs" />
-                          )}
-                        </div>
+                        {/* Avatar with Action Badge / Fallback Icon */}
+                        <NotificationAvatar
+                          notification={n}
+                          sender={sender}
+                          size="lg"
+                          className="mt-0.5"
+                        />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">

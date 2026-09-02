@@ -175,3 +175,181 @@ export function getNotificationTargetUrl(notif: AppNotification): string {
 
   return '/notifications';
 }
+
+export type NotificationActionType =
+  | 'assignment'
+  | 'attachment'
+  | 'status'
+  | 'comment'
+  | 'revision'
+  | 'review'
+  | 'leave'
+  | 'attendance'
+  | 'system';
+
+export interface NotificationActionInfo {
+  type: NotificationActionType;
+  label: string;
+  badgeBg: string;
+  badgeColor: string;
+  fallbackBg: string;
+  fallbackColor: string;
+  iconName: 'clipboard-check' | 'paperclip' | 'check-circle' | 'message-square' | 'rotate-ccw' | 'file-search' | 'calendar' | 'clock' | 'bell';
+}
+
+/**
+ * Determine the specific action type, appropriate icon, and color schemes for a notification.
+ */
+export function getNotificationAction(notif: AppNotification): NotificationActionInfo {
+  const title = notif.title || '';
+  const body = notif.body || '';
+  const meta = parseNotificationMetadata(notif);
+  const notifType = notif.type || '';
+  const metaType = meta?.type || '';
+
+  // 1. Assignment (มอบหมายงาน)
+  if (
+    title.includes('มอบหมาย') ||
+    body.includes('ได้รับมอบหมาย') ||
+    body.includes('เพิ่มคุณเป็นผู้รับผิดชอบ') ||
+    body.includes('ถูกมอบหมาย') ||
+    metaType === 'task_assignment' ||
+    metaType === 'task_list_assignment' ||
+    metaType === 'card_assigned' ||
+    metaType === 'card_assignment'
+  ) {
+    return {
+      type: 'assignment',
+      label: 'มอบหมายงาน',
+      badgeBg: 'bg-indigo-600',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-indigo-600 to-violet-600',
+      fallbackColor: 'text-white',
+      iconName: 'clipboard-check',
+    };
+  }
+
+  // 2. Revision (ส่งแก้ไข)
+  if (
+    title.includes('ส่งแก้ไข') ||
+    title.includes('แก้ไขงานย่อย') ||
+    (body.includes('ส่งงานย่อย') && body.includes('ให้แก้ไข'))
+  ) {
+    return {
+      type: 'revision',
+      label: 'ส่งแก้ไข',
+      badgeBg: 'bg-rose-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-rose-500 to-red-600',
+      fallbackColor: 'text-white',
+      iconName: 'rotate-ccw',
+    };
+  }
+
+  // 3. Review (ส่งตรวจ)
+  if (title.includes('ส่งตรวจ') || body.includes('ให้ตรวจ')) {
+    return {
+      type: 'review',
+      label: 'ส่งตรวจ',
+      badgeBg: 'bg-amber-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-amber-500 to-orange-500',
+      fallbackColor: 'text-white',
+      iconName: 'file-search',
+    };
+  }
+
+  // 4. Attachment (อัปเดตไฟล์ / แนบไฟล์)
+  if (
+    title.includes('ไฟล์') ||
+    body.includes('ไฟล์แนบ') ||
+    body.includes('อัปเดตไฟล์')
+  ) {
+    return {
+      type: 'attachment',
+      label: 'อัปเดตไฟล์',
+      badgeBg: 'bg-sky-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-sky-500 to-blue-600',
+      fallbackColor: 'text-white',
+      iconName: 'paperclip',
+    };
+  }
+
+  // 5. Comment / Mention
+  if (
+    title.includes('ความคิดเห็น') ||
+    title.includes('คอมเมนต์') ||
+    title.includes('@mention') ||
+    notifType === 'task_comment' ||
+    metaType === 'task_comment' ||
+    metaType === 'card_comment'
+  ) {
+    return {
+      type: 'comment',
+      label: 'ความคิดเห็น',
+      badgeBg: 'bg-emerald-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-emerald-500 to-teal-600',
+      fallbackColor: 'text-white',
+      iconName: 'message-square',
+    };
+  }
+
+  // 6. Status change
+  if (
+    title.includes('สถานะ') ||
+    title.includes('เสร็จสิ้น') ||
+    body.includes('เปลี่ยนสถานะ') ||
+    body.includes('เสร็จสมบูรณ์') ||
+    metaType === 'task_status' ||
+    metaType === 'task_list_status'
+  ) {
+    return {
+      type: 'status',
+      label: 'สถานะงาน',
+      badgeBg: 'bg-emerald-600',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-emerald-600 to-green-700',
+      fallbackColor: 'text-white',
+      iconName: 'check-circle',
+    };
+  }
+
+  // 7. Leave
+  if (notifType === 'leave' || notifType === 'leave_request' || title.includes('ใบลา') || title.includes('คำขอลา')) {
+    return {
+      type: 'leave',
+      label: 'คำขอลา',
+      badgeBg: 'bg-amber-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-amber-500 to-orange-600',
+      fallbackColor: 'text-white',
+      iconName: 'calendar',
+    };
+  }
+
+  // 8. Attendance
+  if (notifType === 'attendance' || title.includes('ลงเวลา') || title.includes('เข้างาน')) {
+    return {
+      type: 'attendance',
+      label: 'ลงเวลา',
+      badgeBg: 'bg-teal-500',
+      badgeColor: 'text-white',
+      fallbackBg: 'bg-gradient-to-tr from-teal-500 to-emerald-600',
+      fallbackColor: 'text-white',
+      iconName: 'clock',
+    };
+  }
+
+  // Default: System / General Task
+  return {
+    type: 'system',
+    label: 'งาน',
+    badgeBg: 'bg-blue-600',
+    badgeColor: 'text-white',
+    fallbackBg: 'bg-gradient-to-tr from-blue-600 to-indigo-600',
+    fallbackColor: 'text-white',
+    iconName: 'bell',
+  };
+}
