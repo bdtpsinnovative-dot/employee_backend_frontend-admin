@@ -205,7 +205,7 @@ export function exportXLSX(
       r.type === 'attendance' ? formatTime(r.check_in_at) : '-',
       r.type === 'attendance' ? formatTime(r.check_out_at) : '-',
       r.type === 'attendance' && late > 0 ? late : '',
-      r.type === 'attendance' && wh > 0 ? wh : '',
+      r.type === 'attendance' && wh > 0 ? Number(wh.toFixed(2)) : '',
       r.reason || '',
     ];
   });
@@ -227,7 +227,7 @@ export function exportXLSX(
     s.email, s.name, s.department || '-', s.scheduledDays,
     s.presentCount, s.lateCount, s.lateMinutes, s.absentDays,
     s.sickLeave, s.personalLeave, s.annualLeave, s.offsite,
-    s.totalWorkHours, s.onTimeRate
+    s.totalWorkHours > 0 ? Number(s.totalWorkHours.toFixed(2)) : 0, s.onTimeRate
   ]);
   
   // แถวรวมทั้งบริษัท

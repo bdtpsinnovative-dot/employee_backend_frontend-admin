@@ -480,6 +480,7 @@ export default function History() {
         if (!covered.has(ymd)) absent += 1;
       });
       stat.absentDays = absent;
+      stat.totalWorkHours = Math.round(stat.totalWorkHours * 100) / 100;
       const onTimeDays = stat.presentCount - stat.lateCount;
       stat.onTimeRate = stat.presentCount > 0
         ? Math.round((onTimeDays / stat.presentCount) * 1000) / 10
@@ -879,7 +880,7 @@ export default function History() {
                           {row.type === 'attendance' && late > 0 ? late : '-'}
                         </td>
                         <td data-label="ชม.ทำงาน" style={{ textAlign: 'center' }}>
-                          {row.type === 'attendance' && wh > 0 ? wh : '-'}
+                          {row.type === 'attendance' && wh > 0 ? wh.toFixed(2) : '-'}
                         </td>
                         <td data-label="หมายเหตุ" style={{ fontSize: '12px', color: 'var(--text-gray)', maxWidth: '220px' }}>
                           {row.reason || '-'}
@@ -957,7 +958,7 @@ export default function History() {
                         <td data-label="ลากิจ (วัน)" style={{ textAlign: 'center', color: row.personalLeave ? 'var(--danger-color)' : 'inherit' }}>{row.personalLeave || '-'}</td>
                         <td data-label="ลาพักร้อน (วัน)" style={{ textAlign: 'center', color: row.annualLeave ? 'var(--primary-color)' : 'inherit' }}>{row.annualLeave || '-'}</td>
                         <td data-label="ออกหน้างาน (ครั้ง)" style={{ textAlign: 'center' }}>{row.offsite || '-'}</td>
-                        <td data-label="ชม.ทำงานรวม" style={{ textAlign: 'center' }}>{row.totalWorkHours > 0 ? row.totalWorkHours : '-'}</td>
+                        <td data-label="ชม.ทำงานรวม" style={{ textAlign: 'center' }}>{row.totalWorkHours > 0 ? row.totalWorkHours.toFixed(2) : '-'}</td>
                         <td data-label="% ตรงเวลา" style={{ textAlign: 'center', fontWeight: 600, color: row.onTimeRate >= 90 ? 'var(--success-color)' : row.onTimeRate >= 75 ? 'var(--gold)' : 'var(--danger-color)' }}>{row.onTimeRate}%</td>
                       </tr>
                     );
