@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { getNotificationSender, getNotificationTargetUrl } from '../../utils/notificationHelpers';
+import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../../utils/notificationHelpers';
 import { NotificationAvatar } from '../common/NotificationAvatar';
 import {
   Bell,
@@ -2877,6 +2877,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                 const usersList = Object.values(userMap);
                 return listNotifs.map(n => {
                   const sender = getNotificationSender(n, usersList);
+                  const formattedBody = formatNotificationBody(n.body, usersList);
                   return (
                     <div
                       key={n.id}
@@ -2906,7 +2907,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                           </span>
                         </div>
                         <p className="text-xs text-slate-605 leading-snug">
-                          {n.body}
+                          {formattedBody}
                         </p>
                         <p className="text-[9px] text-slate-405 font-medium pt-0.5">
                           {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}

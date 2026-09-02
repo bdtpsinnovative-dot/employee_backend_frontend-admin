@@ -1059,11 +1059,13 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 			actorName := "ทีมงาน"
 			actorAvatar := ""
 			if actor != nil {
-				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
-				if name != "" {
-					actorName = name
-				} else if actor.Nickname != "" {
+				if actor.Nickname != "" {
 					actorName = actor.Nickname
+				} else {
+					name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
+					if name != "" {
+						actorName = name
+					}
 				}
 				if actor.AvatarURL != nil {
 					actorAvatar = *actor.AvatarURL
@@ -1358,11 +1360,13 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 			actorName := "ทีมงาน"
 			actorAvatar := ""
 			if actor != nil {
-				name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
-				if name != "" {
-					actorName = name
-				} else if actor.Nickname != "" {
+				if actor.Nickname != "" {
 					actorName = actor.Nickname
+				} else {
+					name := strings.TrimSpace(actor.FirstName + " " + actor.LastName)
+					if name != "" {
+						actorName = name
+					}
 				}
 				if actor.AvatarURL != nil {
 					actorAvatar = *actor.AvatarURL
@@ -2230,11 +2234,13 @@ func (h *BrandCategoryHandler) CreateCardComment(c *gin.Context) {
 		authorName := "สมาชิกในทีม"
 		authorAvatar := ""
 		if author != nil {
-			name := strings.TrimSpace(author.FirstName + " " + author.LastName)
-			if name != "" {
-				authorName = name
-			} else if author.Nickname != "" {
+			if author.Nickname != "" {
 				authorName = author.Nickname
+			} else {
+				name := strings.TrimSpace(author.FirstName + " " + author.LastName)
+				if name != "" {
+					authorName = name
+				}
 			}
 			if author.AvatarURL != nil {
 				authorAvatar = *author.AvatarURL

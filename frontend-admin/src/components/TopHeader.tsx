@@ -12,7 +12,7 @@ import type { User } from '../types';
 import { type AppNotification, fetchUsers, markNotificationRead, markAllNotificationsRead } from '../services/adminApi';
 import { useTheme } from '../theme/ThemeProvider';
 import { avatarUrl } from './tasks/taskUtils';
-import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
+import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../utils/notificationHelpers';
 import { NotificationAvatar } from './common/NotificationAvatar';
 
 interface TopHeaderProps {
@@ -240,7 +240,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                             </span>
                           </div>
                           <p className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
-                            {notif.body}
+                            {formatNotificationBody(notif.body, users)}
                           </p>
                         </div>
                       </div>

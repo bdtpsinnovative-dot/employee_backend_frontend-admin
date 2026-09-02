@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   X,
@@ -17,6 +18,8 @@ import type { AdminTask, User, Brand, TaskCategory } from '../../types';
 import { formatRelativeDueDate, getTaskPriority, type TaskStatus, STATUS_CONFIG, avatarUrl } from './taskUtils';
 import type { AppNotification } from '../../services/adminApi';
 import { markNotificationRead } from '../../services/adminApi';
+import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../../utils/notificationHelpers';
+import { NotificationAvatar } from '../common/NotificationAvatar';
 
 interface TaskListViewProps {
   tasks: AdminTask[];
@@ -51,7 +54,26 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   currentUser,
   onToggleStar,
 }) => {
+  const navigate = useNavigate();
   const [notifTask, setNotifTask] = useState<AdminTask | null>(null);
+
+  const handleNotifItemClick = async (notif: AppNotification) => {
+    if (!notif.is_read) {
+      try {
+        await markNotificationRead(notif.id);
+        if (setNotifications) {
+          setNotifications(prev =>
+            prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to mark read:', err);
+      }
+    }
+    setNotifTask(null);
+    const targetUrl = getNotificationTargetUrl(notif);
+    navigate(targetUrl);
+  };
 
   const handleOpenNotifModule = async (task: AdminTask) => {
     setNotifTask(task);
@@ -604,20 +626,48 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                   );
                 }
 
-                return listNotifs.map(n => (
-                  <div key={n.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                    <div className="flex justify-between items-start gap-2">
-                      <p className="text-xs font-bold text-slate-855 leading-snug">{n.title}</p>
-                      <span className="text-[9px] text-slate-455 font-semibold shrink-0">
-                        {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                const usersList = Object.values(userMap);
+                return listNotifs.map(n => {
+                  const sender = getNotificationSender(n, usersList);
+                  const formattedBody = formatNotificationBody(n.body, usersList);
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotifItemClick(n)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer group flex items-start gap-3 hover:shadow-xs hover:border-indigo-300 hover:bg-white ${
+                        !n.is_read
+                          ? 'bg-blue-50/60 border-blue-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      {/* Avatar with Action Badge / Fallback Icon */}
+                      <NotificationAvatar
+                        notification={n}
+                        sender={sender}
+                        size="md"
+                        className="mt-0.5"
+                      />
+
+                      {/* Content */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="text-xs font-bold text-slate-850 group-hover:text-blue-600 transition-colors leading-snug">
+                            {n.title}
+                          </p>
+                          <span className="text-[9px] text-slate-450 font-semibold shrink-0">
+                            {new Date(n.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-snug">
+                          {formattedBody}
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-medium pt-0.5">
+                          {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-605 leading-snug">{n.body}</p>
-                    <p className="text-[9px] text-slate-405 font-medium pt-0.5">
-                      {new Date(n.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
 

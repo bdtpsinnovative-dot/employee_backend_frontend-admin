@@ -57,7 +57,7 @@ export function getNotificationSender(notif: AppNotification, users: User[] = []
         id: user.id,
         name,
         avatarUrl: avatarUrl(user.avatar_url),
-        initial: user.first_name?.trim().charAt(0).toUpperCase() || user.nickname?.trim().charAt(0).toUpperCase() || 'U',
+        initial: (user.nickname?.trim() || user.first_name?.trim() || 'U').charAt(0).toUpperCase(),
         isUser: true,
       };
     }
@@ -75,9 +75,9 @@ export function getNotificationSender(notif: AppNotification, users: User[] = []
     if (user) {
       return {
         id: user.id,
-        name: trimmedActorName,
+        name: user.nickname || trimmedActorName,
         avatarUrl: avatarUrl(user.avatar_url),
-        initial: user.first_name?.trim().charAt(0).toUpperCase() || user.nickname?.trim().charAt(0).toUpperCase() || 'U',
+        initial: (user.nickname?.trim() || user.first_name?.trim() || 'U').charAt(0).toUpperCase(),
         isUser: true,
       };
     }
@@ -125,7 +125,7 @@ export function getNotificationSender(notif: AppNotification, users: User[] = []
         id: bestMatch.id,
         name,
         avatarUrl: avatarUrl(bestMatch.avatar_url),
-        initial: bestMatch.first_name?.trim().charAt(0).toUpperCase() || bestMatch.nickname?.trim().charAt(0).toUpperCase() || 'U',
+        initial: (bestMatch.nickname?.trim() || bestMatch.first_name?.trim() || 'U').charAt(0).toUpperCase(),
         isUser: true,
       };
     }
@@ -174,6 +174,38 @@ export function getNotificationTargetUrl(notif: AppNotification): string {
   }
 
   return '/notifications';
+}
+
+/**
+ * Format notification body text to prefer displaying the user's nickname instead of their real/full name.
+ * Handles both full names (e.g. "Nattapong Worapimrat") and first names (e.g. "Nattapong").
+ */
+export function formatNotificationBody(body: string, users: User[] = []): string {
+  if (!body || users.length === 0) return body;
+
+  let formatted = body;
+  for (const u of users) {
+    const nickname = u.nickname?.trim();
+    if (!nickname) continue;
+
+    const fullName = `${u.first_name} ${u.last_name}`.trim();
+    const firstName = u.first_name?.trim();
+
+    // 1. Replace full name first (e.g. "Nattapong Worapimrat" -> "ปอร์")
+    if (fullName && fullName.length > 2 && formatted.includes(fullName)) {
+      formatted = formatted.split(fullName).join(nickname);
+    }
+    // 2. Replace first name if at start of string or followed by space/colon
+    else if (firstName && firstName.length > 2) {
+      if (formatted.startsWith(firstName + ' ')) {
+        formatted = nickname + ' ' + formatted.slice(firstName.length + 1);
+      } else if (formatted.startsWith(firstName + ':')) {
+        formatted = nickname + ':' + formatted.slice(firstName.length + 1);
+      }
+    }
+  }
+
+  return formatted;
 }
 
 export type NotificationActionType =

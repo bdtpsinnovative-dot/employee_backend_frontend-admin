@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, fetchUsers, markNotificationRead, markAllNotificationsRead, type AppNotification } from '../services/adminApi';
 import type { User } from '../types';
-import { getNotificationSender, getNotificationTargetUrl } from '../utils/notificationHelpers';
+import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../utils/notificationHelpers';
 import { NotificationAvatar } from '../components/common/NotificationAvatar';
 
 function groupByDate(notifications: AppNotification[]) {
@@ -165,7 +165,7 @@ export default function Notifications() {
                               <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5 flex-shrink-0"></span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-snug">{n.body}</p>
+                          <p className="text-xs text-slate-500 mt-0.5 leading-snug">{formatNotificationBody(n.body, users)}</p>
                           <p className="text-[10px] text-slate-400 mt-1.5">
                             {new Date(n.created_at).toLocaleString('th-TH', {
                               hour: '2-digit',
