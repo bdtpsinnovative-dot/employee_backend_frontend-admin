@@ -294,24 +294,20 @@ export default function Dashboard() {
       {/* Subtle Luxury Ambient Radial Glow */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent dark:from-blue-950/20 dark:via-transparent dark:to-transparent" />
 
-      {/* ──── Executive Luxury Glassmorphism Top Header Bar ──── */}
-      <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-[#0c1222]/85 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.5)] transition-colors">
-        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 sm:gap-6">
-          {/* 1. Left: Brand & Luxury Badge */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="relative flex items-center justify-center">
-              <img
-                src="/app_icon_v2.svg"
-                alt="HR Studio"
-                className="w-8 h-8 sm:w-9 sm:h-9 object-contain drop-shadow-sm transition-transform duration-200 hover:scale-105 cursor-pointer"
-                onClick={() => {
-                  setActiveCategory('all');
-                  setSearchTerm('');
-                }}
-              />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#0c1222]" />
-            </div>
-
+      {/* ──── Executive Luxury Floating Rounded Header ──── */}
+      <div className="sticky top-0 z-30 w-full px-3 sm:px-6 pt-3 sm:pt-4 pb-1 pointer-events-none">
+        <header className="pointer-events-auto max-w-7xl mx-auto bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-2xl sm:rounded-full shadow-[0_8px_30px_-6px_rgba(0,0,0,0.06)] dark:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.5)] px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-6 transition-all">
+          {/* 1. Left: Brand & Pure Original Logo */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            <img
+              src="/app_icon_v2.svg"
+              alt="HR Studio"
+              className="w-8 h-8 sm:w-9 sm:h-9 object-contain cursor-pointer transition-transform hover:scale-105"
+              onClick={() => {
+                setActiveCategory('all');
+                setSearchTerm('');
+              }}
+            />
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-[15px] sm:text-[17px] tracking-tight text-slate-800 dark:text-white font-['Prompt']">
                 HR Studio
@@ -442,10 +438,10 @@ export default function Dashboard() {
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Mobile Category Nav Strip (Only visible on screens < md) */}
-        <div className="md:hidden flex items-center gap-1.5 px-4 py-2 border-t border-slate-200/60 dark:border-slate-800/60 overflow-x-auto no-scrollbar bg-slate-50/80 dark:bg-slate-900/60 backdrop-blur-md">
+        <div className="md:hidden mt-2 pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 overflow-x-auto no-scrollbar bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-md shadow-xs">
           {categoryTabs.map((tab) => {
             const TabIcon = tab.icon;
             const isActive = activeCategory === tab.id;
@@ -473,7 +469,7 @@ export default function Dashboard() {
             );
           })}
         </div>
-      </header>
+      </div>
 
       {/* ──── Full-Screen App Launcher Grid ──── */}
       <main className="flex-1 p-6 md:p-12 max-w-6xl mx-auto w-full flex flex-col justify-center">
