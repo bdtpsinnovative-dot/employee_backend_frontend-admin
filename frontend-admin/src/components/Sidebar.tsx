@@ -96,14 +96,14 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
       {/* Navigation Sections */}
       <div className="sidebar-nav-list flex-1 space-y-4 pt-1" onClick={handleNavClick}>
-        {/* 1. ภาพรวม & คำขอ (Admin) */}
-        {isAdmin && (
-          <div className="sidebar-nav-section space-y-1">
-            <div className="menu-category">ภาพรวม & อนุมัติ</div>
-            <NavLink to="/dashboard" className={navLinkClass}>
-              <LayoutDashboard className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
-              <span>ภาพรวมระบบ</span>
-            </NavLink>
+        {/* 1. ภาพรวม & คำขอ */}
+        <div className="sidebar-nav-section space-y-1">
+          <div className="menu-category">{isAdmin ? 'ภาพรวม & อนุมัติ' : 'ภาพรวมระบบ'}</div>
+          <NavLink to="/dashboard" className={navLinkClass}>
+            <LayoutDashboard className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
+            <span>ภาพรวมระบบ</span>
+          </NavLink>
+          {isAdmin && (
             <NavLink to="/requests" className={navLinkClass}>
               <CheckSquare className="sidebar-nav-icon w-4.5 h-4.5 shrink-0" />
               <span>อนุมัติคำขอ</span>
@@ -113,8 +113,8 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
                 </span>
               )}
             </NavLink>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* 2. การจัดการงาน & ปฏิทิน */}
         <div className="sidebar-nav-section space-y-1">

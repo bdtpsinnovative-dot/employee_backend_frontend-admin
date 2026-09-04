@@ -21,12 +21,8 @@ export default function Login() {
       if (session) {
         setLoading(true);
         try {
-          const user = await fetchMe();
-          if (user.role === 'admin') {
-            navigate('/dashboard');
-          } else {
-            navigate('/history');
-          }
+          await fetchMe();
+          navigate('/dashboard');
         } catch (err) {
           console.log('ตรวจพบเซสชัน Supabase แต่เรียกข้อมูลโปรไฟล์ไม่สำเร็จ (อาจเพราะ API ออฟไลน์ หรือไม่มีสิทธิ์):', err);
         } finally {
@@ -56,13 +52,9 @@ export default function Login() {
 
       // ตรวจสอบสิทธิ์ผู้ใช้งาน
       try {
-        const user = await fetchMe();
+        await fetchMe();
         // ล็อกอินสำเร็จ
-        if (user.role === 'admin') {
-          navigate('/dashboard');
-        } else {
-          navigate('/history');
-        }
+        navigate('/dashboard');
       } catch (err) {
         console.error('ไม่สามารถตรวจสอบสิทธิ์ได้:', err);
         setError('ไม่สามารถเข้าสู่ระบบได้ (ไม่พบข้อมูลพนักงานในระบบ)');

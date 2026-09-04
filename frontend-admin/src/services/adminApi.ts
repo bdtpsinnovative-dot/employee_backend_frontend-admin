@@ -59,14 +59,11 @@ export async function fetchUsers(ids?: string[]): Promise<User[]> {
   return cachedQuery(cacheKey, 0, async () => {
     const params = ids && ids.length > 0 ? { ids: ids.join(',') } : undefined;
     try {
+      const { data } = await api.get<ApiResponse<User[]>>('/api/users', { params });
+      return data.data;
+    } catch {
       const { data } = await api.get<ApiResponse<User[]>>('/admin/users', { params });
       return data.data;
-    } catch (err: any) {
-      if (err.message?.includes('คุณไม่มีสิทธิ์') || err.response?.status === 403) {
-        const { data } = await api.get<ApiResponse<User[]>>('/api/users', { params });
-        return data.data;
-      }
-      throw err;
     }
   });
 }
@@ -157,10 +154,17 @@ export async function updateOffsiteStatus(id: string, status: 'approved' | 'reje
 // ────────────────── Attendance ──────────────────
 
 export async function fetchAllAttendance(date: string): Promise<Attendance[]> {
-  const { data } = await api.get<ApiResponse<Attendance[]>>('/admin/attendance', {
-    params: { date },
-  });
-  return data.data ?? [];
+  try {
+    const { data } = await api.get<ApiResponse<Attendance[]>>('/api/attendance/all', {
+      params: { date },
+    });
+    return data.data ?? [];
+  } catch {
+    const { data } = await api.get<ApiResponse<Attendance[]>>('/admin/attendance', {
+      params: { date },
+    });
+    return data.data ?? [];
+  }
 }
 
 export async function fetchMonthlyHistory(month: string): Promise<HistoryRecord[]> {
@@ -272,19 +276,33 @@ export async function fetchUserHistory(id: string): Promise<{
   leaves: LeaveRequest[];
   offsite: OffsiteRequest[];
 }> {
-  const { data } = await api.get<ApiResponse<{
-    attendance: Attendance[];
-    leaves: LeaveRequest[];
-    offsite: OffsiteRequest[];
-  }>>(`/admin/users/${id}/history`);
-  return data.data;
+  try {
+    const { data } = await api.get<ApiResponse<{
+      attendance: Attendance[];
+      leaves: LeaveRequest[];
+      offsite: OffsiteRequest[];
+    }>>(`/api/users/${id}/history`);
+    return data.data;
+  } catch {
+    const { data } = await api.get<ApiResponse<{
+      attendance: Attendance[];
+      leaves: LeaveRequest[];
+      offsite: OffsiteRequest[];
+    }>>(`/admin/users/${id}/history`);
+    return data.data;
+  }
 }
 
 // ────────────────── All Requests (for History page) ──────────────────
 
 export async function fetchAllRequests(): Promise<PendingRequestsData> {
-  const { data } = await api.get<ApiResponse<PendingRequestsData>>('/admin/requests/all');
-  return data.data;
+  try {
+    const { data } = await api.get<ApiResponse<PendingRequestsData>>('/api/requests/all');
+    return data.data;
+  } catch {
+    const { data } = await api.get<ApiResponse<PendingRequestsData>>('/admin/requests/all');
+    return data.data;
+  }
 }
 
 // ────────────────── Leave Quotas (Admin) ──────────────────

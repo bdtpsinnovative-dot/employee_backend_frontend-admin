@@ -12,7 +12,6 @@ import { supabase } from '../lib/supabase';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
 const ADMIN_ONLY_ROUTES = [
-  '/dashboard',
   '/requests',
   '/employees',
   '/backups',

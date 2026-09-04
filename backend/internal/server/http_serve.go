@@ -242,6 +242,11 @@ func registerRoutes(
 		api.GET("/attendance", attendanceH.GetByDate)          // ดูสถานะวันนี้ ?date=2026-07-02
 		api.GET("/attendance/history", attendanceH.History)    // ดูประวัติย้อนหลัง ?month=2026-07
 		api.GET("/attendance/summary", attendanceH.GetSummary) // สรุปเวลาทำงานของทุกคนวันนี้
+		api.GET("/attendance/all", adminH.GetAllAttendance)    // ดูสถิติเข้างานทุกคน (สำหรับหน้าแดชบอร์ด)
+
+		// ข้อมูลภาพรวมสำหรับแดชบอร์ด
+		api.GET("/requests/all", adminH.GetAllRequests)        // ดูคำขอทั้งหมด (สำหรับหน้าแดชบอร์ด)
+		api.GET("/users/:id/history", adminH.GetUserHistory)   // ดูประวัติรายบุคคล (สำหรับหน้าแดชบอร์ด)
 
 		// ใบลา
 		api.POST("/leaves", leaveH.Create)          // ส่งใบลา

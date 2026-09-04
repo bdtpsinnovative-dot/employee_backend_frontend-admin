@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory, fetchCheckInMode, updateCheckInMode } from '../services/adminApi';
 import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
 import { avatarUrl } from '../components/tasks/taskUtils';
@@ -10,7 +10,6 @@ export default function Dashboard() {
     setSelectedUser: (u: User | null) => void;
     currentUser: User | null;
   }>();
-  const navigate = useNavigate();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -31,18 +30,16 @@ export default function Dashboard() {
     offsite: OffsiteRequest[];
   } | null>(null);
 
-  useEffect(() => {
-    if (currentUser) {
-      if (currentUser.role === 'admin') {
-        loadData();
-      } else {
-        navigate('/history', { replace: true });
-      }
-    }
-  }, [currentUser, navigate]);
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
-    if (currentUser && currentUser.role === 'admin' && !selectedUser) {
+    if (currentUser) {
+      loadData();
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser && !selectedUser) {
       loadAttendance();
     }
   }, [date, selectedUser, currentUser]);
@@ -72,6 +69,7 @@ export default function Dashboard() {
   }
 
   async function handleToggleCheckInMode(mode: 'face' | 'selfie') {
+    if (!isAdmin) return;
     setUpdatingMode(true);
     try {
       await updateCheckInMode(mode);
@@ -485,7 +483,8 @@ export default function Dashboard() {
               type="button"
               className={`checkin-mode-option ${checkInMode === 'face' ? 'active' : ''}`}
               onClick={() => handleToggleCheckInMode('face')}
-              disabled={updatingMode}
+              disabled={updatingMode || !isAdmin}
+              title={!isAdmin ? 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเปลี่ยนค่าได้' : undefined}
               aria-pressed={checkInMode === 'face'}
             >
               <span className="checkin-mode-option-icon"><i className="fa-solid fa-user-shield" aria-hidden="true"></i></span>
@@ -496,7 +495,8 @@ export default function Dashboard() {
               type="button"
               className={`checkin-mode-option ${checkInMode === 'selfie' ? 'active' : ''}`}
               onClick={() => handleToggleCheckInMode('selfie')}
-              disabled={updatingMode}
+              disabled={updatingMode || !isAdmin}
+              title={!isAdmin ? 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเปลี่ยนค่าได้' : undefined}
               aria-pressed={checkInMode === 'selfie'}
             >
               <span className="checkin-mode-option-icon"><i className="fa-solid fa-camera-retro" aria-hidden="true"></i></span>
