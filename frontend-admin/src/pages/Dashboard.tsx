@@ -20,6 +20,7 @@ import {
   Bell,
   ArrowUpRight,
   Layers,
+  Smartphone,
 } from 'lucide-react';
 import type { User } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
@@ -187,6 +188,15 @@ export default function Dashboard() {
         iconBg: 'bg-emerald-50 dark:bg-emerald-950/60',
         url: 'https://admin-and-manager-seven.vercel.app/',
         isExternal: true,
+      },
+      {
+        id: 'download-app',
+        name: 'ดาวน์โหลดแอป',
+        category: 'management',
+        icon: Smartphone,
+        iconColor: 'text-violet-600 dark:text-violet-400',
+        iconBg: 'bg-violet-50 dark:bg-violet-950/60',
+        route: '/download-app',
       },
     ],
     []

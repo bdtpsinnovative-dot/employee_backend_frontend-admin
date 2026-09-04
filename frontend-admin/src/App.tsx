@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const ContentCalendar = lazy(() => import('./pages/ContentCalendar'));
 const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities'));
 const TeamManagement = lazy(() => import('./pages/TeamManagement'));
+const AppDownload = lazy(() => import('./pages/AppDownload'));
 
 import { fetchMe } from './services/adminApi';
 import { clearQueryCache } from './lib/queryCache';
@@ -160,6 +161,7 @@ export default function App() {
             <Route path="tasks/:taskId" element={<TaskDetail />} />
             <Route path="task-logs" element={<TaskLogs />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="download-app" element={<AppDownload />} />
           </Route>
         </Routes>
       </Suspense>
