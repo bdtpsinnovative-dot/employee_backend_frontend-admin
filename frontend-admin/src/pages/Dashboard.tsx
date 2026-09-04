@@ -295,8 +295,8 @@ export default function Dashboard() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent dark:from-blue-950/20 dark:via-transparent dark:to-transparent" />
 
       {/* ──── Executive Luxury Floating Rounded Header ──── */}
-      <div className="sticky top-0 z-30 w-full px-3 sm:px-6 pt-3 sm:pt-4 pb-1 pointer-events-none">
-        <header className="pointer-events-auto max-w-7xl mx-auto bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-2xl sm:rounded-full shadow-[0_8px_30px_-6px_rgba(0,0,0,0.06)] dark:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.5)] px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-6 transition-all">
+      <div className="sticky top-0 z-30 w-full px-3 sm:px-6 pt-2.5 sm:pt-3 pb-1 pointer-events-none">
+        <header className="pointer-events-auto max-w-7xl mx-auto bg-white/92 dark:bg-[#0c1222]/92 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-xl sm:rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.4)] px-4 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-3 sm:gap-6 transition-all">
           {/* 1. Left: Brand & Pure Original Logo */}
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
             <img
@@ -312,14 +312,14 @@ export default function Dashboard() {
               <span className="font-extrabold text-[15px] sm:text-[17px] tracking-tight text-slate-800 dark:text-white font-['Prompt']">
                 HR Studio
               </span>
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
                 Portal
               </span>
             </div>
           </div>
 
-          {/* 2. Center: Luxury Floating Category Capsule (Desktop/Tablet) */}
-          <nav className="hidden md:flex items-center bg-slate-100/90 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-inner backdrop-blur-md">
+          {/* 2. Center: Luxury Floating Category Bar (Desktop/Tablet) */}
+          <nav className="hidden md:flex items-center bg-slate-100/90 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200/70 dark:border-slate-800 shadow-inner backdrop-blur-md">
             {categoryTabs.map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeCategory === tab.id;
@@ -328,16 +328,16 @@ export default function Dashboard() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveCategory(tab.id as any)}
-                  className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
                     isActive
-                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold shadow-xs border border-slate-200/50 dark:border-slate-700/60 scale-[1.02]'
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold shadow-xs border border-slate-200/50 dark:border-slate-700/60'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
                   }`}
                 >
                   <TabIcon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
                   <span>{tab.label}</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold transition-colors ${
+                    className={`text-[10px] px-1.5 py-0.2 rounded-md font-semibold transition-colors ${
                       isActive
                         ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400'
                         : 'bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
@@ -360,13 +360,13 @@ export default function Dashboard() {
                 placeholder="ค้นหาระบบงาน..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-750 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 rounded-full text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all shadow-2xs focus:ring-2 focus:ring-blue-500/20"
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-750 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all shadow-2xs focus:ring-2 focus:ring-blue-500/20"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-[10px] text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-md bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-[10px] text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
                 >
                   ✕
                 </button>
@@ -379,7 +379,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={toggleTheme}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50/80 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-900/30 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50/80 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-900/30 transition-all cursor-pointer"
               title={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
             >
               {resolvedTheme === 'dark' ? (
@@ -393,7 +393,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate('/notifications')}
-              className="relative w-8 h-8 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/30 border border-transparent hover:border-blue-200/50 dark:hover:border-blue-900/30 transition-all cursor-pointer"
+              className="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/30 border border-transparent hover:border-blue-200/50 dark:hover:border-blue-900/30 transition-all cursor-pointer"
               title="การแจ้งเตือน"
             >
               <Bell className="w-4 h-4" />
@@ -408,10 +408,10 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => navigate('/profile')}
-              className="group flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-200/80 dark:hover:bg-slate-750 border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+              className="group flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-200/80 dark:hover:bg-slate-750 border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
               title={`โปรไฟล์: ${profileName}`}
             >
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center text-xs font-bold ring-1 ring-white/60 dark:ring-slate-700 shrink-0">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center text-xs font-bold ring-1 ring-white/60 dark:ring-slate-700 shrink-0">
                 {profileAvatar ? (
                   <img src={profileAvatar} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -432,7 +432,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200/50 dark:hover:border-rose-900/30 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200/50 dark:hover:border-rose-900/30 transition-all cursor-pointer"
               title="ออกจากระบบ"
             >
               <LogOut className="w-4 h-4" />
@@ -441,7 +441,7 @@ export default function Dashboard() {
         </header>
 
         {/* Mobile Category Nav Strip (Only visible on screens < md) */}
-        <div className="md:hidden mt-2 pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 overflow-x-auto no-scrollbar bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-md shadow-xs">
+        <div className="md:hidden mt-2 pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80 overflow-x-auto no-scrollbar bg-white/90 dark:bg-[#0c1222]/90 backdrop-blur-md shadow-xs">
           {categoryTabs.map((tab) => {
             const TabIcon = tab.icon;
             const isActive = activeCategory === tab.id;
