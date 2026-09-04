@@ -1,661 +1,461 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { fetchUsers, fetchAllAttendance, fetchAllRequests, fetchHolidays, fetchUserHistory, fetchCheckInMode, updateCheckInMode } from '../services/adminApi';
-import type { User, Attendance, LeaveRequest, OffsiteRequest, Holiday } from '../types';
-import { avatarUrl } from '../components/tasks/taskUtils';
+import { useState, useMemo } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import {
+  Kanban,
+  Calendar,
+  Clock,
+  CalendarDays,
+  CheckSquare,
+  Users,
+  Building2,
+  Database,
+  FileText,
+  LayoutGrid,
+  Package,
+  Briefcase,
+  Trees,
+  Layers,
+  Palette,
+  Armchair,
+  ExternalLink,
+  Search,
+  Sparkles,
+  ArrowRight,
+  Globe,
+} from 'lucide-react';
+import type { User } from '../types';
+
+interface AppItem {
+  id: string;
+  name: string;
+  category: 'internal' | 'management' | 'brand';
+  description: string;
+  icon: any;
+  gradient: string;
+  iconColor?: string;
+  badge: string;
+  badgeColor: string;
+  route?: string;
+  url?: string;
+  isExternal?: boolean;
+  adminOnly?: boolean;
+}
 
 export default function Dashboard() {
-  const { selectedUser, setSelectedUser, currentUser } = useOutletContext<{
-    selectedUser: User | null;
-    setSelectedUser: (u: User | null) => void;
-    currentUser: User | null;
-  }>();
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
+  const navigate = useNavigate();
+  const { currentUser } = useOutletContext<{ currentUser: User | null }>();
   const [searchTerm, setSearchTerm] = useState('');
-  const [users, setUsers] = useState<User[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [offsite, setOffsite] = useState<OffsiteRequest[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [checkInMode, setCheckInMode] = useState<string>('face');
-  const [updatingMode, setUpdatingMode] = useState<boolean>(false);
-
-  // ประวัติของพนักงานรายบุคคลที่ถูกเลือก
-  const [selectedUserHistory, setSelectedUserHistory] = useState<{
-    attendance: Attendance[];
-    leaves: LeaveRequest[];
-    offsite: OffsiteRequest[];
-  } | null>(null);
+  const [activeCategory, setActiveCategory] = useState<'all' | 'internal' | 'management' | 'brand'>('all');
 
   const isAdmin = currentUser?.role === 'admin';
 
-  useEffect(() => {
-    if (currentUser) {
-      loadData();
-    }
-  }, [currentUser]);
+  const apps: AppItem[] = useMemo(
+    () => [
+      // ──── 1. ระบบงานภายใน (Core Internal Systems) ────
+      {
+        id: 'tasks',
+        name: 'จัดการงาน',
+        category: 'internal',
+        description: 'บอร์ดมอบหมายงาน ติดตามสถานะ และ Trello Kanban',
+        icon: Kanban,
+        gradient: 'from-blue-600 to-indigo-600',
+        badge: 'ระบบภายใน',
+        badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+        route: '/tasks',
+      },
+      {
+        id: 'content-calendar',
+        name: 'ปฏิทินคอนเทนต์',
+        category: 'internal',
+        description: 'วางแผนและจัดตารางเผยแพร่สื่อออนไลน์และคอนเทนต์',
+        icon: Calendar,
+        gradient: 'from-rose-500 to-pink-600',
+        badge: 'ระบบภายใน',
+        badgeColor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+        route: '/content-calendar',
+      },
+      {
+        id: 'attendance',
+        name: 'บันทึก & ประวัติเวลา',
+        category: 'internal',
+        description: 'ดูประวัติการเข้างาน คำนวณชั่วโมง และบันทึกเวลาทำงาน',
+        icon: Clock,
+        gradient: 'from-sky-500 to-cyan-600',
+        badge: 'ระบบภายใน',
+        badgeColor: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+        route: '/history',
+      },
+      {
+        id: 'holidays',
+        name: 'ปฏิทินวันหยุด',
+        category: 'internal',
+        description: 'ตารางวันหยุดประจำปี วันหยุดนักขัตฤกษ์ และวันหยุดบริษัท',
+        icon: CalendarDays,
+        gradient: 'from-amber-500 to-yellow-600',
+        badge: 'ระบบภายใน',
+        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+        route: '/holidays',
+      },
+      {
+        id: 'requests',
+        name: 'อนุมัติคำขอ',
+        category: 'internal',
+        description: 'พิจารณาอนุมัติใบลา ปฏิบัติงานนอกสถานที่ และคำขอต่างๆ',
+        icon: CheckSquare,
+        gradient: 'from-emerald-500 to-green-600',
+        badge: 'เฉพาะแอดมิน',
+        badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+        route: '/requests',
+        adminOnly: true,
+      },
+      {
+        id: 'employees',
+        name: 'ฐานข้อมูลพนักงาน',
+        category: 'internal',
+        description: 'โครงสร้างองค์กร รายชื่อพนักงาน และข้อมูลติดต่อทีมงาน',
+        icon: Users,
+        gradient: 'from-cyan-500 to-blue-600',
+        badge: 'เฉพาะแอดมิน',
+        badgeColor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300',
+        route: '/employees',
+        adminOnly: true,
+      },
+      {
+        id: 'teams',
+        name: 'จัดการทีมและแบรนด์',
+        category: 'internal',
+        description: 'กำหนดโครงสร้างแผนก ตำแหน่ง และผู้รับผิดชอบแบรนด์',
+        icon: Building2,
+        gradient: 'from-purple-500 to-indigo-600',
+        badge: 'เฉพาะแอดมิน',
+        badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+        route: '/teams',
+        adminOnly: true,
+      },
+      {
+        id: 'backups',
+        name: 'สำรองและกู้คืนข้อมูล',
+        category: 'internal',
+        description: 'ระบบสำรองฐานข้อมูล Cloud R2 และเครื่องมือ Restore',
+        icon: Database,
+        gradient: 'from-teal-600 to-emerald-700',
+        badge: 'เฉพาะแอดมิน',
+        badgeColor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
+        route: '/backups',
+        adminOnly: true,
+      },
+      {
+        id: 'task-logs',
+        name: 'บันทึกกิจกรรมระบบ',
+        category: 'internal',
+        description: 'ตรวจสอบ Timeline และบันทึกการทำงานในระบบทั้งหมด',
+        icon: FileText,
+        gradient: 'from-slate-600 to-zinc-700',
+        badge: 'เฉพาะแอดมิน',
+        badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        route: '/task-logs',
+        adminOnly: true,
+      },
 
-  useEffect(() => {
-    if (currentUser && !selectedUser) {
-      loadAttendance();
-    }
-  }, [date, selectedUser, currentUser]);
+      // ──── 2. ระบบจัดการภายนอกและคลังสินค้า (Management Systems) ────
+      {
+        id: 'wallcraft-admin',
+        name: 'ระบบจัดการ แอพ Wallcraft',
+        category: 'management',
+        description: 'ระบบหลังบ้านสำหรับบริหารจัดการแอปพลิเคชัน Wallcraft',
+        icon: LayoutGrid,
+        gradient: 'from-orange-500 to-red-600',
+        badge: 'External Admin',
+        badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300',
+        url: 'https://admin.wallcraftthailand.com/',
+        isExternal: true,
+      },
+      {
+        id: 'inventory-system',
+        name: 'ระบบจัดการสินค้า & ยอดขาย',
+        category: 'management',
+        description: 'ระบบจัดการสต็อกสินค้าทั้งหมด ตรวจสอบคลัง และรายงานยอดขาย',
+        icon: Package,
+        gradient: 'from-emerald-600 to-teal-700',
+        badge: 'Inventory & Sales',
+        badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+        url: 'https://admin-and-manager-seven.vercel.app/',
+        isExternal: true,
+      },
+      {
+        id: 'tms-system',
+        name: 'ระบบจัดการงาน (TMS)',
+        category: 'management',
+        description: 'ระบบบริหารจัดการงานภายนอกและบันทึกเวลาพนักงาน',
+        icon: Briefcase,
+        gradient: 'from-sky-600 to-blue-700',
+        badge: 'Task Management',
+        badgeColor: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+        url: 'https://taskmanagementsystem.wallcraftthailand.com/',
+        isExternal: true,
+      },
 
-  async function loadData() {
-    setLoading(true);
-    try {
-      const currentYear = new Date().getFullYear();
-      const [usersData, allRequestsData, holidaysData, modeData] = await Promise.all([
-        fetchUsers(),
-        fetchAllRequests(),
-        fetchHolidays(currentYear),
-        fetchCheckInMode(),
-      ]);
-      setUsers(usersData ?? []);
-      setLeaves(allRequestsData.leaves ?? []);
-      setOffsite(allRequestsData.offsite ?? []);
-      setHolidays(holidaysData ?? []);
-      setCheckInMode(modeData ?? 'face');
-    } catch (err) {
-      console.error('โหลดข้อมูล Dashboard ล้มเหลว:', err);
-    }
-    if (!selectedUser) {
-      await loadAttendance();
-    }
-    setLoading(false);
-  }
+      // ──── 3. เว็บไซต์และแบรนด์ในเครือบริษัท (Company Brands) ────
+      {
+        id: 'zen-slab',
+        name: 'Zen Slab',
+        category: 'brand',
+        description: 'ไม้แผ่นเดียวพรีเมียมจากแก่นแท้ธรรมชาติ คุณค่าแห่งความงาม',
+        icon: Trees,
+        gradient: 'from-emerald-700 to-green-800',
+        badge: 'Brand Website',
+        badgeColor: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+        url: 'https://www.zen-slab.com',
+        isExternal: true,
+      },
+      {
+        id: 'wallcraft-thailand',
+        name: 'Wallcraft Thailand',
+        category: 'brand',
+        description: 'ศูนย์รวมสินค้าผนังและระแนงไม้คุณภาพสูงสำหรับงานตกแต่ง',
+        icon: Layers,
+        gradient: 'from-amber-600 to-orange-700',
+        badge: 'Brand Website',
+        badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+        url: 'https://wallcraftthailand.com',
+        isExternal: true,
+      },
+      {
+        id: 'terra-home',
+        name: 'Terra Home Studio',
+        category: 'brand',
+        description: 'ของตกแต่งบ้าน ดีไซน์มินิมอล สไตล์ Wabi-Sabi เรียบง่ายอบอุ่น',
+        icon: Palette,
+        gradient: 'from-amber-700 to-stone-800',
+        badge: 'Studio Web',
+        badgeColor: 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
+        url: 'https://terrahome-studio.com',
+        isExternal: true,
+      },
+      {
+        id: 'ember-ash',
+        name: 'Ember & Ash Living',
+        category: 'brand',
+        description: 'เฟอร์นิเจอร์ดีไซน์พรีเมียม สไตล์โมเดิร์นร่วมสมัยเพื่อการอยู่อาศัย',
+        icon: Armchair,
+        gradient: 'from-violet-700 to-purple-800',
+        badge: 'Living Web',
+        badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300',
+        url: 'https://emberandashliving.vercel.app/',
+        isExternal: true,
+      },
+    ],
+    []
+  );
 
-  async function handleToggleCheckInMode(mode: 'face' | 'selfie') {
-    if (!isAdmin) return;
-    setUpdatingMode(true);
-    try {
-      await updateCheckInMode(mode);
-      setCheckInMode(mode);
-    } catch (err) {
-      alert('อัปเดตโหมดลงเวลาล้มเหลว: ' + err);
-    } finally {
-      setUpdatingMode(false);
-    }
-  }
-
-  async function loadAttendance() {
-    try {
-      const data = await fetchAllAttendance(date);
-      setAttendance(data);
-    } catch (err) {
-      console.error('โหลด attendance ล้มเหลว:', err);
-      setAttendance([]);
-    }
-  }
-
-  // เรียกโหลดประวัติพนักงานเมื่อถูกเลือก
-  async function handleSelectEmployee(u: User) {
-    setHistoryPage(1);
-    setSearchTerm(`${u.first_name} ${u.last_name}`);
-    setSelectedUser(u);
-  }
-
-  useEffect(() => {
-    if (!selectedUser) {
-      setSelectedUserHistory(null);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setHistoryPage(1);
-    setSearchTerm(`${selectedUser.first_name} ${selectedUser.last_name}`);
-    fetchUserHistory(selectedUser.id)
-      .then(history => {
-        if (!cancelled) setSelectedUserHistory(history);
-      })
-      .catch(err => {
-        console.error('โหลดประวัติพนักงานรายบุคคลล้มเหลว:', err);
-        if (!cancelled) setSelectedUserHistory(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedUser]);
-
-  function handleClearSearch() {
-    setSearchTerm('');
-    setSelectedUser(null);
-    setSelectedUserHistory(null);
-    setLoading(false);
-    setHistoryPage(1);
-  }
-
-  const activeUsers = users.filter(u => u.status === 'active');
-
-  const HISTORY_PAGE_SIZE = 30;
-
-  const isWeekend = (d: Date) => {
-    const day = d.getDay();
-    return day === 0 || day === 6; // 0 = อาทิตย์, 6 = เสาร์
-  };
-
-  const getHolidayName = (ymdStr: string) => {
-    const hol = holidays.find(h => h.date.split('T')[0] === ymdStr);
-    return hol ? hol.name : null;
-  };
-
-  const getYmd = (d: Date) => {
-    return d.toISOString().split('T')[0];
-  };
-
-  // ──── 1. โหมดภาพรวม (เมื่อ selectedUser === null) ────
-  // จำนวนพนักงานทั้งหมด
-  const totalEmployees = activeUsers.length;
-
-  // กรองใบลา/ออกหน้างานที่ได้รับการอนุมัติของวันนี้
-  const approvedLeavesToday = leaves.filter(l => {
-    const leaveDate = l.date.split('T')[0];
-    return leaveDate === date && l.status === 'approved';
-  });
-
-  const offsiteTodayCount = offsite.filter(o => {
-    const offDate = o.date.split('T')[0];
-    return offDate === date && o.status === 'approved';
-  }).length;
-
-  // นับสถิติรายวันจากใบลาที่อนุมัติวันนี้
-  const sickCountToday = approvedLeavesToday.filter(l => l.leave_type === 'ลาป่วย').length;
-  const personalCountToday = approvedLeavesToday.filter(l => l.leave_type === 'ลากิจ').length;
-  const vacationCountToday = approvedLeavesToday.filter(l => l.leave_type === 'ลาพักร้อน').length;
-
-  // นับจำนวนคนที่มาทำงานและมาสาย
-  const attendedCount = attendance.length;
-  const lateCount = attendance.filter(a => a.status === 'late').length;
-
-  // พนักงานที่ไม่ทราบสาเหตุ (ไม่มีการลงเวลา + ไม่มีใบลา/ออกหน้างานที่ได้รับการอนุมัติในวันนี้)
-  const attendedUserIdsToday = new Set(attendance.map(a => a.user_id));
-  const leaveUserIdsToday = new Set(approvedLeavesToday.map(l => l.user_id));
-  const offsiteUserIdsToday = new Set(offsite.filter(o => o.date.split('T')[0] === date && o.status === 'approved').map(o => o.user_id));
-  const unknownCountToday = activeUsers.filter(u =>
-    !attendedUserIdsToday.has(u.id) && !leaveUserIdsToday.has(u.id) && !offsiteUserIdsToday.has(u.id)
-  ).length;
-
-  // ──── 2. โหมดรายบุคคล (เมื่อ selectedUser !== null) ────
-  // คำนวณประวัติและสะสมสถิติย้อนหลังตั้งแต่เริ่มงาน (WORK_START_DATE) จนถึงวันนี้
-  const personalHistoryRows = useMemo(() => {
-    if (!selectedUser || !selectedUserHistory) return [];
-
-    const rows: { dateStr: string; displayDate: string; status: string; statusClass: string; timestamp: string }[] = [];
-    const attList = selectedUserHistory.attendance ?? [];
-    const leaveList = selectedUserHistory.leaves ?? [];
-    const offList = selectedUserHistory.offsite ?? [];
-
-    let todayObj = new Date();
-    todayObj.setHours(0,0,0,0);
-    let startDateObj = new Date(selectedUser.created_at);
-    startDateObj.setHours(0,0,0,0);
-
-    // วนลูปย้อนหลังจากวันนี้กลับไปวันเริ่มงาน
-    let loopDate = new Date(todayObj);
-    while (loopDate >= startDateObj) {
-      const ymd = getYmd(loopDate);
-      const displayDate = loopDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-      
-      const att = attList.find(a => a.date.split('T')[0] === ymd);
-      const leave = leaveList.find(l => l.date.split('T')[0] === ymd && l.status === 'approved');
-      const off = offList.find(o => o.date.split('T')[0] === ymd && o.status === 'approved');
-      const holidayName = getHolidayName(ymd);
-      const isWknd = isWeekend(loopDate);
-
-      let status = 'ขาดงาน';
-      let statusClass = 'st-unknown';
-      let timestamp = '-';
-
-      if (att) {
-        switch (att.status) {
-          case 'on_time': status = 'ปกติ'; statusClass = 'st-ontime'; break;
-          case 'late': status = 'มาสาย'; statusClass = 'st-late'; break;
-          case 'offsite': status = 'ออกหน้างาน'; statusClass = 'st-offsite'; break;
-          case 'sick_leave_full': status = 'ลาป่วย (เต็มวัน)'; statusClass = 'st-leave'; break;
-          case 'sick_leave_morning': status = 'ลาป่วย (ครึ่งเช้า)'; statusClass = 'st-leave'; break;
-          case 'sick_leave_afternoon': status = 'ลาป่วย (ครึ่งบ่าย)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_full': status = 'ลากิจ (เต็มวัน)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_morning': status = 'ลากิจ (ครึ่งเช้า)'; statusClass = 'st-leave'; break;
-          case 'personal_leave_afternoon': status = 'ลากิจ (ครึ่งบ่าย)'; statusClass = 'st-leave'; break;
-          case 'annual_leave': status = 'ลาพักร้อน'; statusClass = 'st-leave'; break;
-          case 'shift_swap': status = 'สลับวันหยุด'; statusClass = 'st-weekend'; break;
-          case 'unknown': status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
-          default: status = 'ไม่ทราบสาเหตุ'; statusClass = 'st-unknown'; break;
-        }
-        
-        // Override for holiday/weekend work
-        if ((isWknd || holidayName) && (att.status === 'on_time' || att.status === 'late')) {
-          status = 'ทำงานวันหยุด';
-          statusClass = 'st-weekend';
-        }
-
-        if (att.check_in_at) {
-          timestamp = new Date(att.check_in_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-        }
-      } else if (leave) {
-        status = leave.leave_type + (leave.duration !== 'เต็มวัน' ? ` (${leave.duration})` : '');
-        statusClass = 'st-leave';
-        timestamp = 'ลาพัก';
-      } else if (off) {
-        status = 'ออกหน้างาน';
-        statusClass = 'st-offsite';
-        timestamp = 'ปฏิบัติงานนอกสถานที่';
-      } else if (holidayName) {
-        status = `วันหยุด: ${holidayName}`;
-        statusClass = 'st-holiday';
-      } else if (isWknd) {
-        status = 'วันหยุดประจำสัปดาห์';
-        statusClass = 'st-weekend';
+  // Filter apps by category, search, and admin permissions
+  const filteredApps = useMemo(() => {
+    return apps.filter((app) => {
+      // Hide admin-only apps for non-admin users
+      if (app.adminOnly && !isAdmin) {
+        return false;
       }
-
-      rows.push({ dateStr: ymd, displayDate, status, statusClass, timestamp });
-
-      // เลื่อนวันย้อนหลัง
-      loopDate.setDate(loopDate.getDate() - 1);
-    }
-
-    return rows;
-  }, [selectedUser, selectedUserHistory, holidays]);
-
-  // คำนวณสะสมย้อนหลังสำหรับรายบุคคลการ์ด 8 ใบ
-  const personalStats = useMemo(() => {
-    let stats = { total_leave: 0, attended: 0, late: 0, offsite: 0, unknown: 0, sick: 0, personal: 0, vacation: 0 };
-    if (!personalHistoryRows.length) return stats;
-
-    personalHistoryRows.forEach(row => {
-      const status = row.status;
-      if (status === 'ปกติ') {
-        stats.attended++;
-      } else if (status === 'มาสาย') {
-        stats.attended++;
-        stats.late++;
-      } else if (status === 'ออกหน้างาน') {
-        stats.offsite++;
-      } else if (status === 'ไม่ทราบสาเหตุ') {
-        stats.unknown++;
-      } else if (status.startsWith('ลาป่วย')) {
-        const amt = status.includes('ครึ่ง') ? 0.5 : 1;
-        stats.sick += amt;
-        stats.total_leave += amt;
-      } else if (status.startsWith('ลากิจ')) {
-        const amt = status.includes('ครึ่ง') ? 0.5 : 1;
-        stats.personal += amt;
-        stats.total_leave += amt;
-      } else if (status.startsWith('ลาพักร้อน')) {
-        const amt = status.includes('ครึ่ง') ? 0.5 : 1;
-        stats.vacation += amt;
-        stats.total_leave += amt;
+      // Filter by category tab
+      if (activeCategory !== 'all' && app.category !== activeCategory) {
+        return false;
       }
+      // Filter by search query
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase();
+        return (
+          app.name.toLowerCase().includes(query) ||
+          app.description.toLowerCase().includes(query) ||
+          app.badge.toLowerCase().includes(query)
+        );
+      }
+      return true;
     });
+  }, [apps, activeCategory, searchTerm, isAdmin]);
 
-    return stats;
-  }, [personalHistoryRows]);
-
-  const filteredUsers = searchTerm
-    ? activeUsers.filter(u =>
-        `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : activeUsers;
-
-  // ตรวจสอบวันหยุดวันนี้เพื่อเปลี่ยนหัวข้อแดชบอร์ด
-  const holidayNameToday = getHolidayName(date);
-  const isWkndToday = isWeekend(new Date(date));
-
-  // Pagination สำหรับโหมดรายบุคคล
-  const totalHistoryPages = Math.max(1, Math.ceil(personalHistoryRows.length / HISTORY_PAGE_SIZE));
-  const pagedHistory = personalHistoryRows.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
-
-  let dashboardTitle = 'สรุปภาพรวม';
-  let titleColor = 'var(--text-main)';
-
-  if (selectedUser) {
-    dashboardTitle = `ข้อมูล: ${selectedUser.first_name} ${selectedUser.last_name}`;
-  } else if (holidayNameToday) {
-    dashboardTitle = `สรุปภาพรวม (วันหยุด: ${holidayNameToday})`;
-    titleColor = 'var(--gold)';
-  } else if (isWkndToday) {
-    dashboardTitle = `สรุปภาพรวม (วันหยุดประจำสัปดาห์)`;
-    titleColor = 'var(--grad-color-1)';
-  }
-
-  // การ์ด 8 ใบแสดงผลต่างกันตามโหมด
-  const cardData = selectedUser
-    ? {
-        total: { label: 'วันลาสะสม', value: personalStats.total_leave, icon: 'fa-calendar-check', colorClass: 'c-blue' },
-        attended: { label: 'มาทำงาน (วัน)', value: personalStats.attended, icon: 'fa-user-check', colorClass: 'c-green' },
-        late: { label: 'มาสาย (วัน)', value: personalStats.late, icon: 'fa-clock', colorClass: 'c-yellow' },
-        unknown: { label: 'ไม่ทราบสาเหตุ', value: personalStats.unknown, icon: 'fa-question', colorClass: 'c-red' },
-        sick: { label: 'ป่วย (วัน)', value: personalStats.sick, icon: 'fa-bed-pulse', colorClass: 'c-red' },
-        personal: { label: 'กิจ (วัน)', value: personalStats.personal, icon: 'fa-briefcase', colorClass: 'c-purple' },
-        offsite: { label: 'หน้างาน (ครั้ง)', value: personalStats.offsite, icon: 'fa-map-location-dot', colorClass: 'c-cyan' },
-        vacation: { label: 'พักร้อน (วัน)', value: personalStats.vacation, icon: 'fa-umbrella-beach', colorClass: 'c-green' },
-      }
-    : {
-        total: { label: 'พนักงานทั้งหมด', value: totalEmployees, icon: 'fa-users', colorClass: 'c-blue' },
-        attended: { label: 'มาทำงาน', value: attendedCount, icon: 'fa-user-check', colorClass: 'c-green' },
-        late: { label: 'มาสาย', value: lateCount, icon: 'fa-clock', colorClass: 'c-yellow' },
-        unknown: { label: 'ไม่ทราบสาเหตุ', value: unknownCountToday, icon: 'fa-question', colorClass: 'c-red' },
-        sick: { label: 'ลาป่วย', value: sickCountToday, icon: 'fa-bed-pulse', colorClass: 'c-red' },
-        personal: { label: 'ลากิจ', value: personalCountToday, icon: 'fa-briefcase', colorClass: 'c-purple' },
-        offsite: { label: 'ออกหน้างาน', value: offsiteTodayCount, icon: 'fa-map-location-dot', colorClass: 'c-cyan' },
-        vacation: { label: 'พักร้อน', value: vacationCountToday, icon: 'fa-umbrella-beach', colorClass: 'c-green' },
-      };
+  const handleOpenApp = (app: AppItem) => {
+    if (app.isExternal && app.url) {
+      window.open(app.url, '_blank', 'noopener,noreferrer');
+    } else if (app.route) {
+      navigate(app.route);
+    }
+  };
 
   return (
-    <div id="dashboard" className="page-section active">
-      <div
-        className="dashboard-filter-wrap"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '25px',
-          flexWrap: 'wrap',
-          gap: '15px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {selectedUser && (
-            <button 
-              className="btn-outline" 
-              style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-main)' }}
-              onClick={handleClearSearch}
-            >
-              <i className="fa-solid fa-arrow-left"></i> ย้อนกลับ
-            </button>
-          )}
-          <h3 style={{ color: titleColor, margin: 0 }} id="dashboard-title">
-            {dashboardTitle}
-          </h3>
-        </div>
+    <div id="dashboard" className="page-section active p-4 md:p-8 max-w-7xl mx-auto">
+      {/* ──── Hero Header Banner ──── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-10 mb-8 text-center text-white">
+        {/* Glow ambient lights */}
+        <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="filter-bar">
-          <div className="custom-search-dropdown" id="empSearchDropdown">
-            <div className="search-input-wrapper">
-              <i className="fa-solid fa-search"></i>
+        <div className="relative z-10 flex flex-col items-center max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold tracking-wider uppercase text-blue-200 mb-4 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+            <span>NEXHR ECOSYSTEM & PLATFORM HUB</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-3 text-white leading-tight font-['Prompt']">
+            All your business on{' '}
+            <span className="relative inline-block text-amber-400">
+              one platform.
+              <span className="absolute left-0 bottom-0 w-full h-1.5 bg-amber-400/40 rounded-full -mb-1" />
+            </span>
+          </h1>
+
+          <p className="text-xl sm:text-2xl font-semibold text-slate-200 mb-3 tracking-wide">
+            Simple, efficient, yet{' '}
+            <span className="text-sky-400 underline decoration-sky-400/80 decoration-wavy decoration-2">
+              powerful!
+            </span>
+          </p>
+
+          <p className="text-sm sm:text-base text-slate-300 max-w-xl text-center leading-relaxed">
+            ศูนย์รวมทุกระบบงานขององค์กรในที่เดียว เข้าถึงระบบจัดการงาน สถิติเวลา และเว็บไซต์ในเครือได้ทันที
+          </p>
+
+          {/* Live Search Bar inside hero */}
+          <div className="w-full max-w-md mt-6 relative">
+            <div className="relative flex items-center">
+              <Search className="absolute left-4 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                id="empSearchInput"
-                placeholder="ค้นหาชื่อพนักงาน..."
-                autoComplete="off"
-                role="combobox"
-                aria-label="ค้นหาพนักงาน"
-                aria-expanded={dropdownOpen}
-                aria-controls="empDropdownList"
+                placeholder="ค้นหาระบบงาน, บริการ, หรือเว็บไซต์..."
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  if (!e.target.value) {
-                    handleClearSearch();
-                  }
-                }}
-                onFocus={() => setDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/20 focus:border-sky-400 rounded-2xl text-white placeholder-slate-400 outline-none backdrop-blur-md transition-all text-sm shadow-inner"
               />
-              <div className="search-actions">
-                <i
-                  className="fa-solid fa-caret-down"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                ></i>
-                {searchTerm && (
-                  <i
-                    className="fa-solid fa-circle-xmark"
-                    id="clear-search"
-                    style={{ opacity: 0.7, marginLeft: '5px', cursor: 'pointer' }}
-                    onClick={handleClearSearch}
-                  ></i>
-                )}
-              </div>
-            </div>
-            <div
-              className={`dropdown-menu-dark ${dropdownOpen ? 'show' : ''}`}
-              id="empDropdownList"
-              role="listbox"
-            >
-              {filteredUsers.map((u) => (
-                <div
-                  key={u.id}
-                  className="dropdown-item"
-                  role="option"
-                  tabIndex={0}
-                  onMouseDown={() => handleSelectEmployee(u)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') handleSelectEmployee(u);
-                  }}
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3.5 text-xs bg-white/20 hover:bg-white/30 text-white rounded-full px-2 py-0.5"
                 >
-                  <span className="dashboard-employee-avatar dashboard-employee-avatar-small" aria-hidden="true">
-                    {avatarUrl(u.avatar_url) ? (
-                      <img src={avatarUrl(u.avatar_url) || undefined} alt="" />
-                    ) : (
-                      u.first_name?.trim().charAt(0).toUpperCase() || 'U'
-                    )}
-                  </span>
-                  <span className="dashboard-employee-option-copy">
-                    <strong>{u.first_name} {u.last_name}</strong>
-                    <span>{u.nickname ? `(${u.nickname})` : (u.position || 'พนักงาน')}</span>
-                  </span>
-                </div>
-              ))}
-              {filteredUsers.length === 0 && (
-                <div className="dropdown-item" style={{ color: 'var(--text-gray)' }}>
-                  ไม่พบพนักงาน
-                </div>
+                  ล้าง
+                </button>
               )}
             </div>
-          </div>
-
-          <div className="custom-date-pill" style={{ visibility: selectedUser ? 'hidden' : 'visible' }}>
-            <input
-              type="date"
-              id="dashboard-date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-            <i className="fa-regular fa-calendar"></i>
           </div>
         </div>
       </div>
 
-      {!selectedUser && (
-        <section className="checkin-mode-panel" aria-labelledby="checkin-mode-title">
-          <div className="checkin-mode-heading">
-            <div className="checkin-mode-icon" aria-hidden="true"><i className="fa-solid fa-fingerprint"></i></div>
-            <div>
-              <h3 id="checkin-mode-title">วิธีลงเวลาเข้างาน</h3>
-              <p>กำหนดวิธีที่พนักงานใช้ยืนยันตัวตนตอนเข้างาน</p>
-            </div>
-            <span className={`checkin-mode-status ${updatingMode ? 'is-saving' : ''}`} aria-live="polite">
-              <i className="fa-solid fa-circle" aria-hidden="true"></i>
-              {updatingMode ? 'กำลังบันทึก' : `เปิดใช้: ${checkInMode === 'face' ? 'สแกนใบหน้า' : 'เซลฟี่'}`}
-            </span>
-          </div>
-
-          <div className="checkin-mode-options" role="group" aria-label="เลือกวิธีลงเวลาเข้างาน">
-            <button
-              type="button"
-              className={`checkin-mode-option ${checkInMode === 'face' ? 'active' : ''}`}
-              onClick={() => handleToggleCheckInMode('face')}
-              disabled={updatingMode || !isAdmin}
-              title={!isAdmin ? 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเปลี่ยนค่าได้' : undefined}
-              aria-pressed={checkInMode === 'face'}
-            >
-              <span className="checkin-mode-option-icon"><i className="fa-solid fa-user-shield" aria-hidden="true"></i></span>
-              <span className="checkin-mode-option-copy"><strong>สแกนใบหน้า</strong><small>Face Recognition</small></span>
-              {checkInMode === 'face' && <i className="fa-solid fa-circle-check checkin-mode-check" aria-hidden="true"></i>}
-            </button>
-            <button
-              type="button"
-              className={`checkin-mode-option ${checkInMode === 'selfie' ? 'active' : ''}`}
-              onClick={() => handleToggleCheckInMode('selfie')}
-              disabled={updatingMode || !isAdmin}
-              title={!isAdmin ? 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเปลี่ยนค่าได้' : undefined}
-              aria-pressed={checkInMode === 'selfie'}
-            >
-              <span className="checkin-mode-option-icon"><i className="fa-solid fa-camera-retro" aria-hidden="true"></i></span>
-              <span className="checkin-mode-option-copy"><strong>เซลฟี่กล้องหน้า</strong><small>Selfie Photo</small></span>
-              {checkInMode === 'selfie' && <i className="fa-solid fa-circle-check checkin-mode-check" aria-hidden="true"></i>}
-            </button>
-          </div>
-        </section>
-      )}
-
-      <div className="dashboard-grid">
-        {/* การ์ด 1: พนักงานทั้งหมด / ลาสะสม */}
-        <div
-          className="stat-card glass-panel"
-          style={selectedUser ? {} : { background: 'var(--primary-gradient)', color: 'white', borderColor: 'transparent' }}
-        >
-          <div className="stat-icon" style={selectedUser ? { color: 'var(--blue)' } : { background: 'rgba(255, 255, 255, 0.2)', color: 'white' }}>
-            <i className={`fa-solid ${cardData.total.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4 style={selectedUser ? {} : { color: 'rgba(255, 255, 255, 0.9)' }}>{cardData.total.label}</h4>
-            <h2 style={selectedUser ? {} : { color: '#ffffff' }}>{cardData.total.value}</h2>
-          </div>
+      {/* ──── Category Filter Tabs ──── */}
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+              activeCategory === 'all'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            ทั้งหมด ({apps.filter((a) => !a.adminOnly || isAdmin).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveCategory('internal')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+              activeCategory === 'internal'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            ระบบงานภายใน
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveCategory('management')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+              activeCategory === 'management'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            ระบบจัดการหลังบ้าน
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveCategory('brand')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+              activeCategory === 'brand'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            เว็บไซต์แบรนด์ในเครือ
+          </button>
         </div>
 
-        {/* การ์ด 2: มาทำงาน */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.attended.colorClass}`}>
-            <i className={`fa-solid ${cardData.attended.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.attended.label}</h4>
-            <h2>{cardData.attended.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 3: มาสาย */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.late.colorClass}`}>
-            <i className={`fa-solid ${cardData.late.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.late.label}</h4>
-            <h2>{cardData.late.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 4: ไม่ทราบสาเหตุ */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.unknown.colorClass}`} style={selectedUser ? {} : { background: '#fee2e2' }}>
-            <i className={`fa-solid ${cardData.unknown.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.unknown.label}</h4>
-            <h2>{cardData.unknown.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 5: ลาป่วย */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.sick.colorClass}`}>
-            <i className={`fa-solid ${cardData.sick.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.sick.label}</h4>
-            <h2>{cardData.sick.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 6: ลากิจ */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.personal.colorClass}`}>
-            <i className={`fa-solid ${cardData.personal.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.personal.label}</h4>
-            <h2>{cardData.personal.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 7: ออกหน้างาน */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.offsite.colorClass}`}>
-            <i className={`fa-solid ${cardData.offsite.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.offsite.label}</h4>
-            <h2>{cardData.offsite.value}</h2>
-          </div>
-        </div>
-
-        {/* การ์ด 8: ลาพักร้อน */}
-        <div className="stat-card glass-panel">
-          <div className={`stat-icon ${cardData.vacation.colorClass}`}>
-            <i className={`fa-solid ${cardData.vacation.icon}`}></i>
-          </div>
-          <div className="stat-info">
-            <h4>{cardData.vacation.label}</h4>
-            <h2>{cardData.vacation.value}</h2>
-          </div>
+        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5" />
+          <span>แสดง {filteredApps.length} รายการ</span>
         </div>
       </div>
 
-      {selectedUser && (
-        <div className="table-card glass-panel">
-          <h3 id="dash-table-header" style={{ marginBottom: '15px', color: 'var(--text-main)' }}>
-            ประวัติการทำงาน
-          </h3>
-          <table>
-            <thead id="dash-table-head">
-              <tr>
-                <th>วันที่</th>
-                <th>สถานะ</th>
-                <th>เวลาเข้างาน</th>
-              </tr>
-            </thead>
-            <tbody id="dash-table">
-              {loading ? (
-                <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>กำลังโหลดข้อมูล...</td>
-                </tr>
-              ) : personalHistoryRows.length === 0 ? (
-                <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-gray)' }}>
-                    ไม่พบประวัติการทำงานของพนักงานท่านนี้
-                  </td>
-                </tr>
-              ) : (
-                pagedHistory.map((row, idx) => (
-                  <tr key={idx}>
-                    <td data-label="วันที่">{row.displayDate}</td>
-                    <td data-label="สถานะ"><span className={`status-badge ${row.statusClass}`}>{row.status}</span></td>
-                    <td data-label="เวลาเข้างาน" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{row.timestamp}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          {personalHistoryRows.length > HISTORY_PAGE_SIZE && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px' }}>
-            <button
-              className="btn-page"
-              disabled={historyPage <= 1}
-              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-              style={{ padding: '6px 14px', fontSize: '13px', cursor: 'pointer' }}
-            >
-              ‹ ก่อนหน้า
-            </button>
-            <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>หน้า {historyPage} / {totalHistoryPages}</span>
-            <button
-              className="btn-page"
-              disabled={historyPage >= totalHistoryPages}
-              onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
-              style={{ padding: '6px 14px', fontSize: '13px', cursor: 'pointer' }}
-            >
-              ถัดไป ›
-            </button>
-          </div>
-          )}
+      {/* ──── App Tiles Grid (Odoo Style) ──── */}
+      {filteredApps.length === 0 ? (
+        <div className="text-center py-16 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+          <Search className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+          <h3 className="text-base font-semibold text-slate-700 dark:text-slate-200">ไม่พบระบบงานที่ค้นหา</h3>
+          <p className="text-sm text-slate-500 mt-1">ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่นดูนะครับ</p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setActiveCategory('all');
+            }}
+            className="mt-4 px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-xl shadow-sm hover:bg-blue-700"
+          >
+            แสดงทั้งหมด
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6">
+          {filteredApps.map((app) => {
+            const Icon = app.icon;
+            return (
+              <div
+                key={app.id}
+                onClick={() => handleOpenApp(app)}
+                className="group relative flex flex-col items-center text-center p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#161c2e] border border-slate-200/80 dark:border-slate-800/90 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-blue-400/40 dark:hover:border-blue-500/40 transition-all duration-200 cursor-pointer overflow-hidden"
+              >
+                {/* External Indicator Pin */}
+                {app.isExternal && (
+                  <div className="absolute top-3 right-3 text-slate-400 group-hover:text-blue-500 transition-colors">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </div>
+                )}
+
+                {/* Squircle App Icon Box */}
+                <div
+                  className={`w-16 h-16 sm:w-18 sm:h-18 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${app.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-105 group-hover:shadow-lg transition-transform duration-200 mb-3.5`}
+                >
+                  <Icon className="w-8 h-8 sm:w-9 sm:h-9 drop-shadow-sm" />
+                </div>
+
+                {/* App Name */}
+                <h3 className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 mb-1 font-['Prompt']">
+                  {app.name}
+                </h3>
+
+                {/* App Short Description */}
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed mb-3 px-1">
+                  {app.description}
+                </p>
+
+                {/* Badge Tag */}
+                <div className="mt-auto pt-1">
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${app.badgeColor}`}
+                  >
+                    {app.badge}
+                    {app.isExternal && <ArrowRight className="w-2.5 h-2.5 opacity-60" />}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
