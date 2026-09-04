@@ -46,15 +46,15 @@ interface BrandBanner {
   id: string;
   name: string;
   badge: string;
-  badgeColor: string;
+  accentBadge: string;
   description: string;
   domain: string;
   url: string;
-  imageSrc: string;
-  glowColor: string;
+  bannerImg: string;
   hoverBorder: string;
   hoverText: string;
   actionColor: string;
+  actionHoverBg: string;
 }
 
 export default function Dashboard() {
@@ -210,57 +210,57 @@ export default function Dashboard() {
         id: 'zen-slab',
         name: 'Zen Slab',
         badge: 'Wood Slabs',
-        badgeColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200/60 dark:border-emerald-800/60',
+        accentBadge: 'text-emerald-400 border-emerald-500/30',
         description: 'ไม้แผ่นเดียวและเฟอร์นิเจอร์ไม้แท้ธรรมชาติระดับพรีเมียม',
         domain: 'zen-slab.com',
         url: 'https://www.zen-slab.com',
-        imageSrc: '/brands/zenslab.png',
-        glowColor: 'from-emerald-500/20 to-teal-500/5',
-        hoverBorder: 'hover:border-emerald-500/40 dark:hover:border-emerald-500/40',
+        bannerImg: '/banners/zenslab.webp',
+        hoverBorder: 'hover:border-emerald-500/50 dark:hover:border-emerald-500/50',
         hoverText: 'group-hover:text-emerald-500 dark:group-hover:text-emerald-400',
         actionColor: 'text-emerald-500 dark:text-emerald-400',
+        actionHoverBg: 'group-hover:bg-emerald-500',
       },
       {
         id: 'wallcraft-thailand',
         name: 'Wallcraft',
         badge: 'Wallcovering',
-        badgeColor: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200/60 dark:border-amber-800/60',
+        accentBadge: 'text-amber-400 border-amber-500/30',
         description: 'วอลเปเปอร์นำเข้าและวัสดุปิดผิวตกแต่งผนังระดับลักชัวรี่',
         domain: 'wallcraftthailand.com',
         url: 'https://wallcraftthailand.com',
-        imageSrc: '/brands/wallcraft.png',
-        glowColor: 'from-amber-500/20 to-orange-500/5',
-        hoverBorder: 'hover:border-amber-500/40 dark:hover:border-amber-500/40',
+        bannerImg: '/banners/wallcraft.webp',
+        hoverBorder: 'hover:border-amber-500/50 dark:hover:border-amber-500/50',
         hoverText: 'group-hover:text-amber-500 dark:group-hover:text-amber-400',
         actionColor: 'text-amber-500 dark:text-amber-400',
+        actionHoverBg: 'group-hover:bg-amber-500',
       },
       {
         id: 'terra-home',
         name: 'Terra Home',
         badge: 'Home Studio',
-        badgeColor: 'text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-850 border-stone-200/60 dark:border-stone-700/60',
+        accentBadge: 'text-stone-300 border-stone-400/30',
         description: 'ของแต่งบ้านและงานออกแบบสถาปัตยกรรมสไตล์อบอุ่น',
         domain: 'terrahome-studio.com',
         url: 'https://terrahome-studio.com',
-        imageSrc: '/brands/terrahome.png',
-        glowColor: 'from-stone-500/20 to-amber-700/5',
-        hoverBorder: 'hover:border-stone-400/40 dark:hover:border-stone-500/40',
-        hoverText: 'group-hover:text-stone-600 dark:group-hover:text-stone-300',
-        actionColor: 'text-stone-500 dark:text-stone-400',
+        bannerImg: '/banners/terrahome.webp',
+        hoverBorder: 'hover:border-amber-600/50 dark:hover:border-amber-600/50',
+        hoverText: 'group-hover:text-amber-600 dark:group-hover:text-amber-400',
+        actionColor: 'text-amber-600 dark:text-amber-400',
+        actionHoverBg: 'group-hover:bg-amber-600',
       },
       {
         id: 'ember-ash',
         name: 'Ember & Ash',
         badge: 'Luxury Living',
-        badgeColor: 'text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/60 border-violet-200/60 dark:border-violet-800/60',
+        accentBadge: 'text-violet-400 border-violet-500/30',
         description: 'เฟอร์นิเจอร์สไตล์โมเดิร์นลักชัวรี่ ผสานหินอ่อนและไม้ธรรมชาติ',
         domain: 'emberandashliving.com',
         url: 'https://emberandashliving.vercel.app/',
-        imageSrc: '/brands/emberash.png',
-        glowColor: 'from-violet-500/20 to-purple-500/5',
-        hoverBorder: 'hover:border-violet-500/40 dark:hover:border-violet-500/40',
+        bannerImg: '/banners/emberash.webp',
+        hoverBorder: 'hover:border-violet-500/50 dark:hover:border-violet-500/50',
         hoverText: 'group-hover:text-violet-500 dark:group-hover:text-violet-400',
         actionColor: 'text-violet-500 dark:text-violet-400',
+        actionHoverBg: 'group-hover:bg-violet-500',
       },
     ],
     []
@@ -625,42 +625,42 @@ export default function Dashboard() {
                       href={brand.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`group relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.4)] hover:shadow-xl hover:-translate-y-1 ${brand.hoverBorder} transition-all duration-300 flex flex-col justify-between cursor-pointer`}
+                      className={`group flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.4)] hover:shadow-2xl hover:-translate-y-1.5 ${brand.hoverBorder} transition-all duration-300 cursor-pointer`}
                     >
-                      {/* Ambient Brand Color Glow on Hover */}
-                      <div
-                        className={`absolute -right-8 -bottom-8 w-36 h-36 bg-gradient-to-br ${brand.glowColor} rounded-full blur-2xl opacity-40 group-hover:opacity-90 group-hover:scale-125 transition-all duration-500 pointer-events-none`}
-                      />
+                      {/* 16:10 Banner Cover Image Header */}
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-900">
+                        <img
+                          src={brand.bannerImg}
+                          alt={brand.name}
+                          className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
-                      {/* Top Row: Squircle Logo + Category Badge + External Arrow */}
-                      <div className="flex items-start justify-between gap-3 relative z-10 mb-4">
-                        <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center overflow-hidden shadow-xs shrink-0 group-hover:scale-105 transition-transform duration-300">
-                          <img
-                            src={brand.imageSrc}
-                            alt={brand.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${brand.badgeColor}`}>
+                        {/* Top-Left Category Badge */}
+                        <div className="absolute top-3 left-3">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border shadow-xs ${brand.accentBadge}`}>
                             {brand.badge}
                           </span>
-                          <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 flex items-center justify-center text-xs transition-colors shadow-2xs">
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                          </span>
+                        </div>
+
+                        {/* Top-Right Arrow Action */}
+                        <div className={`absolute top-3 right-3 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center text-xs ${brand.actionHoverBg} group-hover:text-white transition-colors shadow-xs`}>
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </div>
                       </div>
 
-                      {/* Middle: Brand Name + Thai Tagline */}
-                      <div className="relative z-10 flex-1 flex flex-col justify-end">
-                        <h3 className={`font-bold text-base text-slate-900 dark:text-slate-100 ${brand.hoverText} transition-colors leading-snug tracking-tight font-['Prompt']`}>
-                          {brand.name}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                          {brand.description}
-                        </p>
+                      {/* Content Body */}
+                      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
+                        <div>
+                          <h3 className={`font-bold text-base text-slate-900 dark:text-slate-100 ${brand.hoverText} transition-colors leading-snug tracking-tight font-['Prompt']`}>
+                            {brand.name}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                            {brand.description}
+                          </p>
+                        </div>
 
-                        {/* Bottom: Domain + Enter Site Link */}
+                        {/* Card Footer: Domain + Enter Link */}
                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
                           <span className="truncate max-w-[130px] font-mono text-[10px]">
                             {brand.domain}
