@@ -33,9 +33,11 @@ interface AppItem {
   id: string;
   name: string;
   category: 'internal' | 'management' | 'brand';
-  icon: any;
-  iconColor: string;
-  iconBg: string;
+  icon?: any;
+  iconColor?: string;
+  iconBg?: string;
+  imageSrc?: string;
+  imageClassName?: string;
   route?: string;
   url?: string;
   isExternal?: boolean;
@@ -158,8 +160,9 @@ export default function Dashboard() {
         name: 'แอพ Wallcraft',
         category: 'management',
         icon: LayoutGrid,
-        iconColor: 'text-orange-600 dark:text-orange-400',
-        iconBg: 'bg-orange-50 dark:bg-orange-950/60',
+        iconBg: 'bg-black',
+        imageSrc: '/brands/wallcraft.png',
+        imageClassName: 'w-full h-full object-cover',
         url: 'https://admin.wallcraftthailand.com/',
         isExternal: true,
       },
@@ -190,8 +193,9 @@ export default function Dashboard() {
         name: 'Zen Slab',
         category: 'brand',
         icon: Trees,
-        iconColor: 'text-emerald-700 dark:text-emerald-400',
-        iconBg: 'bg-emerald-50 dark:bg-emerald-950/60',
+        iconBg: 'bg-black',
+        imageSrc: '/brands/zenslab.png',
+        imageClassName: 'w-full h-full object-cover',
         url: 'https://www.zen-slab.com',
         isExternal: true,
       },
@@ -200,8 +204,9 @@ export default function Dashboard() {
         name: 'Wallcraft',
         category: 'brand',
         icon: Layers,
-        iconColor: 'text-amber-600 dark:text-amber-400',
-        iconBg: 'bg-amber-50 dark:bg-amber-950/60',
+        iconBg: 'bg-black',
+        imageSrc: '/brands/wallcraft.png',
+        imageClassName: 'w-full h-full object-cover',
         url: 'https://wallcraftthailand.com',
         isExternal: true,
       },
@@ -210,8 +215,9 @@ export default function Dashboard() {
         name: 'Terra Home',
         category: 'brand',
         icon: Palette,
-        iconColor: 'text-stone-700 dark:text-stone-300',
-        iconBg: 'bg-stone-100 dark:bg-stone-800',
+        iconBg: 'bg-black',
+        imageSrc: '/brands/terrahome.png',
+        imageClassName: 'w-full h-full object-cover',
         url: 'https://terrahome-studio.com',
         isExternal: true,
       },
@@ -220,8 +226,9 @@ export default function Dashboard() {
         name: 'Ember & Ash',
         category: 'brand',
         icon: Armchair,
-        iconColor: 'text-violet-600 dark:text-violet-400',
-        iconBg: 'bg-violet-50 dark:bg-violet-950/60',
+        iconBg: 'bg-black',
+        imageSrc: '/brands/emberash.png',
+        imageClassName: 'w-full h-full object-cover',
         url: 'https://emberandashliving.vercel.app/',
         isExternal: true,
       },
@@ -491,9 +498,19 @@ export default function Dashboard() {
                 >
                   {/* Clean Squircle Icon Tile */}
                   <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-2">
-                    <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
-                      <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
-                    </div>
+                    {app.imageSrc ? (
+                      <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs ${app.iconBg || 'bg-black'}`}>
+                        <img
+                          src={app.imageSrc}
+                          alt={app.name}
+                          className={app.imageClassName || 'w-full h-full object-cover'}
+                        />
+                      </div>
+                    ) : Icon ? (
+                      <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
+                        <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
+                      </div>
+                    ) : null}
                     {app.isExternal && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
                         ↗
