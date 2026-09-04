@@ -634,14 +634,7 @@ export default function Dashboard() {
                           alt={brand.name}
                           className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-
-                        {/* Top-Left Category Badge */}
-                        <div className="absolute top-3 left-3">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border shadow-xs ${brand.accentBadge}`}>
-                            {brand.badge}
-                          </span>
-                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
                         {/* Top-Right Arrow Action */}
                         <div className={`absolute top-3 right-3 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center text-xs ${brand.actionHoverBg} group-hover:text-white transition-colors shadow-xs`}>
