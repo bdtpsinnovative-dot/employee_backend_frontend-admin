@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
-import RightPanel from './RightPanel';
 import TopHeader from './TopHeader';
 import { CommandSearchModal } from './common/CommandSearchModal';
 import type { User } from '../types';
@@ -300,8 +299,6 @@ export default function AdminLayout() {
             {/* Child Routes Render Here */}
             <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
           </div>
-
-          {isDashboard && <RightPanel selectedUser={selectedUser} onSelectUser={setSelectedUser} />}
         </div>
       </div>
 
