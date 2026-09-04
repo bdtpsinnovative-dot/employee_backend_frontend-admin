@@ -19,7 +19,6 @@ import {
   Armchair,
   ExternalLink,
   Search,
-  Sparkles,
   ArrowRight,
   Globe,
 } from 'lucide-react';
@@ -281,65 +280,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div id="dashboard" className="page-section active p-4 md:p-8 max-w-7xl mx-auto">
-      {/* ──── Hero Header Banner ──── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-10 mb-8 text-center text-white">
-        {/* Glow ambient lights */}
-        <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col items-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold tracking-wider uppercase text-blue-200 mb-4 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-            <span>NEXHR ECOSYSTEM & PLATFORM HUB</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-3 text-white leading-tight font-['Prompt']">
-            All your business on{' '}
-            <span className="relative inline-block text-amber-400">
-              one platform.
-              <span className="absolute left-0 bottom-0 w-full h-1.5 bg-amber-400/40 rounded-full -mb-1" />
-            </span>
-          </h1>
-
-          <p className="text-xl sm:text-2xl font-semibold text-slate-200 mb-3 tracking-wide">
-            Simple, efficient, yet{' '}
-            <span className="text-sky-400 underline decoration-sky-400/80 decoration-wavy decoration-2">
-              powerful!
-            </span>
-          </p>
-
-          <p className="text-sm sm:text-base text-slate-300 max-w-xl text-center leading-relaxed">
-            ศูนย์รวมทุกระบบงานขององค์กรในที่เดียว เข้าถึงระบบจัดการงาน สถิติเวลา และเว็บไซต์ในเครือได้ทันที
-          </p>
-
-          {/* Live Search Bar inside hero */}
-          <div className="w-full max-w-md mt-6 relative">
-            <div className="relative flex items-center">
-              <Search className="absolute left-4 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="ค้นหาระบบงาน, บริการ, หรือเว็บไซต์..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/20 focus:border-sky-400 rounded-2xl text-white placeholder-slate-400 outline-none backdrop-blur-md transition-all text-sm shadow-inner"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3.5 text-xs bg-white/20 hover:bg-white/30 text-white rounded-full px-2 py-0.5"
-                >
-                  ล้าง
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ──── Category Filter Tabs ──── */}
-      <div className="flex items-center justify-between flex-wrap gap-4 mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
+    <div id="dashboard" className="page-section active p-4 md:p-6 max-w-7xl mx-auto">
+      {/* ──── Category Filter Tabs & Search Bar ──── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
           <button
             type="button"
@@ -387,9 +330,30 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-          <Globe className="w-3.5 h-3.5" />
-          <span>แสดง {filteredApps.length} รายการ</span>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="ค้นหาระบบงาน หรือเว็บไซต์..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 text-xs transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full px-1.5 py-0.5 hover:opacity-80"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 hidden lg:flex items-center gap-1.5 shrink-0">
+            <Globe className="w-3.5 h-3.5" />
+            <span>{filteredApps.length} รายการ</span>
+          </div>
         </div>
       </div>
 
