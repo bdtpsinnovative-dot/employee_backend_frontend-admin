@@ -13,16 +13,14 @@ import {
   LayoutGrid,
   Package,
   Briefcase,
-  Trees,
-  Layers,
-  Palette,
-  Armchair,
   Search,
   Globe,
   Sun,
   Moon,
   LogOut,
   Bell,
+  ArrowUpRight,
+  Layers,
 } from 'lucide-react';
 import type { User } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
@@ -32,7 +30,7 @@ import { avatarUrl } from '../components/tasks/taskUtils';
 interface AppItem {
   id: string;
   name: string;
-  category: 'internal' | 'management' | 'brand';
+  category: 'internal' | 'management';
   icon?: any;
   iconColor?: string;
   iconBg?: string;
@@ -42,6 +40,21 @@ interface AppItem {
   url?: string;
   isExternal?: boolean;
   adminOnly?: boolean;
+}
+
+interface BrandBanner {
+  id: string;
+  name: string;
+  badge: string;
+  badgeColor: string;
+  description: string;
+  domain: string;
+  url: string;
+  imageSrc: string;
+  glowColor: string;
+  hoverBorder: string;
+  hoverText: string;
+  actionColor: string;
 }
 
 export default function Dashboard() {
@@ -186,58 +199,78 @@ export default function Dashboard() {
         url: 'https://taskmanagementsystem.wallcraftthailand.com/',
         isExternal: true,
       },
+    ],
+    []
+  );
 
-      // ──── 3. เว็บไซต์และแบรนด์ในเครือบริษัท (Company Brands) ────
+  // ──── 3. เว็บไซต์และแบรนด์ในเครือบริษัท (Affiliated Brand Websites) ────
+  const brandBanners: BrandBanner[] = useMemo(
+    () => [
       {
         id: 'zen-slab',
         name: 'Zen Slab',
-        category: 'brand',
-        icon: Trees,
-        iconBg: 'bg-black',
-        imageSrc: '/brands/zenslab.png',
-        imageClassName: 'w-full h-full object-cover',
+        badge: 'Wood Slabs',
+        badgeColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200/60 dark:border-emerald-800/60',
+        description: 'ไม้แผ่นเดียวและเฟอร์นิเจอร์ไม้แท้ธรรมชาติระดับพรีเมียม',
+        domain: 'zen-slab.com',
         url: 'https://www.zen-slab.com',
-        isExternal: true,
+        imageSrc: '/brands/zenslab.png',
+        glowColor: 'from-emerald-500/20 to-teal-500/5',
+        hoverBorder: 'hover:border-emerald-500/40 dark:hover:border-emerald-500/40',
+        hoverText: 'group-hover:text-emerald-500 dark:group-hover:text-emerald-400',
+        actionColor: 'text-emerald-500 dark:text-emerald-400',
       },
       {
         id: 'wallcraft-thailand',
         name: 'Wallcraft',
-        category: 'brand',
-        icon: Layers,
-        iconBg: 'bg-black',
-        imageSrc: '/brands/wallcraft.png',
-        imageClassName: 'w-full h-full object-cover',
+        badge: 'Wallcovering',
+        badgeColor: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200/60 dark:border-amber-800/60',
+        description: 'วอลเปเปอร์นำเข้าและวัสดุปิดผิวตกแต่งผนังระดับลักชัวรี่',
+        domain: 'wallcraftthailand.com',
         url: 'https://wallcraftthailand.com',
-        isExternal: true,
+        imageSrc: '/brands/wallcraft.png',
+        glowColor: 'from-amber-500/20 to-orange-500/5',
+        hoverBorder: 'hover:border-amber-500/40 dark:hover:border-amber-500/40',
+        hoverText: 'group-hover:text-amber-500 dark:group-hover:text-amber-400',
+        actionColor: 'text-amber-500 dark:text-amber-400',
       },
       {
         id: 'terra-home',
         name: 'Terra Home',
-        category: 'brand',
-        icon: Palette,
-        iconBg: 'bg-black',
-        imageSrc: '/brands/terrahome.png',
-        imageClassName: 'w-full h-full object-cover',
+        badge: 'Home Studio',
+        badgeColor: 'text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-850 border-stone-200/60 dark:border-stone-700/60',
+        description: 'ของแต่งบ้านและงานออกแบบสถาปัตยกรรมสไตล์อบอุ่น',
+        domain: 'terrahome-studio.com',
         url: 'https://terrahome-studio.com',
-        isExternal: true,
+        imageSrc: '/brands/terrahome.png',
+        glowColor: 'from-stone-500/20 to-amber-700/5',
+        hoverBorder: 'hover:border-stone-400/40 dark:hover:border-stone-500/40',
+        hoverText: 'group-hover:text-stone-600 dark:group-hover:text-stone-300',
+        actionColor: 'text-stone-500 dark:text-stone-400',
       },
       {
         id: 'ember-ash',
         name: 'Ember & Ash',
-        category: 'brand',
-        icon: Armchair,
-        iconBg: 'bg-black',
-        imageSrc: '/brands/emberash.png',
-        imageClassName: 'w-full h-full object-cover',
+        badge: 'Luxury Living',
+        badgeColor: 'text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/60 border-violet-200/60 dark:border-violet-800/60',
+        description: 'เฟอร์นิเจอร์สไตล์โมเดิร์นลักชัวรี่ ผสานหินอ่อนและไม้ธรรมชาติ',
+        domain: 'emberandashliving.com',
         url: 'https://emberandashliving.vercel.app/',
-        isExternal: true,
+        imageSrc: '/brands/emberash.png',
+        glowColor: 'from-violet-500/20 to-purple-500/5',
+        hoverBorder: 'hover:border-violet-500/40 dark:hover:border-violet-500/40',
+        hoverText: 'group-hover:text-violet-500 dark:group-hover:text-violet-400',
+        actionColor: 'text-violet-500 dark:text-violet-400',
       },
     ],
     []
   );
 
-  // Filter apps by category, search, and admin permissions
+  // Filter launcher apps by category, search, and admin permissions
   const filteredApps = useMemo(() => {
+    if (activeCategory === 'brand') {
+      return [];
+    }
     return apps.filter((app) => {
       if (app.adminOnly && !isAdmin) {
         return false;
@@ -256,6 +289,24 @@ export default function Dashboard() {
       return true;
     });
   }, [apps, activeCategory, searchTerm, isAdmin]);
+
+  // Filter brand banners by search and category
+  const filteredBrands = useMemo(() => {
+    if (activeCategory === 'internal' || activeCategory === 'management') {
+      return [];
+    }
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      return brandBanners.filter(
+        (b) =>
+          b.name.toLowerCase().includes(query) ||
+          b.description.toLowerCase().includes(query) ||
+          b.badge.toLowerCase().includes(query) ||
+          b.domain.toLowerCase().includes(query)
+      );
+    }
+    return brandBanners;
+  }, [brandBanners, activeCategory, searchTerm]);
 
   const handleOpenApp = (app: AppItem) => {
     if (app.isExternal && app.url) {
@@ -276,7 +327,7 @@ export default function Dashboard() {
         id: 'all',
         label: 'ทั้งหมด',
         icon: LayoutGrid,
-        count: apps.filter((a) => !a.adminOnly || isAdmin).length,
+        count: apps.filter((a) => !a.adminOnly || isAdmin).length + brandBanners.length,
       },
       {
         id: 'internal',
@@ -294,10 +345,10 @@ export default function Dashboard() {
         id: 'brand',
         label: 'เว็บไซต์ในเครือ',
         icon: Globe,
-        count: apps.filter((a) => a.category === 'brand' && (!a.adminOnly || isAdmin)).length,
+        count: brandBanners.length,
       },
     ],
-    [apps, isAdmin]
+    [apps, brandBanners, isAdmin]
   );
 
   return (
@@ -482,53 +533,148 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ──── Full-Screen App Launcher Grid ──── */}
-      <main className="flex-1 p-6 md:p-12 max-w-6xl mx-auto w-full flex flex-col justify-center">
-        {filteredApps.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">
-            <Search className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-            <p className="text-xs">ไม่พบแอปพลิเคชัน</p>
+      {/* ──── Full-Screen App Launcher & Brand Banners ──── */}
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8 sm:py-12 max-w-6xl mx-auto w-full flex flex-col justify-center">
+        {filteredApps.length === 0 && filteredBrands.length === 0 ? (
+          <div className="text-center py-20 text-slate-400">
+            <Search className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-3 opacity-60" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">ไม่พบแอปพลิเคชันหรือเว็บไซต์ที่ค้นหา</p>
+            <p className="text-xs text-slate-400 mt-1">ลองค้นหาด้วยคำสำคัญอื่น หรือเปลี่ยนหมวดหมู่</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-8 sm:gap-y-12 justify-items-center py-6">
-            {filteredApps.map((app) => {
-              const Icon = app.icon;
-              return (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => handleOpenApp(app)}
-                  className="group flex flex-col items-center justify-start p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-24 sm:w-28"
-                >
-                  {/* Clean Squircle Icon Tile */}
-                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-2">
-                    {app.imageSrc ? (
-                      <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs ${app.iconBg || 'bg-black'}`}>
-                        <img
-                          src={app.imageSrc}
-                          alt={app.name}
-                          className={app.imageClassName || 'w-full h-full object-cover'}
-                        />
-                      </div>
-                    ) : Icon ? (
-                      <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
-                        <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
-                      </div>
-                    ) : null}
-                    {app.isExternal && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
-                        ↗
-                      </span>
-                    )}
+          <div className="space-y-10 sm:space-y-14 w-full">
+            {/* Section 1: ระบบงานและเครื่องมือ (Systems & Tools) */}
+            {filteredApps.length > 0 && (
+              <section className="w-full">
+                {activeCategory === 'all' && (
+                  <div className="flex items-center justify-between mb-5 sm:mb-6">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-xs shadow-blue-500/50" />
+                      <h2 className="text-xs sm:text-sm font-bold tracking-tight text-slate-700 dark:text-slate-200 font-['Prompt']">
+                        ระบบงานและเครื่องมือ
+                      </h2>
+                      <span className="text-[11px] text-slate-400 font-medium">({filteredApps.length})</span>
+                    </div>
                   </div>
+                )}
 
-                  {/* App Name Only */}
-                  <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-2 leading-tight px-0.5">
-                    {app.name}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-8 sm:gap-y-10 justify-items-center py-2">
+                  {filteredApps.map((app) => {
+                    const Icon = app.icon;
+                    return (
+                      <button
+                        key={app.id}
+                        type="button"
+                        onClick={() => handleOpenApp(app)}
+                        className="group flex flex-col items-center justify-start p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-24 sm:w-28"
+                      >
+                        {/* Clean Squircle Icon Tile */}
+                        <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-2">
+                          {app.imageSrc ? (
+                            <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs ${app.iconBg || 'bg-black'}`}>
+                              <img
+                                src={app.imageSrc}
+                                alt={app.name}
+                                className={app.imageClassName || 'w-full h-full object-cover'}
+                              />
+                            </div>
+                          ) : Icon ? (
+                            <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
+                              <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
+                            </div>
+                          ) : null}
+                          {app.isExternal && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
+                              ↗
+                            </span>
+                          )}
+                        </div>
+
+                        {/* App Name Only */}
+                        <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-2 leading-tight px-0.5">
+                          {app.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Section 2: เว็บไซต์และแบรนด์ในเครือ (Affiliated Brand Banners) */}
+            {filteredBrands.length > 0 && (
+              <section className={`w-full ${filteredApps.length > 0 ? 'pt-8 sm:pt-10 border-t border-slate-200/60 dark:border-slate-800/80' : ''}`}>
+                <div className="flex items-center justify-between mb-5 sm:mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50" />
+                    <h2 className="text-xs sm:text-sm font-bold tracking-tight text-slate-700 dark:text-slate-200 font-['Prompt']">
+                      เว็บไซต์และแบรนด์ในเครือ
+                    </h2>
+                    <span className="text-[11px] text-slate-400 font-medium">({filteredBrands.length})</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium hidden sm:inline-block">
+                    Official Brand Websites
                   </span>
-                </button>
-              );
-            })}
+                </div>
+
+                {/* Luxury Brand Banner Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                  {filteredBrands.map((brand) => (
+                    <a
+                      key={brand.id}
+                      href={brand.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`group relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.4)] hover:shadow-xl hover:-translate-y-1 ${brand.hoverBorder} transition-all duration-300 flex flex-col justify-between cursor-pointer`}
+                    >
+                      {/* Ambient Brand Color Glow on Hover */}
+                      <div
+                        className={`absolute -right-8 -bottom-8 w-36 h-36 bg-gradient-to-br ${brand.glowColor} rounded-full blur-2xl opacity-40 group-hover:opacity-90 group-hover:scale-125 transition-all duration-500 pointer-events-none`}
+                      />
+
+                      {/* Top Row: Squircle Logo + Category Badge + External Arrow */}
+                      <div className="flex items-start justify-between gap-3 relative z-10 mb-4">
+                        <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center overflow-hidden shadow-xs shrink-0 group-hover:scale-105 transition-transform duration-300">
+                          <img
+                            src={brand.imageSrc}
+                            alt={brand.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${brand.badgeColor}`}>
+                            {brand.badge}
+                          </span>
+                          <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 flex items-center justify-center text-xs transition-colors shadow-2xs">
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Middle: Brand Name + Thai Tagline */}
+                      <div className="relative z-10 flex-1 flex flex-col justify-end">
+                        <h3 className={`font-bold text-base text-slate-900 dark:text-slate-100 ${brand.hoverText} transition-colors leading-snug tracking-tight font-['Prompt']`}>
+                          {brand.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {brand.description}
+                        </p>
+
+                        {/* Bottom: Domain + Enter Site Link */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="truncate max-w-[130px] font-mono text-[10px]">
+                            {brand.domain}
+                          </span>
+                          <span className={`font-medium ${brand.actionColor} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}>
+                            เข้าชมเว็บ &rarr;
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>
