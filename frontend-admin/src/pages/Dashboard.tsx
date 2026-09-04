@@ -157,7 +157,7 @@ export default function Dashboard() {
       // ──── 2. ระบบจัดการภายนอกและคลังสินค้า (Management Systems) ────
       {
         id: 'wallcraft-admin',
-        name: 'แอพ Wallcraft',
+        name: 'แอดมิน',
         category: 'management',
         icon: LayoutGrid,
         iconBg: 'bg-black',
@@ -247,7 +247,11 @@ export default function Dashboard() {
       }
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
-        return app.name.toLowerCase().includes(query);
+        return (
+          app.name.toLowerCase().includes(query) ||
+          app.id.toLowerCase().includes(query) ||
+          (app.url && app.url.toLowerCase().includes(query))
+        );
       }
       return true;
     });
