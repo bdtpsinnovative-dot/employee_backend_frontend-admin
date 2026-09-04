@@ -107,12 +107,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </svg>
         </button>
 
-        <div className="hidden sm:flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard')}
+          className="hidden sm:flex items-center gap-2.5 cursor-pointer hover:opacity-85 transition-opacity bg-transparent border-0 p-0 text-left focus:outline-none"
+          title="กลับไปหน้าแดชบอร์ด"
+        >
           <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-8 h-8 object-contain shrink-0 drop-shadow-xs" />
           <span className="font-black text-[16px] text-blue-600 tracking-tight">
             HR Studio
           </span>
-        </div>
+        </button>
       </div>
 
       {/* Center: YouTube Studio-style Pill Search Bar (Global Spotlight Trigger) */}

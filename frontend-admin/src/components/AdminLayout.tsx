@@ -288,7 +288,7 @@ export default function AdminLayout() {
         />
       )}
 
-      <div className="main-container flex flex-col flex-1 h-screen overflow-hidden">
+      <div className={`main-container flex flex-col flex-1 h-screen overflow-hidden ${isDashboard ? 'ml-0! no-sidebar on-dashboard' : ''}`}>
         {/* Modern Top Header Bar (YouTube Studio / Linear style) */}
         {!isDashboard && (
           <TopHeader
