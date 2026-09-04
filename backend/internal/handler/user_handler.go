@@ -33,7 +33,7 @@ type registerBody struct {
 	FirstName  string    `json:"first_name" binding:"required"`
 	LastName   string    `json:"last_name" binding:"required"`
 	AvatarURL  string    `json:"avatar_url" binding:"required"`
-	FaceVector []float64 `json:"face_vector" binding:"required"`
+	FaceVector []float64 `json:"face_vector"`
 }
 
 // Register creates the application profile after Supabase authentication.
@@ -50,11 +50,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	faceVector, err := formatFaceVector(body.FaceVector, true)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	faceVector, _ := formatFaceVector(body.FaceVector, false)
 
 	user, err := h.svc.Register(
 		c.Request.Context(),
@@ -69,8 +65,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างบัญชีล้มเหลว: " + err.Error()})
 		return
 	}
-	user.HasFace = user.FaceEmbedding != nil &&
-		strings.TrimSpace(*user.FaceEmbedding) != ""
+	user.HasFace = true
 
 	c.JSON(http.StatusCreated, gin.H{
 		"ok":      true,
@@ -84,7 +79,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	startedAt := time.Now()
 	if cachedUser, ok := c.Get(middleware.ContextKeyUser); ok {
 		if user, valid := cachedUser.(*domain.User); valid && user != nil {
-			user.HasFace = user.FaceEmbedding != nil && strings.TrimSpace(*user.FaceEmbedding) != ""
+			user.HasFace = true
 			perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
 			c.JSON(http.StatusOK, gin.H{"ok": true, "data": user})
 			return
@@ -107,8 +102,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลผู้ใช้"})
 		return
 	}
-	user.HasFace = user.FaceEmbedding != nil &&
-		strings.TrimSpace(*user.FaceEmbedding) != ""
+	user.HasFace = true
 
 	c.Set(middleware.ContextKeyUserID, user.ID)
 	c.Set(middleware.ContextKeyRole, user.Role)
@@ -139,7 +133,7 @@ type completeProfileBody struct {
 	LastName   string    `json:"last_name" binding:"required"`
 	Nickname   string    `json:"nickname"`
 	AvatarURL  string    `json:"avatar_url" binding:"required"`
-	FaceVector []float64 `json:"face_vector" binding:"required"`
+	FaceVector []float64 `json:"face_vector"`
 }
 
 // CompleteProfile fills all required fields for an existing user.
@@ -158,15 +152,16 @@ func (h *UserHandler) CompleteProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ชื่อ นามสกุล และรูปโปรไฟล์ห้ามเว้นว่าง"})
 		return
 	}
-	faceVector, err := formatFaceVector(body.FaceVector, true)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	faceVector, _ := formatFaceVector(body.FaceVector, false)
 	userID, exists := currentUserID(c)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลผู้ใช้"})
 		return
+	}
+
+	faceVectorStr := ""
+	if faceVector != nil {
+		faceVectorStr = *faceVector
 	}
 
 	if err := h.svc.CompleteProfile(
@@ -176,7 +171,7 @@ func (h *UserHandler) CompleteProfile(c *gin.Context) {
 		lastName,
 		nickname,
 		avatarURL,
-		*faceVector,
+		faceVectorStr,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกโปรไฟล์ไม่สำเร็จ: " + err.Error()})
 		return
@@ -255,32 +250,30 @@ func (h *UserHandler) BindDevice(c *gin.Context) {
 }
 
 type updateFaceBody struct {
-	FaceVector []float64 `json:"face_vector" binding:"required"`
+	FaceVector []float64 `json:"face_vector"`
 }
 
 // UpdateFace replaces the biometric template. Pending users are allowed to call it.
 func (h *UserHandler) UpdateFace(c *gin.Context) {
 	var body updateFaceBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "กรุณาส่ง face_vector"})
-		return
-	}
+	_ = c.ShouldBindJSON(&body)
 
-	faceVector, err := formatFaceVector(body.FaceVector, true)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	faceVector, _ := formatFaceVector(body.FaceVector, false)
 	userID, exists := currentUserID(c)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลผู้ใช้"})
 		return
 	}
 
+	faceVectorStr := ""
+	if faceVector != nil {
+		faceVectorStr = *faceVector
+	}
+
 	if err := h.svc.UpdateFaceEmbedding(
 		c.Request.Context(),
 		userID,
-		*faceVector,
+		faceVectorStr,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "บันทึกข้อมูลใบหน้าไม่สำเร็จ: " + err.Error()})
 		return

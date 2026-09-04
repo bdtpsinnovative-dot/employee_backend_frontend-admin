@@ -17,6 +17,9 @@ import (
 	"github.com/Nattamon123/employee/backend/internal/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/singleflight"
 )
@@ -401,6 +404,16 @@ func registerRoutes(
 	}
 }
 
+type cachedUserItem struct {
+	user      *domain.User
+	expiresAt time.Time
+}
+
+var (
+	userAuthCache   = make(map[string]cachedUserItem)
+	userAuthCacheMu sync.RWMutex
+)
+
 // LoadUserMiddleware ดึงข้อมูลผู้ใช้จากฐานข้อมูลด้วย auth_id และฝัง user_id, role, status ลง Context
 func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 	var userLoads singleflight.Group
@@ -417,9 +430,22 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 			return
 		}
 
-		// Collapse only concurrent lookups for the same auth ID. The result is not
-		// retained after the requests finish, so role/status/profile changes never
-		// become stale across subsequent requests.
+		// 1. ตรวจสอบ In-Memory Cache ก่อน เพื่อลดการยิงไป Supabase Database
+		userAuthCacheMu.RLock()
+		cached, found := userAuthCache[authID.String()]
+		userAuthCacheMu.RUnlock()
+		if found && time.Now().Before(cached.expiresAt) && cached.user != nil {
+			user := cached.user
+			c.Set(middleware.ContextKeyUserID, user.ID)
+			c.Set(middleware.ContextKeyRole, user.Role)
+			c.Set(middleware.ContextKeyStatus, user.Status)
+			c.Set(middleware.ContextKeyUser, user)
+			c.Set("user_fullname", user.FullName())
+			c.Next()
+			return
+		}
+
+		// 2. ถ้าไม่มีใน Cache หรือหมดอายุ ให้ดึงจาก DB แล้วเก็บ Cache 60 วินาที
 		loaded, err, _ := userLoads.Do(authID.String(), func() (any, error) {
 			return userSvc.GetByAuthID(c.Request.Context(), authID)
 		})
@@ -433,7 +459,13 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 		} else if user == nil {
 			log.Printf("[LoadUser Warning] User not found in DB for authID %s", authID)
 		} else {
-			log.Printf("[LoadUser Success] User %s found in DB (ID: %s, role: %s, status: %s)", user.Email, user.ID, user.Role, user.Status)
+			userAuthCacheMu.Lock()
+			userAuthCache[authID.String()] = cachedUserItem{
+				user:      user,
+				expiresAt: time.Now().Add(60 * time.Second),
+			}
+			userAuthCacheMu.Unlock()
+
 			// ฝังข้อมูลลง Context เพื่อให้ Middleware หรือ Handler ถัดไปใช้งานได้
 			c.Set(middleware.ContextKeyUserID, user.ID)
 			c.Set(middleware.ContextKeyRole, user.Role)

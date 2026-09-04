@@ -79,24 +79,8 @@ func (s *AttendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*d
 		return nil, errors.New("ไม่พบข้อมูลผู้ใช้")
 	}
 
-	// 1.5 ตรวจใบหน้า (Face Matching) เฉพาะเมื่อโหมดเช็คอินเป็น "face" และส่ง FaceVector มา
-	checkInMode := "face"
-	if s.settingRepo != nil {
-		if val, err := s.settingRepo.Get(ctx, "checkin_mode"); err == nil && val != "" {
-			checkInMode = val
-		}
-	}
-
-	if checkInMode == "face" && req.FaceVector != nil && *req.FaceVector != "" {
-		distance, err := s.userRepo.CompareFaceDistance(ctx, req.UserID, *req.FaceVector)
-		if err != nil {
-			// ถ้า err แสดงว่าไม่มี face_embedding ในฐานข้อมูล
-			return nil, errors.New("กรุณาลงทะเบียนใบหน้าก่อนทำการเช็คอิน")
-		}
-		if distance > 0.75 {
-			return nil, errors.New("ใบหน้าไม่ตรงกับที่ลงทะเบียนไว้")
-		}
-	}
+	// 1.5 ยกเลิกการตรวจใบหน้า (Face Matching) ตามนโยบายใหม่ที่เน้นถ่ายรูป/GPS
+	// ข้ามขั้นตอน CompareFaceDistance เพื่อลด Egress และไม่บังคับสแกนหน้า
 
 	// 2. Always check real office locations first. Approved offsite is only a
 	// fallback when the employee is outside every active office.

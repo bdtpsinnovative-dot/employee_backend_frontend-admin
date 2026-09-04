@@ -25,7 +25,7 @@ func (s *SettingService) GetCheckInMode(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if mode == "" {
-		return "face", nil // fallback default
+		return "selfie", nil // fallback default
 	}
 	return mode, nil
 }

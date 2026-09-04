@@ -124,10 +124,8 @@ export default function Holidays() {
     queryKey: queryKeys.tasks(taskScope),
     queryFn: () => fetchAdminTasks(taskScope),
     enabled: Boolean(currentUser?.id),
-    staleTime: 30_000,
+    staleTime: 60_000,
     refetchOnMount: 'always',
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
   });
   const brandsQuery = useQuery({
     queryKey: queryKeys.brands,

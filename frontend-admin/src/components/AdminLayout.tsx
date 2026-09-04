@@ -8,9 +8,9 @@ import { CommandSearchModal } from './common/CommandSearchModal';
 import type { User } from '../types';
 import { fetchMe, fetchNotifications, type AppNotification } from '../services/adminApi';
 import { queryKeys } from '../lib/queryKeys';
+import { supabase } from '../lib/supabase';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
-const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
 const ADMIN_ONLY_ROUTES = [
   '/dashboard',
   '/requests',
@@ -86,8 +86,8 @@ export default function AdminLayout() {
     }
   }, [isTasksPage, location.search]);
 
-  // Notifications are intentionally cheaper to poll than the full task list.
-  // A new task notification invalidates task queries only when fresh data exists.
+  // Realtime Notifications via Supabase WebSocket (0 Polling, 0 unnecessary Egress)
+  // New notifications trigger UI updates and invalidate task queries immediately.
   useEffect(() => {
     let stopped = false;
     let requestInFlight = false;
@@ -136,14 +136,68 @@ export default function AdminLayout() {
       }
     }
 
+    // 1. Initial load on mount
     void loadNotifications();
-    const interval = window.setInterval(() => void loadNotifications(), NOTIFICATION_POLL_INTERVAL_MS);
+
+    // 2. Refetch when user returns to this browser tab
+    const handleFocus = () => {
+      if (!document.hidden) {
+        void loadNotifications();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Supabase Realtime subscription (Instant push on INSERT, UPDATE, DELETE)
+    const channel = supabase
+      .channel('realtime_admin_notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+        },
+        (payload) => {
+          if (stopped) return;
+
+          if (payload.eventType === 'INSERT') {
+            const newNotif = payload.new as AppNotification;
+            if (currentUser?.id && newNotif.user_id && newNotif.user_id !== currentUser.id) {
+              return;
+            }
+            setNotifications((prev) => [newNotif, ...prev.filter((n) => n.id !== newNotif.id)]);
+
+            // If notification is related to tasks, immediately invalidate task queries
+            if (newNotif.metadata) {
+              const metadata = typeof newNotif.metadata === 'string'
+                ? (() => {
+                  try { return JSON.parse(newNotif.metadata as string); } catch { return null; }
+                })()
+                : newNotif.metadata;
+              if (metadata && typeof metadata === 'object' && (metadata.task_id || metadata.list_id)) {
+                void queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
+                void queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') });
+              }
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedNotif = payload.new as AppNotification;
+            setNotifications((prev) => prev.map((n) => n.id === updatedNotif.id ? updatedNotif : n));
+          } else if (payload.eventType === 'DELETE') {
+            const oldNotif = payload.old as { id?: string };
+            if (oldNotif.id) {
+              setNotifications((prev) => prev.filter((n) => n.id !== oldNotif.id));
+            }
+          }
+        }
+      )
+      .subscribe();
 
     return () => {
       stopped = true;
-      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, currentUser]);
 
 
 

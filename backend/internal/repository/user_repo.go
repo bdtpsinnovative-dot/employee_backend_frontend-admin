@@ -23,7 +23,7 @@ const userSelectColumns = `
 	to_char(u.work_start_time, 'HH24:MI') AS work_start_time,
 	to_char(u.work_end_time, 'HH24:MI') AS work_end_time,
 	u.device_id, u.avatar_url, u.fcm_token,
-	u.face_embedding::text AS face_embedding,
+	NULL::text AS face_embedding,
 	u.created_at, u.updated_at`
 
 const userSelectJoins = `

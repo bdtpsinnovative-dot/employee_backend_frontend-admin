@@ -140,6 +140,24 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 		$brand_responsibility_security$;
 	`)
 
+	// เปิด Realtime สำหรับตาราง notifications ใน Supabase
+	if _, err := db.Exec(`
+		DO $realtime_notifications$
+		BEGIN
+			IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+				IF NOT EXISTS (
+					SELECT 1 FROM pg_publication_tables 
+					WHERE pubname = 'supabase_realtime' AND tablename = 'notifications'
+				) THEN
+					ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+				END IF;
+			END IF;
+		END
+		$realtime_notifications$;
+	`); err != nil {
+		log.Printf("[DB Init] realtime publication for notifications failed: %v", err)
+	}
+
 	// ลบงานและคอร์สงานในถังขยะที่อายุเกิน 30 วันทันทีตอนสตาร์ทระบบ
 	// Brand ordering is used by the responsibility matrix. Keep this idempotent
 	// so production instances recover automatically when the migration was not

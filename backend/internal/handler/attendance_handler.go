@@ -24,7 +24,7 @@ type checkInBody struct {
 	Lng        float64   `json:"lng" binding:"required"` // พิกัดลองจิจูด
 	DeviceID   string    `json:"device_id"`              // UUID ของเครื่องมือถือ (optional)
 	PhotoURL   *string   `json:"photo_url"`              // URL รูปถ่าย (ถ้ามี)
-	FaceVector []float64 `json:"face_vector" binding:"required"`
+	FaceVector []float64 `json:"face_vector"`
 	AccuracyM  *float64  `json:"accuracy_m"` // Optional for backward compatibility
 }
 
@@ -33,7 +33,7 @@ type checkInBody struct {
 func (h *AttendanceHandler) CheckIn(c *gin.Context) {
 	var body checkInBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบ กรุณาตรวจสอบ GPS และการแสกนใบหน้า"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ครบ กรุณาตรวจสอบพิกัด GPS"})
 		return
 	}
 

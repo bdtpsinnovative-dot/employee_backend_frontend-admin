@@ -93,9 +93,7 @@ export default function Tasks() {
   const tasksQuery = useQuery({
     queryKey: queryKeys.tasks('mine'),
     queryFn: () => fetchAdminTasks(),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
+    staleTime: 60_000,
   });
   const usersQuery = useQuery({
     queryKey: queryKeys.users(),
