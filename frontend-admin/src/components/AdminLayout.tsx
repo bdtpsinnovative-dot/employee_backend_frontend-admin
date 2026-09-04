@@ -271,31 +271,37 @@ export default function AdminLayout() {
   return (
     <div id="app-section" style={{ display: 'flex', opacity: 1 }}>
       {/* Sidebar Overlay (Mobile) */}
-      <div
-        className={`sidebar-overlay ${sidebarOpen ? 'active' : ''}`}
-        id="sidebar-overlay"
-        onClick={toggleSidebar}
-      ></div>
+      {!isDashboard && (
+        <div
+          className={`sidebar-overlay ${sidebarOpen ? 'active' : ''}`}
+          id="sidebar-overlay"
+          onClick={toggleSidebar}
+        ></div>
+      )}
 
-      <Sidebar
-        currentUser={currentUser}
-        isOpen={sidebarOpen}
-        onClose={handleCloseSidebar}
-        tasksSearch={lastTasksSearch}
-      />
+      {!isDashboard && (
+        <Sidebar
+          currentUser={currentUser}
+          isOpen={sidebarOpen}
+          onClose={handleCloseSidebar}
+          tasksSearch={lastTasksSearch}
+        />
+      )}
 
       <div className="main-container flex flex-col flex-1 h-screen overflow-hidden">
         {/* Modern Top Header Bar (YouTube Studio / Linear style) */}
-        <TopHeader
-          currentUser={currentUser}
-          notifications={notifications}
-          setNotifications={setNotifications}
-          onOpenSearch={() => setIsSearchOpen(true)}
-          onToggleSidebar={toggleSidebar}
-        />
+        {!isDashboard && (
+          <TopHeader
+            currentUser={currentUser}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            onOpenSearch={() => setIsSearchOpen(true)}
+            onToggleSidebar={toggleSidebar}
+          />
+        )}
 
         <div className="flex-1 flex overflow-hidden w-full relative">
-          <div className="content-area flex-1 overflow-y-auto">
+          <div className={`content-area flex-1 overflow-y-auto ${isDashboard ? 'p-0!' : ''}`}>
             {/* Child Routes Render Here */}
             <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
           </div>

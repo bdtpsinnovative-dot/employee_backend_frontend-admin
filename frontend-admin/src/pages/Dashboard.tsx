@@ -18,9 +18,15 @@ import {
   Palette,
   Armchair,
   Search,
-  Globe,
+  Sun,
+  Moon,
+  LogOut,
+  Bell,
 } from 'lucide-react';
 import type { User } from '../types';
+import { useTheme } from '../theme/ThemeProvider';
+import { supabase } from '../lib/supabase';
+import { avatarUrl } from '../components/tasks/taskUtils';
 
 interface AppItem {
   id: string;
@@ -37,11 +43,15 @@ interface AppItem {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { resolvedTheme, toggleTheme } = useTheme();
   const { currentUser } = useOutletContext<{ currentUser: User | null }>();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'internal' | 'management' | 'brand'>('all');
 
   const isAdmin = currentUser?.role === 'admin';
+  const profileAvatar = avatarUrl(currentUser?.avatar_url);
+  const profileName = currentUser?.nickname || currentUser?.first_name || 'ผู้ใช้งาน';
+  const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
   const apps: AppItem[] = useMemo(
     () => [
@@ -235,68 +245,86 @@ export default function Dashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
-    <div id="dashboard" className="page-section active p-4 md:p-8 max-w-6xl mx-auto">
-      {/* ──── Minimalist Top Controls (Category Tabs & Search) ──── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8 pb-3 border-b border-slate-200/80 dark:border-slate-800/80">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          <button
-            type="button"
-            onClick={() => setActiveCategory('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${
-              activeCategory === 'all'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            ทั้งหมด ({apps.filter((a) => !a.adminOnly || isAdmin).length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('internal')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${
-              activeCategory === 'internal'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            ระบบงานภายใน
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('management')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${
-              activeCategory === 'management'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            ระบบหลังบ้าน
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveCategory('brand')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${
-              activeCategory === 'brand'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            เว็บไซต์ในเครือ
-          </button>
+    <div id="dashboard" className="page-section active min-h-screen bg-[var(--page-bg)] flex flex-col">
+      {/* ──── Sleek Launcher Header Bar ──── */}
+      <header className="sticky top-0 z-30 w-full px-6 py-3.5 bg-white/80 dark:bg-[#0b101e]/80 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between gap-4">
+        {/* Left: Brand + Category Pills */}
+        <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <img src="/app_icon_v2.svg" className="w-8 h-8 rounded-xl shadow-xs" alt="Logo" />
+            <span className="font-bold text-slate-800 dark:text-white text-base tracking-tight hidden md:inline font-['Prompt']">
+              HR Studio
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            <button
+              type="button"
+              onClick={() => setActiveCategory('all')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                activeCategory === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              ทั้งหมด ({apps.filter((a) => !a.adminOnly || isAdmin).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('internal')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                activeCategory === 'internal'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              ระบบงานภายใน
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('management')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                activeCategory === 'management'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              ระบบหลังบ้าน
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCategory('brand')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
+                activeCategory === 'brand'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              เว็บไซต์ในเครือ
+            </button>
+          </div>
         </div>
 
-        {/* Search & Counter */}
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-56">
+        {/* Right: Search + Utilities (Theme, Notifications, Profile, Logout) */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Search Box */}
+          <div className="relative hidden lg:block w-48 xl:w-56">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="ค้นหา..."
+              placeholder="ค้นหาระบบงาน..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-7 py-1.5 bg-slate-100/80 dark:bg-slate-800/70 border border-transparent focus:border-blue-500 rounded-full text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all"
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-100 dark:bg-slate-800/80 border border-transparent focus:border-blue-500 rounded-full text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all"
             />
             {searchTerm && (
               <button
@@ -308,51 +336,94 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <div className="text-[11px] text-slate-400 hidden lg:flex items-center gap-1 shrink-0">
-            <Globe className="w-3 h-3" />
-            <span>{filteredApps.length}</span>
+
+          {/* Theme Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
+          >
+            {resolvedTheme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+          </button>
+
+          {/* Notifications */}
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="การแจ้งเตือน"
+          >
+            <Bell className="w-4 h-4" />
+          </button>
+
+          {/* User Profile Chip */}
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title={`โปรไฟล์: ${profileName}`}
+          >
+            <div className="w-7 h-7 rounded-full overflow-hidden bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+              {profileAvatar ? <img src={profileAvatar} alt="" className="w-full h-full object-cover" /> : profileInitial}
+            </div>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 hidden sm:inline max-w-[90px] truncate">
+              {profileName}
+            </span>
+          </button>
+
+          {/* Logout */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+            title="ออกจากระบบ"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ──── Full-Screen App Launcher Grid ──── */}
+      <main className="flex-1 p-6 md:p-12 max-w-6xl mx-auto w-full flex flex-col justify-center">
+        {filteredApps.length === 0 ? (
+          <div className="text-center py-16 text-slate-400">
+            <Search className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            <p className="text-xs">ไม่พบแอปพลิเคชัน</p>
           </div>
-        </div>
-      </div>
-
-      {/* ──── Pure Odoo-Style App Launcher Grid (No Cards/Blocks) ──── */}
-      {filteredApps.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <Search className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-          <p className="text-xs">ไม่พบแอปพลิเคชัน</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10 justify-items-center py-2">
-          {filteredApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <button
-                key={app.id}
-                type="button"
-                onClick={() => handleOpenApp(app)}
-                className="group flex flex-col items-center justify-start p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-24 sm:w-28"
-              >
-                {/* Clean Squircle Icon Tile */}
-                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-2">
-                  <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
-                    <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-8 sm:gap-y-12 justify-items-center py-6">
+            {filteredApps.map((app) => {
+              const Icon = app.icon;
+              return (
+                <button
+                  key={app.id}
+                  type="button"
+                  onClick={() => handleOpenApp(app)}
+                  className="group flex flex-col items-center justify-start p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-24 sm:w-28"
+                >
+                  {/* Clean Squircle Icon Tile */}
+                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-2">
+                    <div className={`w-11 h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center ${app.iconBg}`}>
+                      <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
+                    </div>
+                    {app.isExternal && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
+                        ↗
+                      </span>
+                    )}
                   </div>
-                  {app.isExternal && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
-                      ↗
-                    </span>
-                  )}
-                </div>
 
-                {/* App Name Only */}
-                <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-1 leading-snug">
-                  {app.name}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  {/* App Name Only */}
+                  <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-1 leading-snug">
+                    {app.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
