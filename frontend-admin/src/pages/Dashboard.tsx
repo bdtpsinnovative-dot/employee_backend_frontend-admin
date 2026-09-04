@@ -157,7 +157,7 @@ export default function Dashboard() {
       // ──── 2. ระบบจัดการภายนอกและคลังสินค้า (Management Systems) ────
       {
         id: 'wallcraft-admin',
-        name: 'แอดมิน',
+        name: 'แอดมิน Wallcraft',
         category: 'management',
         icon: LayoutGrid,
         iconBg: 'bg-black',
@@ -523,7 +523,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* App Name Only */}
-                  <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-1 leading-snug">
+                  <span className="font-medium text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors text-center tracking-tight line-clamp-2 leading-tight px-0.5">
                     {app.name}
                   </span>
                 </button>
