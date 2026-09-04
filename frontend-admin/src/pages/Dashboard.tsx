@@ -18,6 +18,7 @@ import {
   Palette,
   Armchair,
   Search,
+  Globe,
   Sun,
   Moon,
   LogOut,
@@ -44,7 +45,10 @@ interface AppItem {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { resolvedTheme, toggleTheme } = useTheme();
-  const { currentUser } = useOutletContext<{ currentUser: User | null }>();
+  const { currentUser, notifications = [] } = useOutletContext<{
+    currentUser: User | null;
+    notifications?: any[];
+  }>();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'internal' | 'management' | 'brand'>('all');
 
@@ -52,6 +56,11 @@ export default function Dashboard() {
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser?.nickname || currentUser?.first_name || 'ผู้ใช้งาน';
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
+
+  const unreadNotifCount = useMemo(
+    () => notifications.filter((n: any) => !n.is_read).length,
+    [notifications]
+  );
 
   const apps: AppItem[] = useMemo(
     () => [
@@ -250,137 +259,219 @@ export default function Dashboard() {
     navigate('/login');
   };
 
+  const categoryTabs = useMemo(
+    () => [
+      {
+        id: 'all',
+        label: 'ทั้งหมด',
+        icon: LayoutGrid,
+        count: apps.filter((a) => !a.adminOnly || isAdmin).length,
+      },
+      {
+        id: 'internal',
+        label: 'ระบบงานภายใน',
+        icon: Layers,
+        count: apps.filter((a) => a.category === 'internal' && (!a.adminOnly || isAdmin)).length,
+      },
+      {
+        id: 'management',
+        label: 'ระบบหลังบ้าน',
+        icon: Database,
+        count: apps.filter((a) => a.category === 'management' && (!a.adminOnly || isAdmin)).length,
+      },
+      {
+        id: 'brand',
+        label: 'เว็บไซต์ในเครือ',
+        icon: Globe,
+        count: apps.filter((a) => a.category === 'brand' && (!a.adminOnly || isAdmin)).length,
+      },
+    ],
+    [apps, isAdmin]
+  );
+
   return (
-    <div id="dashboard" className="page-section active min-h-screen bg-[var(--page-bg)] flex flex-col">
-      {/* ──── Sleek Launcher Header Bar ──── */}
-      <header className="sticky top-0 z-30 w-full px-6 py-3.5 bg-white/80 dark:bg-[#0b101e]/80 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between gap-4">
-        {/* Left: Brand + Category Pills */}
-        <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto">
-          <div className="flex items-center gap-2.5 shrink-0">
-            <img src="/app_icon_v2.svg" className="w-8 h-8 rounded-xl shadow-xs" alt="Logo" />
-            <span className="font-bold text-slate-800 dark:text-white text-base tracking-tight hidden md:inline font-['Prompt']">
-              HR Studio
-            </span>
+    <div id="dashboard" className="page-section active min-h-screen bg-[var(--page-bg)] flex flex-col relative">
+      {/* Subtle Luxury Ambient Radial Glow */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent dark:from-blue-950/20 dark:via-transparent dark:to-transparent" />
+
+      {/* ──── Executive Luxury Glassmorphism Top Header Bar ──── */}
+      <header className="sticky top-0 z-30 w-full bg-white/80 dark:bg-[#0c1222]/85 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.5)] transition-colors">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3 sm:gap-6">
+          {/* 1. Left: Brand & Luxury Badge */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="relative flex items-center justify-center">
+              <img
+                src="/app_icon_v2.svg"
+                alt="HR Studio"
+                className="w-8 h-8 sm:w-9 sm:h-9 object-contain drop-shadow-sm transition-transform duration-200 hover:scale-105 cursor-pointer"
+                onClick={() => {
+                  setActiveCategory('all');
+                  setSearchTerm('');
+                }}
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#0c1222]" />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-[15px] sm:text-[17px] tracking-tight text-slate-800 dark:text-white font-['Prompt']">
+                HR Studio
+              </span>
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-2xs">
+                Portal
+              </span>
+            </div>
           </div>
 
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+          {/* 2. Center: Luxury Floating Category Capsule (Desktop/Tablet) */}
+          <nav className="hidden md:flex items-center bg-slate-100/90 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-inner backdrop-blur-md">
+            {categoryTabs.map((tab) => {
+              const TabIcon = tab.icon;
+              const isActive = activeCategory === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveCategory(tab.id as any)}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold shadow-xs border border-slate-200/50 dark:border-slate-700/60 scale-[1.02]'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <TabIcon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400'
+                        : 'bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          {/* 3. Right: Search Box + Action Cluster */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Search Box */}
+            <div className="relative w-36 sm:w-44 lg:w-56 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
+              <input
+                type="text"
+                placeholder="ค้นหาระบบงาน..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-750 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 rounded-full text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all shadow-2xs focus:ring-2 focus:ring-blue-500/20"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-[10px] text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+
+            {/* Theme Toggle Button */}
             <button
               type="button"
-              onClick={() => setActiveCategory('all')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
-                activeCategory === 'all'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              onClick={toggleTheme}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50/80 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200/50 dark:hover:border-amber-900/30 transition-all cursor-pointer"
+              title={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
             >
-              ทั้งหมด ({apps.filter((a) => !a.adminOnly || isAdmin).length})
+              {resolvedTheme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400 transition-transform duration-300 hover:rotate-45" />
+              ) : (
+                <Moon className="w-4 h-4 transition-transform duration-300 hover:-rotate-12" />
+              )}
             </button>
+
+            {/* Notification Bell */}
             <button
               type="button"
-              onClick={() => setActiveCategory('internal')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
-                activeCategory === 'internal'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => navigate('/notifications')}
+              className="relative w-8 h-8 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/30 border border-transparent hover:border-blue-200/50 dark:hover:border-blue-900/30 transition-all cursor-pointer"
+              title="การแจ้งเตือน"
             >
-              ระบบงานภายใน
+              <Bell className="w-4 h-4" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white dark:ring-[#0c1222] animate-pulse">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
             </button>
+
+            {/* User Profile Chip */}
             <button
               type="button"
-              onClick={() => setActiveCategory('management')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
-                activeCategory === 'management'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => navigate('/profile')}
+              className="group flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-200/80 dark:hover:bg-slate-750 border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+              title={`โปรไฟล์: ${profileName}`}
             >
-              ระบบหลังบ้าน
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center text-xs font-bold ring-1 ring-white/60 dark:ring-slate-700 shrink-0">
+                {profileAvatar ? (
+                  <img src={profileAvatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  profileInitial
+                )}
+              </div>
+              <div className="hidden lg:flex flex-col items-start text-left leading-none">
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors max-w-[85px] truncate">
+                  {profileName}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium capitalize mt-0.5">
+                  {isAdmin ? 'Admin' : 'Staff'}
+                </span>
+              </div>
             </button>
+
+            {/* Logout Button */}
             <button
               type="button"
-              onClick={() => setActiveCategory('brand')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
-                activeCategory === 'brand'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              onClick={handleLogout}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200/50 dark:hover:border-rose-900/30 transition-all cursor-pointer"
+              title="ออกจากระบบ"
             >
-              เว็บไซต์ในเครือ
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Right: Search + Utilities (Theme, Notifications, Profile, Logout) */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Search Box */}
-          <div className="relative hidden lg:block w-48 xl:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="ค้นหาระบบงาน..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-7 py-1.5 bg-slate-100 dark:bg-slate-800/80 border border-transparent focus:border-blue-500 rounded-full text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all"
-            />
-            {searchTerm && (
+        {/* Mobile Category Nav Strip (Only visible on screens < md) */}
+        <div className="md:hidden flex items-center gap-1.5 px-4 py-2 border-t border-slate-200/60 dark:border-slate-800/60 overflow-x-auto no-scrollbar bg-slate-50/80 dark:bg-slate-900/60 backdrop-blur-md">
+          {categoryTabs.map((tab) => {
+            const TabIcon = tab.icon;
+            const isActive = activeCategory === tab.id;
+            return (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                onClick={() => setActiveCategory(tab.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                }`}
               >
-                ✕
+                <TabIcon className="w-3 h-3" />
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[9px] px-1 py-0.2 rounded-full ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 dark:bg-slate-800 text-slate-500'
+                  }`}
+                >
+                  {tab.count}
+                </span>
               </button>
-            )}
-          </div>
-
-          {/* Theme Toggle */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
-          >
-            {resolvedTheme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          {/* Notifications */}
-          <button
-            type="button"
-            onClick={() => navigate('/notifications')}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="การแจ้งเตือน"
-          >
-            <Bell className="w-4 h-4" />
-          </button>
-
-          {/* User Profile Chip */}
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title={`โปรไฟล์: ${profileName}`}
-          >
-            <div className="w-7 h-7 rounded-full overflow-hidden bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-              {profileAvatar ? <img src={profileAvatar} alt="" className="w-full h-full object-cover" /> : profileInitial}
-            </div>
-            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 hidden sm:inline max-w-[90px] truncate">
-              {profileName}
-            </span>
-          </button>
-
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-            title="ออกจากระบบ"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+            );
+          })}
         </div>
       </header>
 
