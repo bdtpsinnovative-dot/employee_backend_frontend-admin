@@ -650,25 +650,13 @@ export default function Dashboard() {
                       </div>
 
                       {/* Content Body */}
-                      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
-                        <div>
-                          <h3 className={`font-bold text-base text-slate-900 dark:text-slate-100 ${brand.hoverText} transition-colors leading-snug tracking-tight font-['Prompt']`}>
-                            {brand.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                            {brand.description}
-                          </p>
-                        </div>
-
-                        {/* Card Footer: Domain + Enter Link */}
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="truncate max-w-[130px] font-mono text-[10px]">
-                            {brand.domain}
-                          </span>
-                          <span className={`font-medium ${brand.actionColor} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}>
-                            เข้าชมเว็บ &rarr;
-                          </span>
-                        </div>
+                      <div className="p-4 sm:p-5 flex flex-col justify-center">
+                        <h3 className={`font-bold text-base text-slate-900 dark:text-slate-100 ${brand.hoverText} transition-colors leading-snug tracking-tight font-['Prompt']`}>
+                          {brand.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {brand.description}
+                        </p>
                       </div>
                     </a>
                   ))}
