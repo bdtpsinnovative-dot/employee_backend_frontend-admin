@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../../utils/notificationHelpers';
 import { NotificationAvatar } from '../common/NotificationAvatar';
 import {
@@ -162,7 +162,6 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   notifications = [],
   setNotifications,
 }) => {
-  const navigate = useNavigate();
   const [trelloLists, setTrelloLists] = useState<TaskList[]>([]);
 
   const allTasksMap = useMemo(() => {
@@ -314,7 +313,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
     }
 
     const targetUrl = getNotificationTargetUrl(notif);
-    navigate(targetUrl);
+  window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
 

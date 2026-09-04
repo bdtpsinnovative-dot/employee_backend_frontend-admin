@@ -191,7 +191,7 @@ export default function Tasks() {
     }
     setShowMainNotifModal(false);
     const targetUrl = getNotificationTargetUrl(notif);
-    navigate(targetUrl);
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
 

@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   X,
@@ -45,17 +44,18 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   categoryMap,
   notifications = [],
   setNotifications,
-  onSelectTask,
   onEditTask,
-  onSelectProjectSheet,
   onStatusChange,
   // onOpenCreateModal,
   onApproveSubmission,
   currentUser,
   onToggleStar,
 }) => {
-  const navigate = useNavigate();
   const [notifTask, setNotifTask] = useState<AdminTask | null>(null);
+
+  const openTaskInNewTab = (task: AdminTask) => {
+    window.open(`/tasks/${task.id}`, '_blank', 'noopener,noreferrer');
+  };
 
   const handleNotifItemClick = async (notif: AppNotification) => {
     if (!notif.is_read) {
@@ -72,7 +72,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
     }
     setNotifTask(null);
     const targetUrl = getNotificationTargetUrl(notif);
-    navigate(targetUrl);
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleOpenNotifModule = async (task: AdminTask) => {
@@ -162,6 +162,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
         <table className="w-full text-left border-collapse text-xs font-sans">
           <thead>
             <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
+              <th className="px-2 py-2 w-14 border-r border-slate-200 text-center">ลำดับ</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Due Date</th>
               <th className="px-3 py-2 w-28 border-r border-slate-200 text-center">Assigned</th>
               <th className="px-3 py-2 border-r border-slate-200 w-[20%]">รายละเอียดงาน</th>
@@ -177,7 +178,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
           </thead>
 
           <tbody className="divide-y divide-slate-200/80 bg-white">
-            {sortedTasks.map((task) => {
+            {sortedTasks.map((task, index) => {
               const brand = task.brand_id ? brandMap[task.brand_id] : null;
               const category = task.category_id ? categoryMap[task.category_id] : null;
               const isDone = task.status === 'completed';
@@ -208,16 +209,15 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               return (
                 <tr
                   key={task.id}
-                  onClick={() => {
-                    if (onSelectProjectSheet) {
-                      onSelectProjectSheet(task);
-                    } else {
-                      onSelectTask(task);
-                    }
-                  }}
+                  onClick={() => openTaskInNewTab(task)}
                   className={`group cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-200/80 ${isDone ? 'opacity-80 bg-slate-50/50' : ''}`}
                 >
-                  {/* 1. Due Date Column */}
+                  {/* 1. Sequence Column */}
+                  <td data-label="ลำดับ" className="px-2 py-2 border-r border-slate-200/80 text-center align-middle font-semibold text-slate-500">
+                    {index + 1}
+                  </td>
+
+                  {/* 2. Due Date Column */}
                   <td data-label="Due Date" className="px-3 py-2 border-r border-slate-200/80 text-center align-middle font-medium">
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border whitespace-nowrap ${
@@ -276,11 +276,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
                         <span
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (onSelectProjectSheet) {
-                              onSelectProjectSheet(task);
-                            } else {
-                              onSelectTask(task);
-                            }
+                            openTaskInNewTab(task);
                           }}
                           className={`font-semibold text-slate-850 hover:text-blue-600 cursor-pointer transition-colors text-xs leading-snug break-words ${isDone ? 'line-through text-slate-400' : ''}`} 
                           title={`${task.title} (คลิกเพื่อเปิดเข้าจัดการในโครงการ)`}

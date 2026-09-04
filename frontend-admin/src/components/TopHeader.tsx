@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
-  Plus,
   Bell,
   HelpCircle,
   Sun,
@@ -31,7 +30,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleSidebar,
 }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { resolvedTheme, toggleTheme } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -66,7 +64,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     setNotifOpen(false);
 
     const targetUrl = getNotificationTargetUrl(notif);
-    navigate(targetUrl);
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleMarkAllRead = async () => {
@@ -93,16 +91,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Quick Action: Create Task
-  const handleQuickCreate = () => {
-    if (location.pathname.startsWith('/tasks')) {
-      // If already on tasks page, append search param to open modal
-      navigate('/tasks?create=true');
-    } else {
-      navigate('/tasks?create=true');
-    }
-  };
 
   return (
     <header className="top-header-bar sticky top-0 z-40 w-full flex items-center justify-between px-4 sm:px-6 transition-colors">
@@ -146,18 +134,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </button>
       </div>
 
-      {/* Right: Quick Actions (Create Task, AI, Notification, Help, Theme, Avatar) */}
+      {/* Right: Quick Actions (AI, Notification, Help, Theme, Avatar) */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* + สร้างงานใหม่ Button */}
-        <button
-          type="button"
-          onClick={handleQuickCreate}
-          className="top-header-btn-create hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs transition-all cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-          <span>สร้างงานใหม่</span>
-        </button>
-
         {/* 🔔 Notifications Bell */}
         <div className="relative" ref={notifRef}>
           <button

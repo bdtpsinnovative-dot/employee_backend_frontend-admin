@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, fetchUsers, markNotificationRead, markAllNotificationsRead, type AppNotification } from '../services/adminApi';
 import type { User } from '../types';
 import { getNotificationSender, getNotificationTargetUrl, formatNotificationBody } from '../utils/notificationHelpers';
@@ -28,7 +27,6 @@ function groupByDate(notifications: AppNotification[]) {
 }
 
 export default function Notifications() {
-  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +66,7 @@ export default function Notifications() {
       await handleMarkOne(notif.id);
     }
     const targetUrl = getNotificationTargetUrl(notif);
-    navigate(targetUrl);
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   }
 
   const groups = groupByDate(notifications);
