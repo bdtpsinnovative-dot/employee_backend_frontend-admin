@@ -12,7 +12,6 @@ import {
   FileText,
   LayoutGrid,
   Package,
-  Briefcase,
   Search,
   Globe,
   Sun,
@@ -187,16 +186,6 @@ export default function Dashboard() {
         iconColor: 'text-emerald-600 dark:text-emerald-400',
         iconBg: 'bg-emerald-50 dark:bg-emerald-950/60',
         url: 'https://admin-and-manager-seven.vercel.app/',
-        isExternal: true,
-      },
-      {
-        id: 'tms-system',
-        name: 'จัดการงาน TMS',
-        category: 'management',
-        icon: Briefcase,
-        iconColor: 'text-cyan-600 dark:text-cyan-400',
-        iconBg: 'bg-cyan-50 dark:bg-cyan-950/60',
-        url: 'https://taskmanagementsystem.wallcraftthailand.com/',
         isExternal: true,
       },
     ],
@@ -583,11 +572,6 @@ export default function Dashboard() {
                               <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${app.iconColor}`} />
                             </div>
                           ) : null}
-                          {app.isExternal && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-2xs text-[9px]">
-                              ↗
-                            </span>
-                          )}
                         </div>
 
                         {/* App Name Only */}
