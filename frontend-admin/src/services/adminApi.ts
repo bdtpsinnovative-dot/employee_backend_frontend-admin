@@ -404,14 +404,40 @@ export async function fetchAdminTasks(scope: 'mine' | 'all' = 'mine'): Promise<A
   // Calendar admins can explicitly request the existing admin-wide read endpoint.
   return cachedQuery(`tasks:${scope}`, 0, async () => {
     if (scope === 'all') {
-      const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
-      return data.data ?? [];
+      try {
+        const { data } = await api.get<ApiResponse<AdminTask[]>>('/admin/tasks');
+        return data.data ?? [];
+      } catch (err: any) {
+        if (err.response?.status === 403 || err.message?.includes('คุณไม่มีสิทธิ์')) {
+          const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
+          return data.data ?? [];
+        }
+        throw err;
+      }
     }
 
     const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks');
     return data.data ?? [];
   });
 }
+
+export async function fetchSalesTasks(): Promise<AdminTask[]> {
+  return cachedQuery('tasks:sales', 0, async () => {
+    const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks/sales');
+    return data.data ?? [];
+  });
+}
+
+// fetchContentTasks — ดึงงานทั้งหมดจากทุก user สำหรับ Content Calendar
+// ใช้ endpoint /api/tasks/content ที่ทุก user ที่ login แล้วเข้าถึงได้ (ไม่ต้องเป็น Admin)
+export async function fetchContentTasks(): Promise<AdminTask[]> {
+  return cachedQuery('tasks:content', 0, async () => {
+    const { data } = await api.get<ApiResponse<AdminTask[]>>('/api/tasks/content');
+    return data.data ?? [];
+  });
+}
+
+
 
 export async function createAdminTask(body: {
   assigned_to?: string;
@@ -425,6 +451,7 @@ export async function createAdminTask(body: {
   priority?: string;
   status?: string;
   attachment_url?: string;
+  platforms?: string[]; // เช่น ["facebook","instagram"]
 }): Promise<AdminTask> {
   try {
     const { data } = await api.post<ApiResponse<AdminTask>>('/admin/tasks', body);
@@ -436,6 +463,24 @@ export async function createAdminTask(body: {
     }
     throw err;
   }
+}
+
+export async function createSalesTask(body: {
+  assigned_to?: string;
+  assignee_ids?: string[];
+  title: string;
+  description?: string;
+  due_date: string;
+  brand_id?: string;
+  category_id?: string;
+  sub_items?: string[];
+  priority?: string;
+  status?: string;
+  attachment_url?: string;
+  platforms?: string[];
+}): Promise<AdminTask> {
+  const { data } = await api.post<ApiResponse<AdminTask>>('/api/tasks/sales', body);
+  return data.data;
 }
 
 export async function fetchTaskSubItems(taskId: string): Promise<TaskSubItem[]> {
@@ -462,10 +507,12 @@ export async function updateAdminTask(id: string, body: {
   priority?: string;
   status?: string;
   attachment_url?: string;
+  platforms?: string[]; // เช่น ["facebook","instagram"]
 }): Promise<AdminTask> {
   const { data } = await api.put<ApiResponse<AdminTask>>(`/api/tasks/${id}`, body);
   return data.data;
 }
+
 
 export async function updateAdminTaskStatus(id: string, status: 'pending' | 'in_progress' | 'in_review' | 'completed'): Promise<void> {
   await api.patch(`/api/tasks/${id}/status`, { status });

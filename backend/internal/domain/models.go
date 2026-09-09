@@ -260,7 +260,10 @@ type Task struct {
 	NeedsRevision bool       `db:"needs_revision" json:"needs_revision"`
 	CompletedAt   *time.Time `db:"completed_at" json:"completed_at,omitempty"`
 	IsStarred     bool       `db:"is_starred" json:"is_starred"`
+	Platforms     []string   `db:"platforms" json:"platforms,omitempty"`
+	Workspace     string     `db:"workspace" json:"workspace"`
 	// Joined fields (not stored in tasks table)
+
 	SubItems         []TaskSubItem   `db:"-" json:"sub_items,omitempty"`
 	Lists            []TaskList      `db:"-" json:"lists,omitempty"`
 	AssigneeIDs      []uuid.UUID     `db:"-" json:"assignee_ids,omitempty"`

@@ -245,8 +245,8 @@ func registerRoutes(
 		api.GET("/attendance/all", adminH.GetAllAttendance)    // ดูสถิติเข้างานทุกคน (สำหรับหน้าแดชบอร์ด)
 
 		// ข้อมูลภาพรวมสำหรับแดชบอร์ด
-		api.GET("/requests/all", adminH.GetAllRequests)        // ดูคำขอทั้งหมด (สำหรับหน้าแดชบอร์ด)
-		api.GET("/users/:id/history", adminH.GetUserHistory)   // ดูประวัติรายบุคคล (สำหรับหน้าแดชบอร์ด)
+		api.GET("/requests/all", adminH.GetAllRequests)      // ดูคำขอทั้งหมด (สำหรับหน้าแดชบอร์ด)
+		api.GET("/users/:id/history", adminH.GetUserHistory) // ดูประวัติรายบุคคล (สำหรับหน้าแดชบอร์ด)
 
 		// ใบลา
 		api.POST("/leaves", leaveH.Create)          // ส่งใบลา
@@ -268,10 +268,14 @@ func registerRoutes(
 		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)
 
 		// มอบหมายงาน (Tasks)
-		api.GET("/tasks", taskH.ListMyTasks)                                       // ดูงานที่ได้รับมอบหมายของตนเอง
-		api.GET("/tasks/:id", taskH.GetTask)                                       // ดึงรายละเอียดงานหลักตาม ID
-		api.GET("/tasks/daily-lists", taskH.ListAllDailyTaskLists)                 // ดูรายการงานทั้งหมด (รายวัน)
-		api.GET("/tasks/trash", taskH.ListTrashTasks)                              // ดูงานในถังขยะ
+		api.GET("/tasks", taskH.ListMyTasks)                       // ดูงานที่ได้รับมอบหมายของตนเอง
+		api.GET("/tasks/sales", taskH.ListSalesTasks)              // งานในพื้นที่ Sales
+		api.POST("/tasks/sales", taskH.CreateSalesTask)            // Sales/Admin สร้างงาน Sales
+		api.GET("/tasks/:id", taskH.GetTask)                       // ดึงรายละเอียดงานหลักตาม ID
+		api.GET("/tasks/daily-lists", taskH.ListAllDailyTaskLists) // ดูรายการงานทั้งหมด (รายวัน)
+		api.GET("/tasks/trash", taskH.ListTrashTasks)              // ดูงานในถังขยะ
+		api.GET("/tasks/content", taskH.ListContentTasks)          // ดึงงานทั้งหมด (ทุก user) สำหรับ Content Calendar
+
 		api.POST("/tasks", taskH.CreateTask)                                       // เพิ่มงานใหม่
 		api.POST("/tasks/:id/restore", taskH.RestoreTask)                          // กู้คืนงานจากถังขยะ
 		api.PUT("/tasks/:id", taskH.UpdateTask)                                    // อัปเดตรายละเอียดงาน (เจ้าของงานเท่านั้น)

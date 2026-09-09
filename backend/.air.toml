@@ -1,0 +1,42 @@
+# .air.toml — Air Live Reload config สำหรับ Go Backend
+# ดูรายละเอียดเพิ่มเติม: https://github.com/air-verse/air
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # คำสั่ง build
+  cmd = "go build -o ./tmp/api.exe ./cmd/api"
+  # binary ที่จะรัน
+  bin = "./tmp/api.exe"
+  # argument ส่งให้ binary (ถ้ามี)
+  args_bin = []
+  # นามสกุลไฟล์ที่ดูการเปลี่ยนแปลง
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  # โฟลเดอร์ที่ไม่ต้องดู
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "migrations", ".data"]
+  # ไฟล์ที่ไม่ต้องดู
+  exclude_file = []
+  # regex ที่ไม่ต้องดู
+  exclude_regex = ["_test\\.go"]
+  # ถ้า build fail ให้แสดง error แต่ไม่หยุด watch
+  stop_on_error = false
+  # delay ก่อน rebuild (ms) — ป้องกัน rebuild บ่อยเกินเมื่อบันทึกหลายไฟล์พร้อมกัน
+  delay = 1000
+
+[log]
+  # แสดงสีใน terminal
+  color = true
+  # แสดง timestamp
+  time = false
+
+[color]
+  main     = "magenta"
+  watcher  = "cyan"
+  build    = "yellow"
+  runner   = "green"
+
+[misc]
+  # ลบ tmp ตอน exit
+  clean_on_exit = true

@@ -155,6 +155,7 @@ export default function App() {
             <Route path="daily-record" element={<Navigate to="/history" replace />} />
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
+			<Route path="sales-tasks" element={<Tasks workspace="sales" />} />
             <Route path="content-calendar" element={<ContentCalendar />} />
             <Route path="brand-responsibilities" element={<BrandResponsibilities />} />
             <Route path="teams" element={<TeamManagement />} />

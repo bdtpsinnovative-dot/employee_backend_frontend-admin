@@ -51,22 +51,36 @@ func (h *TaskHandler) audit(c *gin.Context, scope *repository.TaskEventScope, ac
 }
 
 type createTaskReq struct {
-	AssignedTo  string   `json:"assigned_to"`
-	AssigneeIDs []string `json:"assignee_ids"`
-	Title       string   `json:"title" binding:"required"`
-	Description string   `json:"description"`
-	DueDate     string   `json:"due_date"` // YYYY-MM-DD
-	BrandID     string   `json:"brand_id"`
-	CategoryID  string   `json:"category_id"`
-	SubItems    []string `json:"sub_items"` // list of sub-item titles
-	ListNames   []string `json:"list_names"`
-	Priority      string  `json:"priority"`
-	Status        string  `json:"status"`
-	AttachmentURL *string `json:"attachment_url"`
+	AssignedTo    string   `json:"assigned_to"`
+	AssigneeIDs   []string `json:"assignee_ids"`
+	Title         string   `json:"title" binding:"required"`
+	Description   string   `json:"description"`
+	DueDate       string   `json:"due_date"` // YYYY-MM-DD
+	BrandID       string   `json:"brand_id"`
+	CategoryID    string   `json:"category_id"`
+	SubItems      []string `json:"sub_items"` // list of sub-item titles
+	ListNames     []string `json:"list_names"`
+	Priority      string   `json:"priority"`
+	Status        string   `json:"status"`
+	AttachmentURL *string  `json:"attachment_url"`
+	Platforms     []string `json:"platforms"` // เช่น ["facebook","instagram","tiktok"]
 }
 
-// CreateTask POST /admin/tasks (Admin only)
+// CreateTask creates a normal task. The workspace is chosen by the route, never by client input.
 func (h *TaskHandler) CreateTask(c *gin.Context) {
+	h.createTask(c, "general")
+}
+
+// CreateSalesTask only permits Admins or employees whose exact position is Sales to create Sales work.
+func (h *TaskHandler) CreateSalesTask(c *gin.Context) {
+	if !isSalesWorkspaceManager(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะผู้ที่มีตำแหน่ง Sales หรือแอดมินเท่านั้นที่สร้างงาน Sales ได้"})
+		return
+	}
+	h.createTask(c, "sales")
+}
+
+func (h *TaskHandler) createTask(c *gin.Context, workspace string) {
 	var req createTaskReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้องหรือใส่ข้อมูลไม่ครบ"})
@@ -140,7 +154,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	adminUserIDRaw, _ := c.Get(middleware.ContextKeyUserID)
 	adminUserID := adminUserIDRaw.(uuid.UUID)
 
-	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames, req.Priority, req.Status, req.AttachmentURL)
+	task, err := h.taskSvc.CreateTask(c.Request.Context(), assigneeUUIDs, req.Title, req.Description, &dueDate, adminUserID, brandID, categoryID, nil, nil, listNames, req.Priority, req.Status, req.AttachmentURL, req.Platforms, workspace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -182,8 +196,30 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
 }
 
+func isSalesWorkspaceManager(c *gin.Context) bool {
+	if role, _ := c.Get(middleware.ContextKeyRole); role == "admin" {
+		return true
+	}
+	userRaw, ok := c.Get(middleware.ContextKeyUser)
+	user, ok := userRaw.(*domain.User)
+	return ok && user != nil && strings.EqualFold(strings.TrimSpace(user.Position), "sales")
+}
+
 // ListAllTasks GET /admin/tasks (Admin only)
 func (h *TaskHandler) ListAllTasks(c *gin.Context) {
+	startedAt := time.Now()
+	tasks, err := h.taskSvc.ListAllTasks(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงานล้มเหลว"})
+		return
+	}
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
+}
+
+// ListContentTasks GET /api/tasks/content (ทุก user ที่ login แล้วเข้าถึงได้)
+// ดึงงานทั้งหมดจากทุก user เพื่อแสดงใน Content Calendar
+func (h *TaskHandler) ListContentTasks(c *gin.Context) {
 	startedAt := time.Now()
 	tasks, err := h.taskSvc.ListAllTasks(c.Request.Context())
 	if err != nil {
@@ -334,6 +370,25 @@ func (h *TaskHandler) ListMyTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
 }
 
+// ListSalesTasks returns every Sales task to Sales/Admin and only assigned Sales tasks to other employees.
+func (h *TaskHandler) ListSalesTasks(c *gin.Context) {
+	startedAt := time.Now()
+	userIDRaw, _ := c.Get(middleware.ContextKeyUserID)
+	userID, ok := userIDRaw.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "ไม่พบข้อมูลผู้ใช้งาน"})
+		return
+	}
+
+	tasks, err := h.taskSvc.ListSalesTasks(c.Request.Context(), userID, isSalesWorkspaceManager(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูลงาน Sales ล้มเหลว"})
+		return
+	}
+	perf.AddServerTiming(c.Writer.Header(), c.Request.Context(), time.Since(startedAt))
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": tasks})
+}
+
 // UpdateTask PATCH /api/tasks/:id
 func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -402,6 +457,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		req.Priority,
 		req.Status,
 		req.AttachmentURL,
+		req.Platforms,
 	)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

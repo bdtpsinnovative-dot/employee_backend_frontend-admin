@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar as CalendarIcon,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -12,17 +13,20 @@ import {
   Image as ImageIcon,
   FileText,
   Clock,
+  MessageCircle,
+  MoreHorizontal,
+  Music2,
   ExternalLink,
   Edit3,
   Trash2,
   X,
   LayoutGrid,
   List,
-  Flame,
-  AlertTriangle,
 } from 'lucide-react';
-import { fetchAdminTasks, fetchBrands, fetchUsers, createAdminTask, updateAdminTask, deleteAdminTask } from '../services/adminApi';
-import type { AdminTask, Brand, User } from '../types';
+import { fetchContentTasks, fetchBrands, fetchUsers, fetchTaskCategories, createAdminTask, updateAdminTask, deleteAdminTask } from '../services/adminApi';
+
+import type { AdminTask, Brand, User, TaskCategory } from '../types';
+import { queryKeys } from '../lib/queryKeys';
 import { avatarUrl } from '../components/tasks/taskUtils';
 
 export type PlatformType = 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'lemon8' | 'line' | 'x' | 'other';
@@ -36,7 +40,9 @@ export interface ContentItem {
   description: string;
   brandId?: string;
   brandName?: string;
-  platform: PlatformType;
+  categoryId?: string;
+  categoryName?: string;
+  platforms: PlatformType[];   // multi-select — อ่านจาก DB column
   format: ContentFormat;
   status: ContentStatus;
   scheduledDate: string; // YYYY-MM-DD
@@ -58,6 +64,27 @@ const PLATFORM_META: Record<PlatformType, { label: string; short: string; bg: st
   other: { label: 'อื่นๆ', short: 'Other', bg: 'bg-slate-500', text: 'text-white' },
 };
 
+function PlatformLogo({ platform, className = 'w-3.5 h-3.5' }: { platform: PlatformType; className?: string }) {
+  switch (platform) {
+    case 'facebook':
+      return <span className={`${className} flex items-center justify-center rounded-full bg-[#1877F2] text-[11px] font-black leading-none text-white`}>f</span>;
+    case 'tiktok':
+      return <span className={`${className} flex items-center justify-center rounded-full bg-slate-950 text-white`}><Music2 className="w-2.5 h-2.5" /></span>;
+    case 'instagram':
+      return <span className={`${className} flex items-center justify-center rounded-[4px] bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white`}><svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="0.75" fill="currentColor" stroke="none" /></svg></span>;
+    case 'youtube':
+      return <span className={`${className} flex items-center justify-center rounded-[4px] bg-red-600 text-white`}><svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="currentColor"><path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2C2 9 2 12 2 12s0 3 .4 4.8a2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2C22 15 22 12 22 12s0-3-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z" /></svg></span>;
+    case 'lemon8':
+      return <span className={`${className} flex items-center justify-center rounded-full bg-yellow-300 text-[9px] font-black leading-none text-yellow-950`}>8</span>;
+    case 'line':
+      return <span className={`${className} flex items-center justify-center rounded-full bg-[#06C755] text-white`}><MessageCircle className="w-2.5 h-2.5" /></span>;
+    case 'x':
+      return <span className={`${className} flex items-center justify-center rounded-full bg-black text-[10px] font-black leading-none text-white`}>𝕏</span>;
+    default:
+      return <span className={`${className} flex items-center justify-center rounded-full bg-slate-500 text-white`}><MoreHorizontal className="w-2.5 h-2.5" /></span>;
+  }
+}
+
 const STATUS_META: Record<ContentStatus, { label: string; bg: string; text: string; border: string }> = {
   idea: { label: 'ไอเดีย / แผนงาน', bg: 'bg-purple-50 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
   drafting: { label: 'กำลังผลิต (Drafting)', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
@@ -75,8 +102,12 @@ const FORMAT_META: Record<ContentFormat, { label: string; icon: typeof Video }> 
 };
 
 // Helper: parse content metadata from task description or title
-function parseContentTask(task: AdminTask, brandsMap: Map<string, Brand>, usersMap: Map<string, User>): ContentItem {
-  let platform: PlatformType = 'facebook';
+function parseContentTask(
+  task: AdminTask,
+  brandsMap: Map<string, Brand>,
+  usersMap: Map<string, User>,
+  categoriesMap: Map<string, TaskCategory>
+): ContentItem {
   let format: ContentFormat = 'graphic';
   let status: ContentStatus = 'drafting';
   let scheduledTime = '18:00';
@@ -84,24 +115,33 @@ function parseContentTask(task: AdminTask, brandsMap: Map<string, Brand>, usersM
 
   const rawDesc = task.description || '';
 
-  // Extract metadata if exists in tags
-  const platformMatch = rawDesc.match(/\[platform:(.*?)\]/i);
-  if (platformMatch && platformMatch[1]) {
-    platform = platformMatch[1].toLowerCase().trim() as PlatformType;
-  } else if (task.title.toLowerCase().includes('tiktok')) {
-    platform = 'tiktok';
-  } else if (task.title.toLowerCase().includes('ig') || task.title.toLowerCase().includes('instagram')) {
-    platform = 'instagram';
-  } else if (task.title.toLowerCase().includes('yt') || task.title.toLowerCase().includes('youtube')) {
-    platform = 'youtube';
-  } else if (task.title.toLowerCase().includes('lemon8')) {
-    platform = 'lemon8';
+  // ── Platforms: อ่านจาก DB column task.platforms ก่อน ──────────────────
+  // ถ้าไม่มีให้ fallback ตรวจจากชื่องาน/description tag
+  let platforms: PlatformType[] = [];
+  if (task.platforms && task.platforms.length > 0) {
+    platforms = task.platforms as PlatformType[];
+  } else {
+    // Fallback: ตรวจจาก description tag [platform:...]
+    const platformMatch = rawDesc.match(/\[platform:(.*?)\]/i);
+    if (platformMatch && platformMatch[1]) {
+      const tagPlatforms = platformMatch[1].split(',').map(p => p.trim().toLowerCase() as PlatformType);
+      platforms = tagPlatforms;
+    } else {
+      // Fallback: ตรวจจากชื่องาน
+      const titleLower = task.title.toLowerCase();
+      if (titleLower.includes('tiktok')) platforms.push('tiktok');
+      if (titleLower.includes('ig') || titleLower.includes('instagram')) platforms.push('instagram');
+      if (titleLower.includes('yt') || titleLower.includes('youtube')) platforms.push('youtube');
+      if (titleLower.includes('lemon8')) platforms.push('lemon8');
+      if (titleLower.includes('facebook') || titleLower.includes('fb')) platforms.push('facebook');
+      if (platforms.length === 0) platforms = ['other'];
+    }
   }
 
   const formatMatch = rawDesc.match(/\[format:(.*?)\]/i);
   if (formatMatch && formatMatch[1]) {
     format = formatMatch[1].toLowerCase().trim() as ContentFormat;
-  } else if (platform === 'tiktok' || task.title.toLowerCase().includes('reel') || task.title.toLowerCase().includes('short')) {
+  } else if (platforms.includes('tiktok') || task.title.toLowerCase().includes('reel') || task.title.toLowerCase().includes('short')) {
     format = 'reel';
   } else if (task.title.toLowerCase().includes('video') || task.title.toLowerCase().includes('คลิป')) {
     format = 'video';
@@ -148,6 +188,7 @@ function parseContentTask(task: AdminTask, brandsMap: Map<string, Brand>, usersM
 
   const scheduledDate = task.due_date ? task.due_date.split('T')[0] : new Date().toISOString().split('T')[0];
   const brandObj = task.brand_id ? brandsMap.get(task.brand_id) : undefined;
+  const categoryObj = task.category_id ? categoriesMap.get(task.category_id) : undefined;
 
   return {
     id: task.id,
@@ -156,7 +197,9 @@ function parseContentTask(task: AdminTask, brandsMap: Map<string, Brand>, usersM
     description: cleanDescription,
     brandId: task.brand_id,
     brandName: brandObj?.name,
-    platform,
+    categoryId: task.category_id,
+    categoryName: categoryObj?.name,
+    platforms,
     format,
     status,
     scheduledDate,
@@ -176,9 +219,11 @@ export default function ContentCalendar() {
   // Filters
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedBrandId, setSelectedBrandId] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isAssigneeMenuOpen, setIsAssigneeMenuOpen] = useState(false);
 
   // Modals & Drawers
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -190,7 +235,8 @@ export default function ContentCalendar() {
     title: '',
     description: '',
     brandId: '',
-    platform: 'facebook' as PlatformType,
+    categoryId: '',
+    platforms: ['facebook'] as PlatformType[],
     format: 'graphic' as ContentFormat,
     status: 'drafting' as ContentStatus,
     scheduledDate: new Date().toISOString().split('T')[0],
@@ -199,29 +245,75 @@ export default function ContentCalendar() {
     postUrl: '',
   });
 
+
   // Queries
   const { data: tasks = [] } = useQuery<AdminTask[]>({
-    queryKey: ['adminTasks'],
-    queryFn: () => fetchAdminTasks('all'),
+    queryKey: ['tasks', 'content'],
+    queryFn: () => fetchContentTasks(),
   });
 
+
   const { data: brands = [] } = useQuery<Brand[]>({
-    queryKey: ['brands'],
+    queryKey: queryKeys.brands,
     queryFn: () => fetchBrands(),
   });
 
   const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['users'],
+    queryKey: queryKeys.users('all'),
     queryFn: () => fetchUsers(),
+  });
+
+  const { data: categories = [] } = useQuery<TaskCategory[]>({
+    queryKey: queryKeys.taskCategories,
+    queryFn: () => fetchTaskCategories(),
   });
 
   const brandsMap = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands]);
   const usersMap = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
+  const categoriesMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
-  // Convert tasks to content items
+  // Categories belonging to "Content" (e.g. Content Branding, Content For sale, Content Knowledge)
+  const contentCategories = useMemo(() => {
+    return categories.filter(
+      (c) => c.name.toLowerCase().includes('content') || c.name.includes('คอนเทนต์')
+    );
+  }, [categories]);
+
+  const contentCategoryIds = useMemo(() => {
+    return new Set(contentCategories.map((c) => c.id));
+  }, [contentCategories]);
+
+  // Convert and filter tasks to real Content items
   const allContents: ContentItem[] = useMemo(() => {
-    return tasks.map((t) => parseContentTask(t, brandsMap, usersMap));
-  }, [tasks, brandsMap, usersMap]);
+    const contentTasks = tasks.filter((t) => {
+      // 1. มี platforms กำหนดไว้ → ถือว่าเป็น content task ทันที
+      if (t.platforms && t.platforms.length > 0) {
+        return true;
+      }
+      // 2. Task category has "Content" (Content Branding, Content For sale, Content Knowledge, etc.)
+      if (t.category_id && contentCategoryIds.has(t.category_id)) {
+        return true;
+      }
+      // 3. Title contains "content" or "คอนเทนต์"
+      const titleLower = (t.title || '').toLowerCase();
+      if (titleLower.includes('content') || titleLower.includes('คอนเทนต์')) {
+        return true;
+      }
+      // 4. Description contains "content" / "คอนเทนต์" or has content metadata tags
+      const descLower = (t.description || '').toLowerCase();
+      if (descLower.includes('content') || descLower.includes('คอนเทนต์')) {
+        return true;
+      }
+      if (/\[platform:|\[format:|\[content_status:/i.test(t.description || '')) {
+        return true;
+      }
+      return false;
+    });
+
+
+
+    return contentTasks.map((t) => parseContentTask(t, brandsMap, usersMap, categoriesMap));
+  }, [tasks, brandsMap, usersMap, categoriesMap, contentCategoryIds, contentCategories]);
 
   // Apply filters
   const filteredContents = useMemo(() => {
@@ -232,7 +324,10 @@ export default function ContentCalendar() {
       if (selectedBrandId !== 'all' && item.brandId !== selectedBrandId) {
         return false;
       }
-      if (selectedPlatform !== 'all' && item.platform !== selectedPlatform) {
+      if (selectedCategoryId !== 'all' && item.categoryId !== selectedCategoryId) {
+        return false;
+      }
+      if (selectedPlatform !== 'all' && !item.platforms.includes(selectedPlatform as PlatformType)) {
         return false;
       }
       if (selectedStatus !== 'all' && item.status !== selectedStatus) {
@@ -242,12 +337,16 @@ export default function ContentCalendar() {
         const q = searchQuery.toLowerCase();
         const matchTitle = item.title.toLowerCase().includes(q);
         const matchBrand = item.brandName?.toLowerCase().includes(q) ?? false;
+        const matchCategory = item.categoryName?.toLowerCase().includes(q) ?? false;
         const matchAssignee = item.assigneeNames.some((n) => n.toLowerCase().includes(q));
-        if (!matchTitle && !matchBrand && !matchAssignee) return false;
+        if (!matchTitle && !matchBrand && !matchCategory && !matchAssignee) return false;
       }
       return true;
     });
-  }, [allContents, selectedUserId, selectedBrandId, selectedPlatform, selectedStatus, searchQuery]);
+  }, [allContents, selectedUserId, selectedBrandId, selectedCategoryId, selectedPlatform, selectedStatus, searchQuery]);
+
+  const selectedUser = selectedUserId === 'all' ? undefined : users.find((user) => user.id === selectedUserId);
+  const selectedUserAvatar = selectedUser ? avatarUrl(selectedUser.avatar_url) : undefined;
 
   // Calendar Helpers
   const year = currentDate.getFullYear();
@@ -324,7 +423,8 @@ export default function ContentCalendar() {
       title: '',
       description: '',
       brandId: brands[0]?.id || '',
-      platform: 'facebook',
+      categoryId: contentCategories[0]?.id || categories[0]?.id || '',
+      platforms: ['facebook'],
       format: 'graphic',
       status: 'drafting',
       scheduledDate: targetDate,
@@ -341,7 +441,8 @@ export default function ContentCalendar() {
       title: item.title,
       description: item.description,
       brandId: item.brandId || '',
-      platform: item.platform,
+      categoryId: item.categoryId || contentCategories[0]?.id || categories[0]?.id || '',
+      platforms: item.platforms.length > 0 ? item.platforms : ['facebook'],
       format: item.format,
       status: item.status,
       scheduledDate: item.scheduledDate,
@@ -352,14 +453,23 @@ export default function ContentCalendar() {
     setIsModalOpen(true);
   };
 
+  // Toggle platform selection in multi-select
+  const togglePlatform = (p: PlatformType) => {
+    setFormData(prev => ({
+      ...prev,
+      platforms: prev.platforms.includes(p)
+        ? prev.platforms.filter(x => x !== p)
+        : [...prev.platforms, p],
+    }));
+  };
+
   const handleSaveContent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
-    // Pack metadata tags into description
+    // Pack remaining metadata tags into description (platform stored in DB column)
     const fullDescription = [
       formData.description.trim(),
-      `[platform:${formData.platform}]`,
       `[format:${formData.format}]`,
       `[content_status:${formData.status}]`,
       `[time:${formData.scheduledTime}]`,
@@ -378,22 +488,31 @@ export default function ContentCalendar() {
           title: formData.title,
           description: fullDescription,
           brand_id: formData.brandId || undefined,
+          category_id: formData.categoryId || undefined,
           assigned_to: formData.assignedTo || undefined,
           due_date: `${formData.scheduledDate}T${formData.scheduledTime}:00Z`,
           status: taskStatus,
+          platforms: formData.platforms,
         });
       } else {
         await createAdminTask({
           title: formData.title,
           description: fullDescription,
           brand_id: formData.brandId || undefined,
+          category_id: formData.categoryId || undefined,
           assigned_to: formData.assignedTo || undefined,
           due_date: `${formData.scheduledDate}T${formData.scheduledTime}:00Z`,
           status: taskStatus,
+          platforms: formData.platforms,
         });
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['adminTasks'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminTasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['tasks', 'content'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') }),
+      ]);
       setIsModalOpen(false);
       setViewingDetail(null);
     } catch (err) {
@@ -401,11 +520,16 @@ export default function ContentCalendar() {
     }
   };
 
+
   const handleDeleteContent = async (id: string) => {
     if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการคอนเทนต์นี้?')) return;
     try {
       await deleteAdminTask(id);
-      await queryClient.invalidateQueries({ queryKey: ['adminTasks'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminTasks'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') }),
+      ]);
       setViewingDetail(null);
     } catch (err) {
       console.error('Failed to delete content:', err);
@@ -416,26 +540,6 @@ export default function ContentCalendar() {
 
   return (
     <div className="content-calendar-page space-y-5 pb-12">
-      {/* ── Mockup / Preview Warning Banner ── */}
-      <div className="flex items-center gap-3 p-4 bg-amber-500/10 dark:bg-amber-500/15 border-2 border-amber-500/30 dark:border-amber-500/40 rounded-2xl text-amber-900 dark:text-amber-200 shadow-xs">
-        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-amber-500/20">
-          <AlertTriangle className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500 text-white">
-              Mockup / Preview Only
-            </span>
-            <span className="text-xs font-bold text-amber-800 dark:text-amber-300">
-              หน้านี้เป็นเพียงตัวอย่างการออกแบบ (ยังไม่เปิดใช้งานจริง)
-            </span>
-          </div>
-          <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80 mt-0.5 leading-relaxed">
-            ระบบปฏิทินคอนเทนต์นี้จัดทำขึ้นเพื่อแสดงแนวคิด UI และรูปแบบการทำงานสำหรับการทดลองดูตัวอย่างเท่านั้น ยังไม่สามารถบันทึกข้อมูลเพื่อนำไปใช้งานจริงในระบบ Production ได้
-          </p>
-        </div>
-      </div>
-
       {/* ── Top Header Bar ── */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-3">
@@ -445,15 +549,12 @@ export default function ContentCalendar() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
               ปฏิทินคอนเทนต์ (Content Calendar)
-              <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
-                MOCKUP
-              </span>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
                 {filteredContents.length} โพสต์
               </span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              วางแผน จัดการคิวโพสต์ และติดตามคอนเทนต์ของทุกแบรนด์ร่วมกันทั้งทีม
+              วางแผน จัดการคิวโพสต์ และติดตามคอนเทนต์ของทุกแบรนด์ร่วมกันทั้งทีม (ดึงข้อมูลงานคอนเทนต์จริงจาก Tasks)
             </p>
           </div>
         </div>
@@ -499,114 +600,129 @@ export default function ContentCalendar() {
         </div>
       </div>
 
-      {/* ── Team Member Avatars Rail (Filter by Person or View All) ── */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-            <Users className="w-4 h-4 text-blue-600" />
-            <span>พนักงาน & ผู้รับผิดชอบ (Team Visibility)</span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            {selectedUserId === 'all' ? 'กำลังแสดงคอนเทนต์ของทุกคนในทีม' : 'กำลังแสดงเฉพาะคอนเทนต์ของคนที่เลือก'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          {/* "All" button */}
-          <button
-            type="button"
-            onClick={() => setSelectedUserId('all')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border ${
-              selectedUserId === 'all'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-xs shadow-blue-500/20'
-                : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>ทุกคน (ทั้งหมด)</span>
-          </button>
-
-          {/* User Avatars */}
-          {users.map((u) => {
-            const isSelected = selectedUserId === u.id;
-            const userAvatar = avatarUrl(u.avatar_url);
-            const userCount = allContents.filter((c) => c.assigneeIds.includes(u.id)).length;
-
-            return (
+      {/* ── Compact filters: long lists belong in dropdowns, not a horizontal rail ── */}
+      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div className="flex items-center justify-between xl:justify-start gap-2 shrink-0">
+            <div>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-200">ตัวกรองคอนเทนต์</p>
+              <p className="text-[11px] text-slate-400">{filteredContents.length} จาก {allContents.length} รายการ</p>
+            </div>
+            {(selectedUserId !== 'all' || selectedBrandId !== 'all' || selectedCategoryId !== 'all' || selectedPlatform !== 'all' || selectedStatus !== 'all' || searchQuery) && (
               <button
-                key={u.id}
                 type="button"
-                onClick={() => setSelectedUserId(isSelected ? 'all' : u.id)}
-                title={`${u.first_name} ${u.last_name}`}
-                className={`flex items-center gap-2 px-2.5 py-1 rounded-xl text-xs font-medium transition-all shrink-0 border ${
-                  isSelected
-                    ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/30'
-                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                }`}
+                onClick={() => {
+                  setSelectedUserId('all');
+                  setSelectedBrandId('all');
+                  setSelectedCategoryId('all');
+                  setSelectedPlatform('all');
+                  setSelectedStatus('all');
+                  setSearchQuery('');
+                }}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 whitespace-nowrap"
               >
-                <span className="w-6 h-6 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                  {userAvatar ? (
-                    <img src={userAvatar} alt="" className="w-full h-full object-cover" />
+                ล้างตัวกรอง
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-center gap-2 flex-1">
+            <div className="relative min-w-0 xl:w-48">
+              <button
+                type="button"
+                onClick={() => setIsAssigneeMenuOpen((open) => !open)}
+                aria-haspopup="listbox"
+                aria-expanded={isAssigneeMenuOpen}
+                className="w-full h-9 px-2.5 flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <span className="w-5 h-5 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  {selectedUser ? (
+                    selectedUserAvatar ? <img src={selectedUserAvatar} alt="" className="w-full h-full object-cover" /> : selectedUser.first_name.charAt(0)
                   ) : (
-                    u.first_name.charAt(0)
+                    <Users className="w-3.5 h-3.5" />
                   )}
                 </span>
-                <span className="font-semibold">{u.nickname || u.first_name}</span>
-                {userCount > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
-                    {userCount}
-                  </span>
-                )}
+                <span className="truncate flex-1 text-left">
+                  {selectedUser ? (selectedUser.nickname || `${selectedUser.first_name} ${selectedUser.last_name}`) : 'ผู้รับผิดชอบทั้งหมด'}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform ${isAssigneeMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* ── Brand, Platform & Status Filter Toolbar ── */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Brand chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-thin">
-          <button
-            type="button"
-            onClick={() => setSelectedBrandId('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 border ${
-              selectedBrandId === 'all'
-                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-xs'
-                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-            }`}
+              {isAssigneeMenuOpen && (
+                <div className="absolute z-30 mt-1.5 w-full min-w-52 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 shadow-lg shadow-slate-900/10" role="listbox" aria-label="เลือกผู้รับผิดชอบ">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selectedUserId === 'all'}
+                    onClick={() => {
+                      setSelectedUserId('all');
+                      setIsAssigneeMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${selectedUserId === 'all' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                  >
+                    <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0"><Users className="w-3.5 h-3.5" /></span>
+                    <span className="flex-1">ผู้รับผิดชอบทั้งหมด</span>
+                    <span className="text-[10px] text-slate-400">{allContents.length}</span>
+                  </button>
+                  {users.map((user) => {
+                    const userAvatar = avatarUrl(user.avatar_url);
+                    const userCount = allContents.filter((content) => content.assigneeIds.includes(user.id)).length;
+                    const isSelected = selectedUserId === user.id;
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setSelectedUserId(user.id);
+                          setIsAssigneeMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${isSelected ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                      >
+                        <span className="w-6 h-6 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {userAvatar ? <img src={userAvatar} alt="" className="w-full h-full object-cover" /> : user.first_name.charAt(0)}
+                        </span>
+                        <span className="truncate flex-1">{user.nickname || `${user.first_name} ${user.last_name}`}</span>
+                        <span className="text-[10px] text-slate-400">{userCount}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <select
+              value={selectedBrandId}
+              onChange={(e) => setSelectedBrandId(e.target.value)}
+              aria-label="กรองตามแบรนด์"
+              className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            >
+              <option value="all">ทุกแบรนด์</option>
+              {brands.map((brand) => (
+                <option key={brand.id} value={brand.id}>{brand.name}</option>
+              ))}
+            </select>
+
+          {/* Category Filter */}
+          <select
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
-            ทุกแบรนด์
-          </button>
-          {brands.map((b) => {
-            const isSelected = selectedBrandId === b.id;
-            const count = allContents.filter((c) => c.brandId === b.id).length;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => setSelectedBrandId(isSelected ? 'all' : b.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 border ${
-                  isSelected
-                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs shadow-amber-500/20'
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Flame className="w-3 h-3" />
-                <span>{b.name}</span>
-                {count > 0 && <span className="opacity-80 text-[10px]">({count})</span>}
-              </button>
-            );
-          })}
-        </div>
+            <option value="all">ทุกหมวดคอนเทนต์</option>
+            {(contentCategories.length > 0 ? contentCategories : categories).map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                📁 {cat.name}
+              </option>
+            ))}
+          </select>
 
-        {/* Dropdowns & Search */}
-        <div className="flex items-center flex-wrap gap-2">
           {/* Platform Filter */}
           <select
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="all">ทุกแพลตฟอร์ม</option>
             <option value="facebook">Facebook</option>
@@ -622,7 +738,7 @@ export default function ContentCalendar() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="all">ทุกสถานะ</option>
             <option value="idea">💡 ไอเดีย</option>
@@ -633,17 +749,18 @@ export default function ContentCalendar() {
           </select>
 
           {/* Search Box */}
-          <div className="relative">
+          <div className="relative min-w-0 xl:ml-auto">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="ค้นหาชื่อคอนเทนต์..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-44 md:w-48"
+              className="w-full xl:w-52 pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>
         </div>
+      </div>
       </div>
 
       {/* ── Main Content Area: Monthly Calendar or List View ── */}
@@ -738,7 +855,6 @@ export default function ContentCalendar() {
                   {/* Content Cards */}
                   <div className="space-y-1.5 overflow-y-auto max-h-[140px] pr-0.5 scrollbar-thin flex-1">
                     {dateContents.map((content) => {
-                      const platformInfo = PLATFORM_META[content.platform] || PLATFORM_META.other;
                       const statusInfo = STATUS_META[content.status];
 
                       return (
@@ -747,17 +863,30 @@ export default function ContentCalendar() {
                           onClick={() => setViewingDetail(content)}
                           className={`p-1.5 rounded-xl border text-[11px] cursor-pointer transition-all hover:scale-[1.01] hover:shadow-sm bg-white dark:bg-slate-800/90 ${statusInfo.border}`}
                         >
-                          {/* Platform & Status Badge */}
+                          {/* Platform Badges & Status */}
                           <div className="flex items-center justify-between gap-1 mb-1">
-                            <span
-                              className={`px-1.5 py-0.2 rounded font-extrabold text-[9px] ${platformInfo.bg} ${platformInfo.text}`}
-                            >
-                              {platformInfo.short}
-                            </span>
+                            <div className="flex gap-0.5 flex-wrap">
+                              {content.platforms.map(p => {
+                                const pInfo = PLATFORM_META[p] || PLATFORM_META.other;
+                                return (
+                                  <span key={p} className={`px-1.5 py-0.5 rounded font-extrabold text-[9px] ${pInfo.bg} ${pInfo.text}`}>
+                                    {pInfo.short}
+                                  </span>
+                                );
+                              })}
+                            </div>
+
                             <span className={`text-[9px] font-bold px-1 rounded ${statusInfo.text} ${statusInfo.bg}`}>
                               {statusInfo.label.split(' ')[0]}
                             </span>
                           </div>
+
+                          {/* Category Tag if present */}
+                          {content.categoryName && (
+                            <div className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 truncate mb-0.5">
+                              📁 {content.categoryName}
+                            </div>
+                          )}
 
                           {/* Title */}
                           <div className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1 leading-tight mb-1">
@@ -810,6 +939,7 @@ export default function ContentCalendar() {
                 <tr>
                   <th className="py-3 px-4">วันที่ & เวลา</th>
                   <th className="py-3 px-4">แพลตฟอร์ม</th>
+                  <th className="py-3 px-4">หมวดหมู่งาน</th>
                   <th className="py-3 px-4">แบรนด์</th>
                   <th className="py-3 px-4">หัวข้อคอนเทนต์</th>
                   <th className="py-3 px-4">รูปแบบ</th>
@@ -821,13 +951,12 @@ export default function ContentCalendar() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {filteredContents.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                    <td colSpan={9} className="py-8 text-center text-slate-400">
                       ไม่พบรายการคอนเทนต์ตามเงื่อนไขที่เลือก
                     </td>
                   </tr>
                 ) : (
                   filteredContents.map((content) => {
-                    const platformInfo = PLATFORM_META[content.platform] || PLATFORM_META.other;
                     const statusInfo = STATUS_META[content.status];
                     const formatInfo = FORMAT_META[content.format];
                     const FormatIcon = formatInfo.icon;
@@ -842,9 +971,25 @@ export default function ContentCalendar() {
                           {content.scheduledDate} <span className="text-slate-400 font-normal">{content.scheduledTime}</span>
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${platformInfo.bg} ${platformInfo.text}`}>
-                            {platformInfo.label}
-                          </span>
+                          <div className="flex gap-1 flex-wrap">
+                            {content.platforms.map(p => {
+                              const pInfo = PLATFORM_META[p] || PLATFORM_META.other;
+                              return (
+                                <span key={p} className={`px-2 py-0.5 rounded text-[10px] font-bold ${pInfo.bg} ${pInfo.text}`}>
+                                  {pInfo.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {content.categoryName ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              📁 {content.categoryName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
                           {content.brandName ? `🔥 ${content.brandName}` : '-'}
@@ -904,10 +1049,15 @@ export default function ContentCalendar() {
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded font-bold text-xs ${PLATFORM_META[viewingDetail.platform].bg} ${PLATFORM_META[viewingDetail.platform].text}`}>
-                  {PLATFORM_META[viewingDetail.platform].label}
-                </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {viewingDetail.platforms.map(p => {
+                  const pInfo = PLATFORM_META[p] || PLATFORM_META.other;
+                  return (
+                    <span key={p} className={`px-2 py-0.5 rounded font-bold text-xs ${pInfo.bg} ${pInfo.text}`}>
+                      {pInfo.label}
+                    </span>
+                  );
+                })}
                 <span className={`px-2 py-0.5 rounded-full font-bold text-xs border ${STATUS_META[viewingDetail.status].bg} ${STATUS_META[viewingDetail.status].text} ${STATUS_META[viewingDetail.status].border}`}>
                   {STATUS_META[viewingDetail.status].label}
                 </span>
@@ -924,14 +1074,21 @@ export default function ContentCalendar() {
             {/* Body */}
             <div className="p-5 space-y-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  {viewingDetail.categoryName && (
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                      📁 {viewingDetail.categoryName}
+                    </span>
+                  )}
+                  {viewingDetail.brandName && (
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                      🔥 แบรนด์: {viewingDetail.brandName}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                   {viewingDetail.title}
                 </h3>
-                {viewingDetail.brandName && (
-                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                    🔥 แบรนด์: {viewingDetail.brandName}
-                  </p>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs">
@@ -981,7 +1138,7 @@ export default function ContentCalendar() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap bg-slate-50/50 dark:bg-slate-800/50">
               <button
                 type="button"
                 onClick={() => handleDeleteContent(viewingDetail.id)}
@@ -991,18 +1148,31 @@ export default function ContentCalendar() {
                 <span>ลบคอนเทนต์</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const item = viewingDetail;
-                  setViewingDetail(null);
-                  openEditModal(item);
-                }}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>แก้ไขข้อมูล</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/tasks?search=${encodeURIComponent(viewingDetail.title)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                  title="เปิดดูในหน้ารวมงาน"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>ดูในหน้ารวมงาน (Tasks)</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = viewingDetail;
+                    setViewingDetail(null);
+                    openEditModal(item);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>แก้ไขข้อมูล</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1016,7 +1186,6 @@ export default function ContentCalendar() {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-600" />
                 <span>{editingContent ? 'แก้ไขคอนเทนต์' : 'สร้างคอนเทนต์ใหม่บนปฏิทิน'}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold">MOCKUP</span>
               </h3>
               <button
                 type="button"
@@ -1025,11 +1194,6 @@ export default function ContentCalendar() {
               >
                 <X className="w-4 h-4" />
               </button>
-            </div>
-
-            <div className="p-3 mx-5 mt-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
-              <span>แบบฟอร์มนี้เป็นตัวอย่าง Mockup สำหรับทดสอบรูปแบบการแสดงผล</span>
             </div>
 
             <form onSubmit={handleSaveContent} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
@@ -1048,8 +1212,27 @@ export default function ContentCalendar() {
                 />
               </div>
 
-              {/* Brand & Platform */}
+              {/* Category & Brand */}
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    หมวดหมู่งานคอนเทนต์ <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  >
+                    <option value="">-- เลือกหมวดหมู่ --</option>
+                    {(contentCategories.length > 0 ? contentCategories : categories).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     แบรนด์
@@ -1067,27 +1250,39 @@ export default function ContentCalendar() {
                     ))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    แพลตฟอร์ม
-                  </label>
-                  <select
-                    value={formData.platform}
-                    onChange={(e) => setFormData({ ...formData, platform: e.target.value as PlatformType })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                  >
-                    <option value="facebook">Facebook</option>
-                    <option value="tiktok">TikTok</option>
-                    <option value="instagram">Instagram</option>
-                    <option value="youtube">YouTube</option>
-                    <option value="lemon8">Lemon8</option>
-                    <option value="line">Line VOOM</option>
-                    <option value="x">X (Twitter)</option>
-                    <option value="other">อื่นๆ</option>
-                  </select>
-                </div>
               </div>
+
+              {/* Platform — Multi-Select */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  แพลตฟอร์ม <span className="font-normal text-slate-400">(เลือกได้มากกว่า 1)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.entries(PLATFORM_META) as [PlatformType, typeof PLATFORM_META.facebook][]).map(([key, meta]) => {
+                    const selected = formData.platforms.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => togglePlatform(key)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                          selected
+                            ? `${meta.bg} ${meta.text} border-transparent scale-105 shadow-sm`
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <PlatformLogo platform={key} />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {formData.platforms.length === 0 && (
+                  <p className="text-[10px] text-red-500 mt-1">กรุณาเลือกอย่างน้อย 1 แพลตฟอร์ม</p>
+                )}
+              </div>
+
+
 
               {/* Format & Status */}
               <div className="grid grid-cols-2 gap-3">

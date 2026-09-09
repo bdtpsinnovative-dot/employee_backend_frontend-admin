@@ -123,6 +123,7 @@ export default function AdminLayout() {
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') }),
               queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') }),
+			  queryClient.invalidateQueries({ queryKey: queryKeys.salesTasks }),
             ]);
           }
         }
@@ -175,6 +176,7 @@ export default function AdminLayout() {
               if (metadata && typeof metadata === 'object' && (metadata.task_id || metadata.list_id)) {
                 void queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
                 void queryClient.invalidateQueries({ queryKey: queryKeys.tasks('all') });
+				void queryClient.invalidateQueries({ queryKey: queryKeys.salesTasks });
               }
             }
           } else if (payload.eventType === 'UPDATE') {

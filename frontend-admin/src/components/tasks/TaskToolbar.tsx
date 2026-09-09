@@ -48,6 +48,7 @@ interface TaskToolbarProps {
   onOpenMainNotif: () => void;
   onOpenDailyTasks?: () => void;
   onCreateBrand?: (name: string) => Promise<Brand | void>;
+  canCreateTask?: boolean;
 }
 
 export const TaskToolbar: React.FC<TaskToolbarProps> = ({
@@ -78,6 +79,7 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
   onOpenMainNotif,
   onOpenDailyTasks,
   onCreateBrand,
+  canCreateTask = true,
 }) => {
   const [showQuickAddBrand, setShowQuickAddBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
@@ -164,14 +166,14 @@ export const TaskToolbar: React.FC<TaskToolbarProps> = ({
               )}
             </div>
 
-            <button
+            {canCreateTask && <button
               type="button"
               onClick={onOpenCreateModal}
               className="task-toolbar-primary-action inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <Plus className="h-4 w-4" />
               <span>มอบหมายงานใหม่</span>
-            </button>
+            </button>}
           </div>
         </div>
 

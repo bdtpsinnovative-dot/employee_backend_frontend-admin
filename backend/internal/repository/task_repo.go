@@ -9,6 +9,7 @@ import (
 	"github.com/Nattamon123/employee/backend/internal/perf"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type TaskRepo struct {
@@ -133,10 +134,11 @@ func (r *TaskRepo) populateAssigneeIDs(ctx context.Context, tasks []domain.Task)
 
 type taskQueryRow struct {
 	domain.Task
-	AssigneeIDsJSON      []byte `db:"assignee_ids_json"`
-	LatestSubmissionJSON []byte `db:"latest_submission_json"`
-	SubItemsJSON         []byte `db:"sub_items_json"`
-	ListsJSON            []byte `db:"lists_json"`
+	AssigneeIDsJSON      []byte         `db:"assignee_ids_json"`
+	LatestSubmissionJSON []byte         `db:"latest_submission_json"`
+	SubItemsJSON         []byte         `db:"sub_items_json"`
+	ListsJSON            []byte         `db:"lists_json"`
+	PlatformsRaw         pq.StringArray `db:"platforms_raw"` // scan text[] คอลัมน์
 }
 
 func decodeTaskRows(rows []taskQueryRow) ([]domain.Task, error) {
@@ -166,12 +168,27 @@ func decodeTaskRows(rows []taskQueryRow) ([]domain.Task, error) {
 		if len(task.AssigneeIDs) == 0 && task.AssignedTo != nil && *task.AssignedTo != uuid.Nil {
 			task.AssigneeIDs = append(task.AssigneeIDs, *task.AssignedTo)
 		}
+		// Map platforms text[] → []string
+		if rows[i].PlatformsRaw != nil {
+			task.Platforms = []string(rows[i].PlatformsRaw)
+		} else {
+			task.Platforms = []string{}
+		}
 		tasks[i] = task
 	}
 	return tasks, nil
 }
 
 func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
+	return r.listAllByWorkspace(ctx, "general")
+}
+
+// ListByWorkspace returns every active task in one isolated work area.
+func (r *TaskRepo) ListByWorkspace(ctx context.Context, workspace string) ([]domain.Task, error) {
+	return r.listAllByWorkspace(ctx, workspace)
+}
+
+func (r *TaskRepo) listAllByWorkspace(ctx context.Context, workspace string) ([]domain.Task, error) {
 	var rows []taskQueryRow
 	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
 	err := r.db.SelectContext(ctx, &rows, `
@@ -185,7 +202,7 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 				   ELSE 'in_progress'
 			   END AS status,
 		       t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
+		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
@@ -194,17 +211,19 @@ func (r *TaskRepo) ListAll(ctx context.Context) ([]domain.Task, error) {
 		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
 		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
-		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json,
+		       COALESCE(t.platforms, ARRAY[]::text[]) AS platforms_raw
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
-		WHERE t.deleted_at IS NULL
+		WHERE t.deleted_at IS NULL AND t.workspace = $1
 		ORDER BY 
 			t.category_id NULLS LAST,
 			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
 			t.due_date ASC NULLS LAST,
 			t.created_at DESC
-	`)
+	`, workspace)
+
 	measureDB()
 	if err != nil {
 		return nil, err
@@ -226,18 +245,19 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 				   ELSE 'in_progress'
 			   END AS status,
 		       t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
+		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_submissions ts WHERE ts.task_id = t.id), 0) AS submission_count,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
 		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
-		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json,
+		       COALESCE(t.platforms, ARRAY[]::text[]) AS platforms_raw
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
-		WHERE t.project_id = $1
+		WHERE t.project_id = $1 AND t.deleted_at IS NULL AND t.workspace = 'general'
 		ORDER BY 
 			t.group_id NULLS LAST,
 			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
@@ -252,6 +272,15 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 }
 
 func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
+	return r.listByUserAndWorkspace(ctx, userID, "general")
+}
+
+// ListByUserAndWorkspace returns the tasks a user created or was assigned in one work area.
+func (r *TaskRepo) ListByUserAndWorkspace(ctx context.Context, userID uuid.UUID, workspace string) ([]domain.Task, error) {
+	return r.listByUserAndWorkspace(ctx, userID, workspace)
+}
+
+func (r *TaskRepo) listByUserAndWorkspace(ctx context.Context, userID uuid.UUID, workspace string) ([]domain.Task, error) {
 	var rows []taskQueryRow
 	measureDB := perf.MeasureDB(ctx, "db.tasks.base")
 	err := r.db.SelectContext(ctx, &rows, `
@@ -265,7 +294,7 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 				   ELSE 'in_progress'
 			   END AS status,
 		       t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
+		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 	       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
@@ -274,7 +303,8 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
 		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
-		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json,
+		       COALESCE(t.platforms, ARRAY[]::text[]) AS platforms_raw
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -283,13 +313,13 @@ func (r *TaskRepo) ListByUser(ctx context.Context, userID uuid.UUID) ([]domain.T
 		   OR EXISTS (
 		       SELECT 1 FROM task_assignees ta 
 		       WHERE ta.task_id = t.id AND ta.user_id = $1
-		   )) AND t.deleted_at IS NULL
+		   )) AND t.deleted_at IS NULL AND t.workspace = $2
 		ORDER BY 
 			t.category_id NULLS LAST,
 			CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END ASC,
 			t.due_date ASC NULLS LAST,
 			t.created_at DESC
-	`, userID)
+	`, userID, workspace)
 	measureDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tasks: %w", err)
@@ -303,7 +333,7 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 	err := r.db.GetContext(ctx, &row, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.attachment_url, t.status, t.record_kind, t.sort_order,
-		       t.assigned_by, t.brand_id, t.category_id, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
+		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
 		       COALESCE(u2.first_name || ' ' || u2.last_name, '') AS assigned_by_name,
 		       COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) AS card_total,
@@ -312,7 +342,8 @@ func (r *TaskRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.Task, er
 		       COALESCE((SELECT jsonb_agg(to_jsonb(ta.user_id) ORDER BY ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id), '[]'::jsonb) AS assignee_ids_json,
 		       COALESCE((SELECT to_jsonb(ts) FROM task_submissions ts WHERE ts.task_id = t.id ORDER BY ts.submitted_at DESC LIMIT 1), 'null'::jsonb) AS latest_submission_json,
 		       COALESCE((SELECT jsonb_agg(to_jsonb(si) ORDER BY si.sort_order, si.created_at) FROM task_sub_items si WHERE si.task_id = t.id AND si.card_id IS NULL), '[]'::jsonb) AS sub_items_json,
-		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json
+		       COALESCE((SELECT jsonb_agg(to_jsonb(tl) ORDER BY tl.sort_order, tl.created_at) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), '[]'::jsonb) AS lists_json,
+		       COALESCE(t.platforms, ARRAY[]::text[]) AS platforms_raw
 		FROM tasks t
 		LEFT JOIN users u ON t.assigned_to = u.id
 		LEFT JOIN users u2 ON t.assigned_by = u2.id
@@ -344,10 +375,11 @@ func (r *TaskRepo) CreateWithLists(ctx context.Context, t *domain.Task, listName
 		t.AssignedTo = &t.AssigneeIDs[0]
 	}
 
-	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, attachment_url, created_at)
-		VALUES (:id, :assigned_to, :title, :description, :due_date, :status, :assigned_by, :brand_id, :category_id, :project_id, :group_id, :priority, :attachment_url, NOW())
-	`, t)
+	platforms := pq.Array(t.Platforms)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO tasks (id, assigned_to, title, description, due_date, status, assigned_by, brand_id, category_id, project_id, group_id, priority, attachment_url, platforms, workspace, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+	`, t.ID, t.AssignedTo, t.Title, t.Description, t.DueDate, t.Status, t.AssignedBy, t.BrandID, t.CategoryID, t.ProjectID, t.GroupID, t.Priority, t.AttachmentURL, platforms, t.Workspace)
 	if err != nil {
 		return err
 	}
@@ -430,9 +462,10 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		    assigned_to = $6,
 		    priority = $7,
 		    status = $8,
-		    attachment_url = $9
-		WHERE id = $10
-	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.AttachmentURL, t.ID)
+		    attachment_url = $9,
+		    platforms = $10
+		WHERE id = $11
+	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.AttachmentURL, pq.Array(t.Platforms), t.ID)
 	if err != nil {
 		return err
 	}

@@ -328,6 +328,8 @@ export interface AdminTask {
   latest_submission?: TaskSubmission;
   deleted_at?: string;
   is_starred?: boolean;
+  platforms?: string[]; // เช่น ["facebook","instagram","tiktok"]
+  workspace?: 'general' | 'sales';
 }
 
 export interface TaskEvent {

@@ -4,10 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, X, Bell, CheckCircle2 } from 'lucide-react';
 import {
   fetchAdminTasks,
+	fetchSalesTasks,
   fetchTaskCategories,
   fetchBrands,
   fetchUsers,
   createAdminTask,
+	createSalesTask,
   updateAdminTask,
   updateAdminTaskStatus,
   approveTask,
@@ -83,16 +85,22 @@ function getTasksViewStateFromParams(searchParams: URLSearchParams): TasksViewSt
   };
 }
 
-export default function Tasks() {
+type TasksProps = {
+  workspace?: 'general' | 'sales';
+};
+
+export default function Tasks({ workspace = 'general' }: TasksProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
-  const taskFilterQuery = searchParams.toString();
+	const taskFilterQuery = searchParams.toString();
+	const isSalesWorkspace = workspace === 'sales';
+	const taskQueryKey = isSalesWorkspace ? queryKeys.salesTasks : queryKeys.tasks('mine');
 
   const tasksQuery = useQuery({
-    queryKey: queryKeys.tasks('mine'),
-    queryFn: () => fetchAdminTasks(),
+	queryKey: taskQueryKey,
+	queryFn: () => isSalesWorkspace ? fetchSalesTasks() : fetchAdminTasks(),
     staleTime: 60_000,
   });
   const usersQuery = useQuery({
@@ -298,8 +306,8 @@ export default function Tasks() {
   ]);
 
   const refreshTaskData = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
-  }, [queryClient]);
+	    await queryClient.invalidateQueries({ queryKey: taskQueryKey });
+	  }, [queryClient, taskQueryKey]);
 
   const refreshTasksInBackground = useCallback(() => {
     void refreshTaskData().catch((err) => {
@@ -360,7 +368,7 @@ export default function Tasks() {
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status } : t))
       );
-      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+	      queryClient.setQueryData<AdminTask[]>(taskQueryKey, (current) =>
         current?.map((t) => (t.id === task.id ? { ...t, status } : t)),
       );
       if (selectedTask?.id === task.id) {
@@ -408,7 +416,7 @@ export default function Tasks() {
     try {
       await deleteAdminTask(taskToDelete);
       setTasks((prev) => prev.filter((t) => t.id !== taskToDelete));
-      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+	      queryClient.setQueryData<AdminTask[]>(taskQueryKey, (current) =>
         current?.filter((task) => task.id !== taskToDelete),
       );
       if (selectedTask?.id === taskToDelete) setSelectedTask(null);
@@ -442,7 +450,8 @@ export default function Tasks() {
     status?: string;
     attachment_url?: string;
   }) => {
-    const newTask = await createAdminTask({
+	    const createTask = isSalesWorkspace ? createSalesTask : createAdminTask;
+	    const newTask = await createTask({
       title: data.title,
       description: data.description,
       due_date: data.due_date,
@@ -468,7 +477,7 @@ export default function Tasks() {
     }
 
     setTasks((prev) => [newTask, ...prev]);
-    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) => [newTask, ...(current || [])]);
+	    queryClient.setQueryData<AdminTask[]>(taskQueryKey, (current) => [newTask, ...(current || [])]);
   };
 
   const handleUpdateTask = async (data: {
@@ -498,7 +507,7 @@ export default function Tasks() {
     setTasks((prev) => prev.map((task) => (
       task.id === updatedTask.id ? updatedTask : task
     )));
-    queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+	    queryClient.setQueryData<AdminTask[]>(taskQueryKey, (current) =>
       current?.map((task) => (task.id === updatedTask.id ? updatedTask : task)),
     );
     setSelectedTask((prev) => (
@@ -640,10 +649,15 @@ export default function Tasks() {
     });
   };
 
-  return (
+	return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans content-area-flush">
       {/* Asana Style Toolbar */}
-      <TaskToolbar
+		{isSalesWorkspace && (
+		  <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 md:px-6">
+		    พื้นที่งาน Sales — งานในหน้านี้จะไม่แสดงรวมกับหน้าจัดการงานปกติ
+		  </div>
+		)}
+	    <TaskToolbar
         tabFilter={tabFilter}
         onTabFilterChange={setTabFilter}
         searchQuery={searchQuery}
@@ -665,6 +679,7 @@ export default function Tasks() {
           setDefaultCreateStatus(undefined);
           setShowCreateModal(true);
         }}
+		canCreateTask={!isSalesWorkspace || currentUser?.role === 'admin' || currentUser?.position?.trim().toLowerCase() === 'sales'}
         onOpenSettingsModal={() => navigate('/brand-responsibilities')}
         canManageSettings={currentUser?.role === 'admin'}
         onOpenTrashModal={() => setShowTrashModal(true)}

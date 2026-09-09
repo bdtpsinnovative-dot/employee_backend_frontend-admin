@@ -82,6 +82,12 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       label: 'จัดการงาน',
       adminOnly: false,
     },
+		{
+		  to: '/sales-tasks',
+		  icon: Users,
+		  label: 'งาน Sales',
+		  adminOnly: false,
+		},
     {
       to: '/content-calendar',
       icon: Calendar,
