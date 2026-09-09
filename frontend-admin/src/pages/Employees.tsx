@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { addProfileTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, updateUser, fetchMe } from '../services/adminApi';
+import { BriefcaseBusiness, Plus, UsersRound, X } from 'lucide-react';
+import { createPosition, createTeam, fetchPositions, fetchTeams, fetchUsers, approveUser, disableUser, updateUser, fetchMe } from '../services/adminApi';
 import type { Position, Team, User } from '../types';
 import { avatarUrl } from '../components/tasks/taskUtils';
 
@@ -12,7 +13,12 @@ export default function Employees() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamShortName, setNewTeamShortName] = useState('');
+  const [newPositionName, setNewPositionName] = useState('');
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
+  const [showCreatePositionModal, setShowCreatePositionModal] = useState(false);
   const [addingTeam, setAddingTeam] = useState(false);
+  const [addingPosition, setAddingPosition] = useState(false);
 
   // Search & Filter & Pagination
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,21 +119,41 @@ export default function Employees() {
 
   async function handleAddTeam() {
     const name = newTeamName.trim();
-    if (!name) return;
+    const shortName = newTeamShortName.trim();
+    if (!name || !shortName) return;
     setAddingTeam(true);
     try {
-      const updatedNames = await addProfileTeam(name);
-      const updatedTeams = await fetchTeams();
-      setTeams(updatedTeams);
-      const savedTeam = updatedTeams.find(team => team.name.toLowerCase() === name.toLowerCase())
-        || updatedTeams.find(team => team.name.toLowerCase() === updatedNames.at(-1)?.toLowerCase());
-      setEditForm(current => ({ ...current, team_id: savedTeam?.id, team: savedTeam?.name || name }));
+      const team = await createTeam(name, shortName);
+      setTeams(current => [...current, team]);
+      setEditForm(current => ({ ...current, team_id: team.id, position_id: null, position: '', team: team.name }));
       setNewTeamName('');
+      setNewTeamShortName('');
+      setShowCreateTeamModal(false);
+      await loadPositions(team.id);
     } catch (err) {
       console.error('เพิ่มทีมล้มเหลว:', err);
       alert('เพิ่มทีมไม่สำเร็จ');
     } finally {
       setAddingTeam(false);
+    }
+  }
+
+  async function handleAddPosition() {
+    const name = newPositionName.trim();
+    const teamID = editForm.team_id;
+    if (!name || !teamID) return;
+    setAddingPosition(true);
+    try {
+      const position = await createPosition(teamID, name);
+      setPositions(current => [...current, position]);
+      setEditForm(current => ({ ...current, position_id: position.id, position: position.name }));
+      setNewPositionName('');
+      setShowCreatePositionModal(false);
+    } catch (err) {
+      console.error('เพิ่มตำแหน่งล้มเหลว:', err);
+      alert('เพิ่มตำแหน่งไม่สำเร็จ');
+    } finally {
+      setAddingPosition(false);
     }
   }
 
@@ -412,9 +438,33 @@ export default function Employees() {
 
       {/* Edit User Modal */}
       {editUser && (
-        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, padding: '20px' }}>
+        <div
+          className="modal-overlay"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget && actionLoading !== editUser.id) {
+              setShowCreateTeamModal(false);
+              setShowCreatePositionModal(false);
+              setEditUser(null);
+            }
+          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, padding: '20px' }}
+        >
           <div className="modal-content glass-panel employee-edit-modal" style={{ width: '100%', maxWidth: '680px', padding: '24px', borderRadius: '20px' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>แก้ไขข้อมูลพนักงาน</h3>
+            <header style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '14px', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0ecff', color: '#2563eb', fontWeight: 800 }}>
+                {avatarUrl(editUser.avatar_url) ? (
+                  <img src={avatarUrl(editUser.avatar_url) || undefined} alt={`รูปโปรไฟล์ ${editUser.first_name}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  editUser.first_name?.trim().charAt(0).toUpperCase() || 'U'
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: 0 }}>แก้ไขข้อมูลพนักงาน</h3>
+                <div style={{ marginTop: '3px', fontSize: '12px', color: 'var(--text-gray)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {editUser.nickname || editUser.first_name} · {editUser.email}
+                </div>
+              </div>
+            </header>
 
             <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
               <div style={{ flex: 2 }}>
@@ -462,69 +512,65 @@ export default function Employees() {
 
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ทีม</label>
-              <select
-                value={editForm.team_id || ''}
-                onChange={e => {
-                  const selectedTeam = teams.find(team => team.id === e.target.value);
-                  setEditForm({
-                    ...editForm,
-                    team_id: selectedTeam?.id || null,
-                    position_id: null,
-                    position: '',
-                    team: selectedTeam?.name || '',
-                  });
-                  void loadPositions(selectedTeam?.id);
-                }}
-                className="form-control"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-              >
-                <option value="">ยังไม่ระบุทีม</option>
-                {teams.map(team => <option key={team.id} value={team.id}>{team.name} ({team.short_name})</option>)}
-              </select>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                <input
-                  type="text"
-                  value={newTeamName}
-                  onChange={e => setNewTeamName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void handleAddTeam();
-                    }
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={editForm.team_id || ''}
+                  onChange={e => {
+                    const selectedTeam = teams.find(team => team.id === e.target.value);
+                    setEditForm({
+                      ...editForm,
+                      team_id: selectedTeam?.id || null,
+                      position_id: null,
+                      position: '',
+                      team: selectedTeam?.name || '',
+                    });
+                    void loadPositions(selectedTeam?.id);
                   }}
-                  placeholder="เพิ่มทีมอื่น..."
-                  maxLength={50}
                   className="form-control"
                   style={{ flex: 1, boxSizing: 'border-box' }}
-                />
-                <button className="btn-secondary" type="button" onClick={handleAddTeam} disabled={addingTeam || !newTeamName.trim()}>
-                  {addingTeam ? 'กำลังเพิ่ม...' : 'เพิ่มทีม'}
+                >
+                  <option value="">ยังไม่ระบุทีม</option>
+                  {teams.map(team => <option key={team.id} value={team.id}>{team.name} ({team.short_name})</option>)}
+                </select>
+                <button className="btn-secondary" type="button" onClick={() => setShowCreateTeamModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <UsersRound size={15} /> <span>เพิ่มทีม</span>
                 </button>
               </div>
             </div>
 
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-gray)', marginBottom: '5px' }}>ตำแหน่ง</label>
-              <select
-                value={editForm.position_id || ''}
-                onChange={e => {
-                  const selectedPosition = positions.find(position => position.id === e.target.value);
-                  setEditForm({
-                    ...editForm,
-                    position_id: selectedPosition?.id || null,
-                    position: selectedPosition?.name || '',
-                  });
-                }}
-                className="form-control"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-                disabled={!editForm.team_id}
-              >
-                <option value="">ยังไม่ระบุตำแหน่ง</option>
-                {positions.filter(position => position.team_id === editForm.team_id).map(position => (
-                  <option key={position.id} value={position.id}>{position.name}</option>
-                ))}
-              </select>
-              {!editForm.team_id && <div style={{ marginTop: '5px', fontSize: '12px', color: 'var(--text-gray)' }}>กรุณาเลือกทีมก่อน</div>}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={editForm.position_id || ''}
+                  onChange={e => {
+                    const selectedPosition = positions.find(position => position.id === e.target.value);
+                    setEditForm({
+                      ...editForm,
+                      position_id: selectedPosition?.id || null,
+                      position: selectedPosition?.name || '',
+                    });
+                  }}
+                  className="form-control"
+                  style={{ flex: 1, boxSizing: 'border-box' }}
+                  disabled={!editForm.team_id}
+                >
+                  <option value="">ยังไม่ระบุตำแหน่ง</option>
+                  {positions.filter(position => position.team_id === editForm.team_id).map(position => (
+                    <option key={position.id} value={position.id}>{position.name}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={() => setShowCreatePositionModal(true)}
+                  disabled={!editForm.team_id}
+                  title={editForm.team_id ? 'เพิ่มตำแหน่งใหม่' : 'กรุณาเลือกทีมก่อน'}
+                >
+                  <Plus size={15} /> <span>เพิ่มตำแหน่ง</span>
+                </button>
+              </div>
+              {!editForm.team_id && <div style={{ marginTop: '5px', fontSize: '12px', color: 'var(--text-gray)' }}>เลือกทีมก่อน แล้วจึงเพิ่มตำแหน่งได้</div>}
             </div>
 
             <div style={{ marginBottom: '25px' }}>
@@ -571,6 +617,43 @@ export default function Employees() {
               </button>
             </div>
           </div>
+
+          {showCreateTeamModal && (
+            <div onMouseDown={event => { if (event.target === event.currentTarget && !addingTeam) setShowCreateTeamModal(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', background: 'rgba(15, 23, 42, 0.52)' }}>
+              <div role="dialog" aria-modal="true" aria-label="สร้างทีมใหม่" style={{ width: '100%', maxWidth: '440px', overflow: 'hidden', borderRadius: '20px', background: '#fff', boxShadow: '0 28px 72px rgba(15, 23, 42, 0.32)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '20px 20px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'grid', width: '42px', height: '42px', flexShrink: 0, placeItems: 'center', borderRadius: '13px', background: '#eff6ff', color: '#2563eb' }}><UsersRound size={21} /></div>
+                  <div style={{ flex: 1 }}><h3 style={{ margin: 0, color: '#0f172a' }}>สร้างทีมใหม่</h3><p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>สร้างเสร็จ ระบบจะเลือกทีมนี้ให้พนักงานทันที</p></div>
+                  <button type="button" aria-label="ปิด" onClick={() => setShowCreateTeamModal(false)} disabled={addingTeam} style={{ display: 'grid', width: '32px', height: '32px', placeItems: 'center', border: 0, borderRadius: '9px', background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={18} /></button>
+                </div>
+                <div style={{ display: 'grid', gap: '14px', padding: '20px' }}>
+                  <label style={{ display: 'grid', gap: '7px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>ชื่อทีม<input autoFocus type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} placeholder="เช่น Sales" maxLength={50} style={{ width: '100%', boxSizing: 'border-box', minHeight: '46px', padding: '0 13px', border: '1px solid #cbd5e1', borderRadius: '11px', outline: 'none', background: '#f8fafc', color: '#0f172a', fontSize: '14px' }} /></label>
+                  <label style={{ display: 'grid', gap: '7px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>ชื่อย่อ<input type="text" value={newTeamShortName} onChange={e => setNewTeamShortName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleAddTeam(); } }} placeholder="เช่น SAL" maxLength={12} style={{ width: '100%', boxSizing: 'border-box', minHeight: '46px', padding: '0 13px', border: '1px solid #cbd5e1', borderRadius: '11px', outline: 'none', background: '#f8fafc', color: '#0f172a', fontSize: '14px' }} /></label>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '16px 20px 20px', borderTop: '1px solid #e2e8f0' }}>
+                  <button className="btn-secondary" type="button" onClick={() => setShowCreateTeamModal(false)} disabled={addingTeam}>ยกเลิก</button>
+                  <button className="btn-primary" type="button" onClick={handleAddTeam} disabled={addingTeam || !newTeamName.trim() || !newTeamShortName.trim()} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Plus size={16} />{addingTeam ? 'กำลังสร้าง...' : 'สร้างทีม'}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showCreatePositionModal && (
+            <div onMouseDown={event => { if (event.target === event.currentTarget && !addingPosition) setShowCreatePositionModal(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', background: 'rgba(15, 23, 42, 0.52)' }}>
+              <div role="dialog" aria-modal="true" aria-label="เพิ่มตำแหน่ง" style={{ width: '100%', maxWidth: '440px', overflow: 'hidden', borderRadius: '20px', background: '#fff', boxShadow: '0 28px 72px rgba(15, 23, 42, 0.32)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '20px 20px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'grid', width: '42px', height: '42px', flexShrink: 0, placeItems: 'center', borderRadius: '13px', background: '#f0fdf4', color: '#16a34a' }}><BriefcaseBusiness size={21} /></div>
+                  <div style={{ flex: 1 }}><h3 style={{ margin: 0, color: '#0f172a' }}>เพิ่มตำแหน่ง</h3><p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>สำหรับทีม {teams.find(team => team.id === editForm.team_id)?.name || ''}</p></div>
+                  <button type="button" aria-label="ปิด" onClick={() => setShowCreatePositionModal(false)} disabled={addingPosition} style={{ display: 'grid', width: '32px', height: '32px', placeItems: 'center', border: 0, borderRadius: '9px', background: 'transparent', color: '#64748b', cursor: 'pointer' }}><X size={18} /></button>
+                </div>
+                <div style={{ padding: '20px' }}><label style={{ display: 'grid', gap: '7px', fontSize: '13px', fontWeight: 700, color: '#334155' }}>ชื่อตำแหน่ง<input autoFocus type="text" value={newPositionName} onChange={e => setNewPositionName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleAddPosition(); } }} placeholder="เช่น Sales" maxLength={80} style={{ width: '100%', boxSizing: 'border-box', minHeight: '46px', padding: '0 13px', border: '1px solid #cbd5e1', borderRadius: '11px', outline: 'none', background: '#f8fafc', color: '#0f172a', fontSize: '14px' }} /></label></div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '16px 20px 20px', borderTop: '1px solid #e2e8f0' }}>
+                  <button className="btn-secondary" type="button" onClick={() => setShowCreatePositionModal(false)} disabled={addingPosition}>ยกเลิก</button>
+                  <button className="btn-primary" type="button" onClick={handleAddPosition} disabled={addingPosition || !newPositionName.trim()} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Plus size={16} />{addingPosition ? 'กำลังเพิ่ม...' : 'เพิ่มตำแหน่ง'}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

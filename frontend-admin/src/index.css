@@ -204,10 +204,6 @@ body,
   margin-bottom: 16px !important;
 }
 
-.employee-edit-modal>div:nth-of-type(3)>div {
-  display: none !important;
-}
-
 .employee-edit-modal>div:nth-of-type(6) {
   display: flex !important;
   justify-content: flex-end;

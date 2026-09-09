@@ -244,6 +244,8 @@ export default function ContentCalendar() {
     assignedTo: '',
     postUrl: '',
   });
+  const [isSavingContent, setIsSavingContent] = useState(false);
+  const [contentSaveError, setContentSaveError] = useState<string | null>(null);
 
 
   // Queries
@@ -419,6 +421,7 @@ export default function ContentCalendar() {
   const openCreateModal = (dateStr?: string) => {
     const targetDate = dateStr || new Date().toISOString().split('T')[0];
     setEditingContent(null);
+	setContentSaveError(null);
     setFormData({
       title: '',
       description: '',
@@ -437,6 +440,7 @@ export default function ContentCalendar() {
 
   const openEditModal = (item: ContentItem) => {
     setEditingContent(item);
+	setContentSaveError(null);
     setFormData({
       title: item.title,
       description: item.description,
@@ -465,7 +469,12 @@ export default function ContentCalendar() {
 
   const handleSaveContent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || !formData.assignedTo || formData.platforms.length === 0) {
+      setContentSaveError('กรุณากรอกหัวข้อ เลือกผู้รับผิดชอบ และเลือกอย่างน้อย 1 แพลตฟอร์ม');
+      return;
+    }
+    setContentSaveError(null);
+    setIsSavingContent(true);
 
     // Pack remaining metadata tags into description (platform stored in DB column)
     const fullDescription = [
@@ -490,7 +499,8 @@ export default function ContentCalendar() {
           brand_id: formData.brandId || undefined,
           category_id: formData.categoryId || undefined,
           assigned_to: formData.assignedTo || undefined,
-          due_date: `${formData.scheduledDate}T${formData.scheduledTime}:00Z`,
+          assignee_ids: [formData.assignedTo],
+          due_date: formData.scheduledDate,
           status: taskStatus,
           platforms: formData.platforms,
         });
@@ -501,7 +511,8 @@ export default function ContentCalendar() {
           brand_id: formData.brandId || undefined,
           category_id: formData.categoryId || undefined,
           assigned_to: formData.assignedTo || undefined,
-          due_date: `${formData.scheduledDate}T${formData.scheduledTime}:00Z`,
+          assignee_ids: [formData.assignedTo],
+          due_date: formData.scheduledDate,
           status: taskStatus,
           platforms: formData.platforms,
         });
@@ -515,8 +526,11 @@ export default function ContentCalendar() {
       ]);
       setIsModalOpen(false);
       setViewingDetail(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save content item:', err);
+      setContentSaveError(err.response?.data?.error || err.message || 'บันทึกคอนเทนต์ไม่สำเร็จ');
+    } finally {
+      setIsSavingContent(false);
     }
   };
 
@@ -1398,18 +1412,25 @@ export default function ContentCalendar() {
 
               {/* Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2">
+                {contentSaveError && (
+                  <p className="mr-auto max-w-[60%] text-xs font-medium text-rose-600">
+                    {contentSaveError}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
+                  disabled={isSavingContent}
                   className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs transition-all"
+                  disabled={isSavingContent}
+                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 text-white rounded-xl shadow-xs transition-all"
                 >
-                  {editingContent ? 'บันทึกการแก้ไข' : 'สร้างคอนเทนต์'}
+                  {isSavingContent ? 'กำลังบันทึก...' : editingContent ? 'บันทึกการแก้ไข' : 'สร้างคอนเทนต์'}
                 </button>
               </div>
             </form>

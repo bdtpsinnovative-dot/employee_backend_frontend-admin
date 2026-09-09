@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   Building2,
+  BriefcaseBusiness,
   Sparkles,
   ArrowRight,
   Command,
@@ -68,6 +69,13 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
       category: 'การจัดการงาน',
       path: '/tasks',
       icon: Kanban,
+    },
+    {
+      id: 'sales-tasks',
+      title: 'งาน Sales (Sales Tasks)',
+      category: 'การจัดการงาน',
+      path: '/sales-tasks',
+      icon: BriefcaseBusiness,
     },
     {
       id: 'content-calendar',
