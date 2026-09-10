@@ -19,6 +19,11 @@ type BrandRepo struct {
 	db *sqlx.DB
 }
 
+func isMissingSchemaObject(err error) bool {
+	var pgErr *pq.Error
+	return errors.As(err, &pgErr) && (pgErr.Code == "42703" || pgErr.Code == "42P01")
+}
+
 var (
 	ErrBrandNotFound                   = errors.New("brand not found")
 	ErrInvalidBrandResponsibilityUsers = errors.New("brand responsibility users must be active")
@@ -34,10 +39,24 @@ func (r *BrandRepo) ListAll(ctx context.Context) ([]domain.Brand, error) {
 	var brands []domain.Brand
 	err := r.db.SelectContext(ctx, &brands, `SELECT id, name, sort_order, created_at FROM brands ORDER BY sort_order ASC, name ASC`)
 	if err != nil {
-		return nil, err
+		// Older installations may not yet have the ordering column. Brand
+		// selection should stay available while the schema catches up.
+		if !isMissingSchemaObject(err) {
+			return nil, err
+		}
+		if err := r.db.SelectContext(ctx, &brands, `SELECT id, name, created_at FROM brands ORDER BY name ASC`); err != nil {
+			return nil, err
+		}
 	}
 	if len(brands) == 0 {
 		return brands, nil
+	}
+
+	brandIndex := make(map[uuid.UUID]int, len(brands))
+	for i := range brands {
+		brands[i].ResponsibleUserIDs = []uuid.UUID{}
+		brands[i].Responsibilities = []domain.BrandResponsibility{}
+		brandIndex[brands[i].ID] = i
 	}
 
 	var responsibilities []struct {
@@ -52,15 +71,15 @@ func (r *BrandRepo) ListAll(ctx context.Context) ([]domain.Brand, error) {
 		WHERE u.status = 'active'
 		ORDER BY br.responsibility_type ASC, br.created_at ASC, br.user_id ASC
 	`); err != nil {
+		// Brand responsibilities are optional data for task screens. Keep the
+		// brand list usable if an existing database has not received that
+		// additive schema yet.
+		if isMissingSchemaObject(err) {
+			return brands, nil
+		}
 		return nil, err
 	}
 
-	brandIndex := make(map[uuid.UUID]int, len(brands))
-	for i := range brands {
-		brands[i].ResponsibleUserIDs = []uuid.UUID{}
-		brands[i].Responsibilities = []domain.BrandResponsibility{}
-		brandIndex[brands[i].ID] = i
-	}
 	for _, responsibility := range responsibilities {
 		if i, ok := brandIndex[responsibility.BrandID]; ok {
 			brands[i].ResponsibleUserIDs = append(

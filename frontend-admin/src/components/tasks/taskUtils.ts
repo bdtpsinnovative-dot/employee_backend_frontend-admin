@@ -165,7 +165,7 @@ export function formatRelativeDueDate(
 
   if (diffDays < 0) {
     const daysAgo = Math.abs(diffDays);
-    return { text: `เลยกำหนด ${daysAgo} วัน`, variant: 'overdue' };
+    return { text: `เลยกำหนด ${daysAgo} วัน (${formattedDate})`, variant: 'overdue' };
   } else if (diffDays === 0) {
     return { text: `วันนี้ (${formattedDate})`, variant: 'today' };
   } else if (diffDays === 1) {

@@ -441,6 +441,7 @@ func (h *BrandCategoryHandler) validateTaskAssignees(
 func (h *BrandCategoryHandler) ListBrands(c *gin.Context) {
 	brands, err := h.brandRepo.ListAll(c.Request.Context())
 	if err != nil {
+		log.Printf("list brands failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ดึงข้อมูล Brand ล้มเหลว"})
 		return
 	}
