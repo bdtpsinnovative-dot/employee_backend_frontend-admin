@@ -14,7 +14,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
-import { uploadFile } from '../../services/adminApi';
+import { isUploadCancelledError, uploadFile } from '../../services/adminApi';
 import { AttachmentLightbox } from './AttachmentLightbox';
 import { uploadWithTimeout } from './attachmentUpload';
 
@@ -207,6 +207,10 @@ export const TaskAttachmentPanel: React.FC<TaskAttachmentPanelProps> = ({
       setUploadItems((current) => current.filter((queued) => queued.id !== item.id));
     } catch (error) {
       if (!mountedRef.current) return;
+      if (isUploadCancelledError(error)) {
+        removeQueuedUpload(item);
+        return;
+      }
       setUploadItems((current) => current.map((queued) => queued.id === item.id
         ? { ...queued, status: 'failed', progress: 0, error: getUploadErrorMessage(error) }
         : queued));

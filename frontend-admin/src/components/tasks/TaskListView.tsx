@@ -35,6 +35,7 @@ interface TaskListViewProps {
   onApproveSubmission?: (task: AdminTask) => void;
   currentUser: User | null;
   onToggleStar?: (taskId: string, isStarred: boolean) => void;
+  taskDetailBasePath?: '/tasks' | '/sales-tasks';
 }
 
 export const TaskListView: React.FC<TaskListViewProps> = ({
@@ -50,11 +51,12 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
   onApproveSubmission,
   currentUser,
   onToggleStar,
+  taskDetailBasePath = '/tasks',
 }) => {
   const [notifTask, setNotifTask] = useState<AdminTask | null>(null);
 
   const openTaskInNewTab = (task: AdminTask) => {
-    window.open(`/tasks/${task.id}`, '_blank', 'noopener,noreferrer');
+    window.open(`${taskDetailBasePath}/${task.id}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleNotifItemClick = async (notif: AppNotification) => {
@@ -191,7 +193,9 @@ export const TaskListView: React.FC<TaskListViewProps> = ({
               const priority = getTaskPriority(task);
               const isCreator = task.assigned_by === currentUser?.id;
               const isAdmin = currentUser?.role === 'admin';
-              const canEdit = isAdmin || isCreator;
+              const isSalesTeamMember = currentUser?.team?.trim().toLowerCase() === 'sales';
+              const canManageSalesTask = task.workspace === 'sales' && isSalesTeamMember;
+              const canEdit = isAdmin || isCreator || canManageSalesTask;
 
               // Assignees
               const assigneeIds =

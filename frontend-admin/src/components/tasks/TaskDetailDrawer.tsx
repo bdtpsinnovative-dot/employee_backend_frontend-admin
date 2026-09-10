@@ -57,8 +57,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const isCompleted = (task?.status ?? '') === 'completed';
   const isCreator = task?.assigned_by === currentUser?.id;
   const isAdmin = currentUser?.role === 'admin';
-  const canDelete = isAdmin || isCreator;
-  const canEdit = isAdmin || isCreator;
+  const isSalesTeamMember = currentUser?.team?.trim().toLowerCase() === 'sales';
+  const canManageSalesTask = task?.workspace === 'sales' && isSalesTeamMember;
+  const canDelete = isAdmin || isCreator || canManageSalesTask;
+  const canEdit = isAdmin || isCreator || canManageSalesTask;
   const brand = task?.brand_id ? brandMap[task.brand_id] : null;
   const category = task?.category_id ? categoryMap[task.category_id] : null;
   const dueInfo = formatRelativeDueDate(task?.due_date ?? '', isCompleted, task?.status, task?.latest_submission?.submitted_at);

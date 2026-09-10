@@ -156,6 +156,7 @@ export default function App() {
             <Route path="history" element={<History />} />
             <Route path="tasks" element={<Tasks />} />
 			<Route path="sales-tasks" element={<Tasks workspace="sales" />} />
+			<Route path="sales-tasks/:taskId" element={<TaskDetail workspace="sales" />} />
             <Route path="content-calendar" element={<ContentCalendar />} />
             <Route path="brand-responsibilities" element={<BrandResponsibilities />} />
             <Route path="teams" element={<TeamManagement />} />

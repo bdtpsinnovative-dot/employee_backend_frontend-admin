@@ -207,6 +207,7 @@ export default function Tasks({ workspace = 'general' }: TasksProps) {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isSalesTeamMember = currentUser?.team?.trim().toLowerCase() === 'sales';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -679,7 +680,7 @@ export default function Tasks({ workspace = 'general' }: TasksProps) {
           setDefaultCreateStatus(undefined);
           setShowCreateModal(true);
         }}
-		canCreateTask={!isSalesWorkspace || currentUser?.role === 'admin' || currentUser?.position?.trim().toLowerCase() === 'sales'}
+		canCreateTask={!isSalesWorkspace || currentUser?.role === 'admin' || isSalesTeamMember}
         onOpenSettingsModal={() => navigate('/brand-responsibilities')}
         canManageSettings={currentUser?.role === 'admin'}
         onOpenTrashModal={() => setShowTrashModal(true)}
@@ -740,6 +741,7 @@ export default function Tasks({ workspace = 'general' }: TasksProps) {
             onApproveSubmission={currentUser?.role === 'admin' ? handleApproveTask : undefined}
             currentUser={currentUser}
             onToggleStar={handleToggleStar}
+            taskDetailBasePath={isSalesWorkspace ? '/sales-tasks' : '/tasks'}
           />
           {/* )} */}
         </div>

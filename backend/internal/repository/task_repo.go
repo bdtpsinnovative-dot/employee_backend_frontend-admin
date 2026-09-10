@@ -196,7 +196,7 @@ func (r *TaskRepo) listAllByWorkspace(ctx context.Context, workspace string) ([]
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
 					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
 				   ELSE 'in_progress'
@@ -239,7 +239,7 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
 					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
 				   ELSE 'in_progress'
@@ -288,7 +288,7 @@ func (r *TaskRepo) listByUserAndWorkspace(ctx context.Context, userID uuid.UUID,
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
 		       CASE
 				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN 'pending'
+				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
 				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
 					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
 				   ELSE 'in_progress'

@@ -71,10 +71,10 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	h.createTask(c, "general")
 }
 
-// CreateSalesTask only permits Admins or employees whose exact position is Sales to create Sales work.
+// CreateSalesTask only permits Admins or employees in the Sales team to create Sales work.
 func (h *TaskHandler) CreateSalesTask(c *gin.Context) {
 	if !isSalesWorkspaceManager(c) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะผู้ที่มีตำแหน่ง Sales หรือแอดมินเท่านั้นที่สร้างงาน Sales ได้"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะผู้ที่อยู่ทีม Sales หรือแอดมินเท่านั้นที่สร้างงาน Sales ได้"})
 		return
 	}
 	h.createTask(c, "sales")
@@ -202,7 +202,7 @@ func isSalesWorkspaceManager(c *gin.Context) bool {
 	}
 	userRaw, ok := c.Get(middleware.ContextKeyUser)
 	user, ok := userRaw.(*domain.User)
-	return ok && user != nil && strings.EqualFold(strings.TrimSpace(user.Position), "sales")
+	return ok && user != nil && strings.EqualFold(strings.TrimSpace(user.Team), "sales")
 }
 
 // ListAllTasks GET /admin/tasks (Admin only)
@@ -301,7 +301,7 @@ func (h *TaskHandler) ListAllDailyTaskLists(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": res})
 }
 
-// DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id (Creator only)
+// DeleteTask DELETE /api/tasks/:id or /admin/tasks/:id
 func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -319,9 +319,10 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	userID := userIDRaw.(uuid.UUID)
 	roleRaw, _ := c.Get(middleware.ContextKeyRole)
 	isAdmin := roleRaw.(string) == "admin"
+	isSalesTeamManager := task.Workspace == "sales" && isSalesWorkspaceManager(c)
 
-	if !isAdmin && (task.AssignedBy == nil || *task.AssignedBy != userID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์ลบงานนี้ (ต้องเป็นเจ้าของงานหรือแอดมินเท่านั้น)"})
+	if !isAdmin && !isSalesTeamManager && (task.AssignedBy == nil || *task.AssignedBy != userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "คุณไม่มีสิทธิ์ลบงานนี้ (ต้องเป็นเจ้าของงาน สมาชิกทีม Sales ของงาน Sales หรือแอดมิน)"})
 		return
 	}
 
@@ -442,6 +443,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	isAdmin := roleRaw.(string) == "admin"
 
 	existingTask, _ := h.taskSvc.GetTask(c.Request.Context(), id)
+	canManageTask := isAdmin || (existingTask != nil && existingTask.Workspace == "sales" && isSalesWorkspaceManager(c))
 
 	task, err := h.taskSvc.UpdateTask(
 		c.Request.Context(),
@@ -451,7 +453,7 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 		req.Description,
 		&dueDate,
 		userID,
-		isAdmin,
+		canManageTask,
 		brandID,
 		categoryID,
 		req.Priority,

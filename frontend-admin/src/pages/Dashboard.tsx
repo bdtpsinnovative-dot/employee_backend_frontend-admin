@@ -19,6 +19,7 @@ import {
   Bell,
   ArrowLeft,
   Smartphone,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import type { User } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
@@ -34,6 +35,8 @@ interface AppItem {
   iconBg?: string;
   imageSrc?: string;
   imageClassName?: string;
+  imageContainerClassName?: string;
+  tileClassName?: string;
   route?: string;
   url?: string;
   isExternal?: boolean;
@@ -87,6 +90,15 @@ export default function Dashboard() {
         iconColor: 'text-blue-600 dark:text-blue-400',
         iconBg: 'bg-blue-50 dark:bg-blue-950/60',
         route: '/tasks',
+      },
+      {
+        id: 'sales-tasks',
+        name: 'งาน Sales',
+        category: 'internal',
+        icon: BriefcaseBusiness,
+        iconColor: 'text-amber-700 dark:text-amber-300',
+        iconBg: 'bg-amber-50 dark:bg-amber-950/60',
+        route: '/sales-tasks',
       },
       {
         id: 'content-calendar',
@@ -185,7 +197,9 @@ export default function Dashboard() {
         icon: Package,
         iconBg: 'bg-black',
         imageSrc: '/brands/terrahome.png',
-        imageClassName: 'w-full h-full object-cover',
+        imageClassName: 'w-full h-full object-cover scale-[1.38]',
+        imageContainerClassName: 'w-12 h-12 xs:w-14 xs:h-14 sm:w-[4.5rem] sm:h-[4.5rem] rounded-full flex items-center justify-center overflow-hidden shadow-[0_6px_16px_rgba(15,23,42,0.3)]',
+        tileClassName: 'bg-gradient-to-br from-[#faf6ef] via-[#e7d6c0] to-[#bd9066] border-[#d4b896]',
         url: 'https://admin-and-manager-seven.vercel.app/',
         isExternal: true,
       },
@@ -523,9 +537,9 @@ export default function Dashboard() {
                         className="group flex flex-col items-center justify-start p-1.5 sm:p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-20 xs:w-24 sm:w-28"
                       >
                         {/* Clean Squircle Icon Tile */}
-                        <div className="relative w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#182035] border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-1.5 sm:mb-2">
+                        <div className={`relative w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-1.5 sm:mb-2 ${app.tileClassName || 'bg-white dark:bg-[#182035]'}`}>
                           {app.imageSrc ? (
-                            <div className={`w-9 h-9 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs ${app.iconBg || 'bg-black'}`}>
+                            <div className={`${app.imageContainerClassName || 'w-9 h-9 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs'} ${app.iconBg || 'bg-black'}`}>
                               <img
                                 src={app.imageSrc}
                                 alt={app.name}

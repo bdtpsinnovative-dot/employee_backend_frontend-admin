@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, Calendar, User, Check, Lock, Tag, Folder, AlignLeft, LayoutGrid, Clock, Activity, Flame, CheckCircle2, Paperclip, UploadCloud, FileText, ExternalLink, Loader2 } from 'lucide-react';
 import type { User as UserType, Brand, TaskCategory, AdminTask, TaskEvent } from '../../types';
 import type { TaskStatus } from './taskUtils';
-import { avatarUrl, toPublicAttachmentUrl, isImageUrl, parseTaskAttachments, type ExampleAttachment } from './taskUtils';
-import { fetchTaskEvents, uploadFile } from '../../services/adminApi';
+import { avatarUrl, toPublicAttachmentUrl, isImageUrl, parseTaskAttachments, getAttachmentSizeLabel, type ExampleAttachment } from './taskUtils';
+import { deleteUploadedFile, fetchTaskEvents, isUploadCancelledError, uploadFile } from '../../services/adminApi';
 import {
   getVisibleBrandResponsibilityGroups,
   getAutoBrandAssigneeIDs,
@@ -78,6 +78,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(initialAssignees);
   const [autoBrandAssigneeIds, setAutoBrandAssigneeIds] = useState<string[]>([]);
   const [lockedAssigneeIds, setLockedAssigneeIds] = useState<string[]>([]);
+  const [removingAttachmentIndex, setRemovingAttachmentIndex] = useState<number | null>(null);
   const [brandId, setBrandId] = useState(initialData?.brand_id || '');
   const [categoryId, setCategoryId] = useState(initialData?.category_id || '');
   const [priority, setPriority] = useState<string>(initialData?.priority || 'low');
@@ -204,16 +205,44 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
       for (const file of files) {
         const res = await uploadFile(file);
         if (res.ok && res.url) {
-          setAttachments(prev => [...prev, { name: file.name, url: res.url }]);
+          setAttachments(prev => [...prev, {
+            name: file.name,
+            url: res.url,
+            // Keep the original browser-file size, even when the upload was
+            // converted to WebP before it reached the server.
+            originalSize: file.size,
+            storedSize: res.stored_size ?? res.original_size ?? file.size,
+          }]);
         } else {
           throw new Error(`อัปโหลดไฟล์ ${file.name} ไม่สำเร็จ`);
         }
       }
     } catch (err: any) {
+      if (isUploadCancelledError(err)) return;
       setUploadError(err?.message || 'อัปโหลดไฟล์ล้มเหลว กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = async (index: number) => {
+    const attachment = attachments[index];
+    if (!attachment || removingAttachmentIndex !== null) return;
+
+    setRemovingAttachmentIndex(index);
+    setUploadError(null);
+    try {
+      // r2:// means it belongs to our Storage. External links are only
+      // unlinked from this task; their original host is never touched.
+      if (attachment.url.startsWith('r2://')) {
+        await deleteUploadedFile(attachment.url);
+      }
+      setAttachments(prev => prev.filter((_, itemIndex) => itemIndex !== index));
+    } catch (err: any) {
+      setUploadError(err?.response?.data?.error || 'ลบไฟล์จาก Storage ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setRemovingAttachmentIndex(null);
     }
   };
 
@@ -440,6 +469,11 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                             <p className="text-xs font-semibold text-slate-700 truncate max-w-[220px]" title={att.name}>
                               {att.name || 'ไฟล์ตัวอย่างงาน'}
                             </p>
+                            {getAttachmentSizeLabel(att) && (
+                              <p className="text-[10px] text-emerald-600 font-medium">
+                                {getAttachmentSizeLabel(att)}
+                              </p>
+                            )}
                             <a
                               href={toPublicAttachmentUrl(att.url)}
                               target="_blank"
@@ -453,11 +487,14 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="ลบไฟล์ตัวอย่างนี้"
+                          onClick={() => void handleRemoveAttachment(idx)}
+                          disabled={removingAttachmentIndex !== null}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="ลบไฟล์นี้ออกจากงานและ Storage"
                         >
-                          <X className="w-4 h-4" />
+                          {removingAttachmentIndex === idx
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <X className="w-4 h-4" />}
                         </button>
                       </div>
                     ))}

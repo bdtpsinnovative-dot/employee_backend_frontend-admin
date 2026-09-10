@@ -45,6 +45,7 @@ import {
   updateCardAttachment,
   deleteTaskSubItem,
   createSubItemVerification,
+  isUploadCancelledError,
   uploadFile,
   fetchTaskEvents,
   fetchTrashTaskLists,
@@ -748,6 +749,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
         showCustomAlert('อัปโหลดไฟล์ล้มเหลว', 'error');
       }
     } catch (err) {
+      if (isUploadCancelledError(err)) return;
       console.error(err);
       showCustomAlert('อัปโหลดไฟล์ล้มเหลว', 'error');
     } finally {

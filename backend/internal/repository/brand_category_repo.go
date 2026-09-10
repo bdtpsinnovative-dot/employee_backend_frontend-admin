@@ -695,18 +695,18 @@ func (r *TaskListRepo) Create(ctx context.Context, list *domain.TaskList) error 
 }
 
 // SyncParentTaskStatus derives the parent task status from its active
-// deliverables. A task with no deliverables remains pending; a partially
-// completed task is in progress; and a task whose deliverables are all
-// complete waits for review.
+// deliverables. Tasks without deliverables retain their manually selected
+// status; a partially completed task is in progress; and a task whose
+// deliverables are all complete waits for review.
 func (r *TaskListRepo) SyncParentTaskStatus(ctx context.Context, taskID uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE tasks AS t
 		SET status = CASE
-			WHEN stats.total_count = 0 THEN 'pending'
+			WHEN stats.total_count = 0 THEN t.status
 			WHEN stats.done_count = stats.total_count THEN 'in_review'
 			ELSE 'in_progress'
 		END,
-		completed_at = NULL
+		completed_at = CASE WHEN stats.total_count = 0 THEN t.completed_at ELSE NULL END
 		FROM (
 			SELECT
 				$1::uuid AS task_id,

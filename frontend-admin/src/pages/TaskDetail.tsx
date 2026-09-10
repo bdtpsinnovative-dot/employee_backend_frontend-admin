@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, EyeOff, FileText, ExternalLink, X } from 'lucide-react';
 import {
   fetchAdminTasks,
+  fetchSalesTasks,
   fetchTaskCategories,
   fetchBrands,
   fetchUsers,
@@ -36,17 +37,23 @@ import {
 } from '../components/tasks/taskUtils';
 import { queryKeys } from '../lib/queryKeys';
 
-export default function TaskDetail() {
+type TaskDetailProps = {
+  workspace?: 'general' | 'sales';
+};
+
+export default function TaskDetail({ workspace = 'general' }: TaskDetailProps) {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const tasksListPath = `/tasks${location.search}`;
+  const isSalesWorkspace = workspace === 'sales';
+  const tasksListPath = `${isSalesWorkspace ? '/sales-tasks' : '/tasks'}${location.search}`;
+  const taskQueryKey = isSalesWorkspace ? queryKeys.salesTasks : queryKeys.tasks('mine');
   const { notifications = [], setNotifications } = useOutletContext<{ notifications?: any[], setNotifications?: React.Dispatch<React.SetStateAction<any[]>> }>() || {};
 
   const tasksQuery = useQuery({
-    queryKey: queryKeys.tasks('mine'),
-    queryFn: () => fetchAdminTasks(),
+    queryKey: taskQueryKey,
+    queryFn: () => isSalesWorkspace ? fetchSalesTasks() : fetchAdminTasks(),
     staleTime: 60_000,
     refetchOnMount: 'always',
   });
@@ -159,7 +166,7 @@ export default function TaskDetail() {
   ]);
 
   const refreshTaskData = useCallback(async (_silent?: boolean) => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.tasks('mine') });
+    await queryClient.invalidateQueries({ queryKey: taskQueryKey });
   }, [queryClient]);
 
   // ─── Sync task with tasks list ───
@@ -196,7 +203,7 @@ export default function TaskDetail() {
       setTasks((prev) =>
         prev.map((x) => (x.id === t.id ? { ...x, status } : x))
       );
-      queryClient.setQueryData<AdminTask[]>(queryKeys.tasks('mine'), (current) =>
+      queryClient.setQueryData<AdminTask[]>(taskQueryKey, (current) =>
         current?.map((x) => (x.id === t.id ? { ...x, status } : x)),
       );
       if (selectedTask?.id === t.id) {

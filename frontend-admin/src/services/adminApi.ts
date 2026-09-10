@@ -1,5 +1,6 @@
 import api from '../api';
 import { cachedQuery, invalidateQuery, invalidateQueryPrefix } from '../lib/queryCache';
+import { optimizeFileForUpload } from '../utils/fileCompression';
 import type {
   ApiResponse,
   User,
@@ -691,11 +692,42 @@ export async function createSubItemVerification(subItemId: string, body: { statu
 interface UploadFileOptions {
   onProgress?: (progress: number) => void;
   signal?: AbortSignal;
+  confirmCompression?: boolean;
 }
 
-export async function uploadFile(file: File, options: UploadFileOptions = {}): Promise<{ ok: boolean; url: string }> {
+export class UploadCancelledError extends Error {
+  constructor() {
+    super('ผู้ใช้ยกเลิกการอัปโหลด');
+    this.name = 'UploadCancelledError';
+  }
+}
+
+export function isUploadCancelledError(error: unknown): error is UploadCancelledError {
+  return error instanceof UploadCancelledError;
+}
+
+function formatUploadSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export async function uploadFile(file: File, options: UploadFileOptions = {}): Promise<{
+  ok: boolean;
+  url: string;
+  original_size?: number;
+  stored_size?: number;
+  optimized?: boolean;
+}> {
+  const optimizedFile = await optimizeFileForUpload(file);
+  if (options.confirmCompression !== false && optimizedFile !== file && typeof window !== 'undefined') {
+    const savedPercent = Math.round((1 - (optimizedFile.size / file.size)) * 100);
+    const accepted = window.confirm(
+      `บีบอัดรูปก่อนอัปโหลด?\n\nก่อนบีบ: ${formatUploadSize(file.size)}\nหลังบีบ: ${formatUploadSize(optimizedFile.size)}\nลดลง: ${savedPercent}%\n\nระบบยังคงความชัดของรูปไว้\nกด “ตกลง” เพื่ออัปโหลด หรือ “ยกเลิก” เพื่อไม่อัปโหลด`,
+    );
+    if (!accepted) throw new UploadCancelledError();
+  }
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', optimizedFile);
   const { data } = await api.post('/api/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -708,6 +740,11 @@ export async function uploadFile(file: File, options: UploadFileOptions = {}): P
     },
   });
   return data;
+}
+
+/** Removes an object from R2. The backend accepts only UUID files it created. */
+export async function deleteUploadedFile(url: string): Promise<void> {
+  await api.delete('/api/upload', { params: { url } });
 }
 
 export async function fetchTrashTasks(): Promise<AdminTask[]> {

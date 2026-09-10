@@ -13,7 +13,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { fetchMe, updateMyProfile, uploadFile } from '../services/adminApi';
+import { fetchMe, isUploadCancelledError, updateMyProfile, uploadFile } from '../services/adminApi';
 import type { User } from '../types';
 import { avatarUrl } from '../components/tasks/taskUtils';
 import AvatarCropModal from '../components/AvatarCropModal';
@@ -125,6 +125,7 @@ export default function Profile() {
       setAvatarURL(result.url);
       setSuccess('อัปโหลดรูปแล้ว กรุณากด “บันทึกข้อมูลโปรไฟล์” เพื่อใช้งาน');
     } catch (uploadError: any) {
+      if (isUploadCancelledError(uploadError)) return;
       setError(uploadError?.message || 'อัปโหลดรูปไม่สำเร็จ');
     } finally {
       setUploadingAvatar(false);

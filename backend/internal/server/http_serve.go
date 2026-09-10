@@ -229,6 +229,10 @@ func registerRoutes(
 	api.Use(middleware.RequireActive())                            // บล็อคบัญชี pending/disabled
 	api.Use(maintenanceGate.ReadOnlyDuringRestore())
 	{
+		if uploadH != nil {
+			api.DELETE("/upload", uploadH.DeleteUpload)
+		}
+
 		// ข้อมูลผู้ใช้
 		api.GET("/users", adminH.ListUsers)                        // ดึงรายชื่อพนักงานทั้งหมด (สำหรับมอบหมายงาน)
 		api.GET("/users/team-members", userH.GetTeamMembers)       // ดึงสมาชิกทีมของผู้ใช้ปัจจุบัน

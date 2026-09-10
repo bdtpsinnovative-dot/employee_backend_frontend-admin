@@ -18,8 +18,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install ca-certificates in case we need to make HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata postgresql-client
+# Ghostscript compresses scanned PDFs while keeping their text selectable.
+RUN apk --no-cache add ca-certificates tzdata postgresql-client ghostscript
 
 # Set timezone to Asia/Bangkok
 ENV TZ=Asia/Bangkok

@@ -312,6 +312,17 @@ func (h *BrandCategoryHandler) requireTaskAccess(c *gin.Context, taskID uuid.UUI
 			FROM tasks t
 			WHERE t.id = $1
 			  AND (
+			    (
+			      t.workspace = 'sales'
+			      AND EXISTS (
+			        SELECT 1
+			        FROM users u
+			        LEFT JOIN teams team ON team.id = u.team_id
+			        WHERE u.id = $2
+			          AND LOWER(BTRIM(COALESCE(team.name, u.team, ''))) = 'sales'
+			      )
+			    )
+			    OR
 			    t.assigned_to = $2
 			    OR t.assigned_by = $2
 			OR EXISTS (

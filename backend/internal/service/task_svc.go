@@ -161,17 +161,17 @@ func (s *TaskService) CreateTask(ctx context.Context, assigneeIDs []uuid.UUID, t
 	return t, nil
 }
 
-func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, isAdmin bool, brandID *uuid.UUID, categoryID *uuid.UUID, priority string, status string, attachmentURL *string, platforms []string) (*domain.Task, error) {
+func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs []uuid.UUID, title, description string, dueDate *time.Time, userID uuid.UUID, canManageTask bool, brandID *uuid.UUID, categoryID *uuid.UUID, priority string, status string, attachmentURL *string, platforms []string) (*domain.Task, error) {
 	task, err := s.taskRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// The task owner or an Admin may change assignment metadata.
-	// Assignees may update progress through UpdateTaskStatus, but must not
-	// be able to remove other assignees or rewrite the assignment itself.
+	// The task owner, an Admin, or a permitted workspace manager may change
+	// assignment metadata. Assignees may update progress through
+	// UpdateTaskStatus, but must not rewrite the assignment itself.
 	isCreator := task.AssignedBy != nil && *task.AssignedBy == userID
-	if !isAdmin && !isCreator {
+	if !canManageTask && !isCreator {
 		return nil, fmt.Errorf("permission denied: only the task owner can edit this task")
 	}
 	if err := s.taskRepo.ValidateActiveAssignees(ctx, assigneeIDs); err != nil {

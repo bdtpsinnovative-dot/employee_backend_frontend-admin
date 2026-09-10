@@ -24,6 +24,16 @@ export function isImageUrl(url?: string | null): boolean {
 export interface ExampleAttachment {
   name: string;
   url: string;
+  /** Original browser file size, retained with the task after it is saved. */
+  originalSize?: number;
+  /** Actual size stored after client/server compression. */
+  storedSize?: number;
+}
+
+function validAttachmentSize(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 export function parseTaskAttachments(attachmentUrl?: string | null): ExampleAttachment[] {
@@ -37,6 +47,8 @@ export function parseTaskAttachments(attachmentUrl?: string | null): ExampleAtta
           .map((item: any) => ({
             name: typeof item === 'string' ? (item.split('/').pop() || 'ไฟล์ตัวอย่าง') : (item.name || item.url?.split('/').pop() || 'ไฟล์ตัวอย่าง'),
             url: typeof item === 'string' ? item : item.url,
+            originalSize: typeof item === 'string' ? undefined : validAttachmentSize(item.originalSize),
+            storedSize: typeof item === 'string' ? undefined : validAttachmentSize(item.storedSize),
           }))
           .filter(a => Boolean(a.url));
       }
@@ -48,6 +60,22 @@ export function parseTaskAttachments(attachmentUrl?: string | null): ExampleAtta
     name: trimmed.split('/').pop() || 'ไฟล์ตัวอย่างงาน',
     url: trimmed,
   }];
+}
+
+export function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function getAttachmentSizeLabel(attachment: ExampleAttachment): string | null {
+  const originalSize = attachment.originalSize;
+  const storedSize = attachment.storedSize ?? originalSize;
+  if (originalSize === undefined || storedSize === undefined) return null;
+
+  if (storedSize >= originalSize) return `ขนาด ${formatAttachmentSize(storedSize)}`;
+  const savedPercent = Math.round((1 - storedSize / originalSize) * 100);
+  return `${formatAttachmentSize(originalSize)} → ${formatAttachmentSize(storedSize)} · ลด ${savedPercent}%`;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'completed';
