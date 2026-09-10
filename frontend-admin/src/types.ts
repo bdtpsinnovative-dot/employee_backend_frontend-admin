@@ -269,7 +269,7 @@ export interface TaskList {
   start_date?: string;
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  status?: 'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision';
+  status?: 'waiting' | 'pending' | 'in_progress' | 'offsite' | 'in_review' | 'completed' | 'revision';
   admin_comment?: string;
   attachments?: { name: string; url: string; type: 'file' | 'link' }[];
   cards?: TaskCard[];

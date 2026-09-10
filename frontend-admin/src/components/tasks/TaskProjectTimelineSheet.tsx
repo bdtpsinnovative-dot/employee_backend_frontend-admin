@@ -117,6 +117,12 @@ const SUB_TASK_STATUS_CONFIG: Record<string, { label: string; bg: string; text: 
     text: 'text-amber-700',
     border: 'border-amber-200'
   },
+  offsite: {
+    label: 'ออกหน้างาน',
+    bg: 'bg-violet-50',
+    text: 'text-violet-700',
+    border: 'border-violet-200'
+  },
   in_review: {
     label: 'รอตรวจ',
     bg: 'bg-blue-50',
@@ -364,7 +370,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   });
   const [drawerDueDate, setDrawerDueDate] = useState('');
   const [drawerPriority, setDrawerPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision'>('waiting');
+  const [drawerStatus, setDrawerStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'offsite' | 'in_review' | 'completed' | 'revision'>('waiting');
   const [drawerComment, setDrawerComment] = useState('');
   const [isSavingDrawer, setIsSavingDrawer] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -374,7 +380,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
   const [createListName, setCreateListName] = useState('');
   const [createListDueDate, setCreateListDueDate] = useState('');
   const [createListPriority, setCreateListPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [createListStatus, setCreateListStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'in_review' | 'completed' | 'revision'>('waiting');
+  const [createListStatus, setCreateListStatus] = useState<'waiting' | 'pending' | 'in_progress' | 'offsite' | 'in_review' | 'completed' | 'revision'>('waiting');
   const [createListFirstCardName, setCreateListFirstCardName] = useState('');
   const [createListAssigneeIds, setCreateListAssigneeIds] = useState<string[]>([]);
 
