@@ -36,7 +36,7 @@ type BrandCategoryHandler struct {
 }
 
 func shouldPushTaskListStatus(status string) bool {
-	return status == "in_review" || status == "completed" || status == "pending" || status == "in_progress" || status == "waiting" || status == "revision"
+	return status == "in_review" || status == "completed" || status == "pending" || status == "in_progress" || status == "offsite" || status == "waiting" || status == "revision"
 }
 
 func NewBrandCategoryHandler(
@@ -153,6 +153,8 @@ func readableBoardStatus(value string) string {
 		return "รอทำ"
 	case "in_progress", "doing":
 		return "กำลังทำ"
+	case "offsite":
+		return "ออกหน้างาน"
 	case "in_review":
 		return "รอตรวจ"
 	case "revision":
@@ -1005,6 +1007,7 @@ func (h *BrandCategoryHandler) CreateTaskList(c *gin.Context) {
 	if req.Status != "waiting" &&
 		req.Status != "pending" &&
 		req.Status != "in_progress" &&
+		req.Status != "offsite" &&
 		req.Status != "in_review" &&
 		req.Status != "revision" &&
 		req.Status != "completed" {
@@ -1199,6 +1202,7 @@ func (h *BrandCategoryHandler) UpdateTaskList(c *gin.Context) {
 		*req.Status != "waiting" &&
 		*req.Status != "pending" &&
 		*req.Status != "in_progress" &&
+		*req.Status != "offsite" &&
 		*req.Status != "in_review" &&
 		*req.Status != "revision" &&
 		*req.Status != "completed" {

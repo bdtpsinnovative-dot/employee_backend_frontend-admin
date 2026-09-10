@@ -1889,6 +1889,23 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                     </div>
                   </div>
 
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">สถานะงาน (Status)</label>
+                    <select
+                      value={drawerStatus}
+                      onChange={(e) => setDrawerStatus(e.target.value as any)}
+                      className="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800"
+                    >
+                      <option value="waiting">รอรับ</option>
+                      <option value="pending">รอทำ</option>
+                      <option value="in_progress">กำลังทำ</option>
+                      <option value="offsite">ออกหน้างาน</option>
+                      <option value="in_review">รอตรวจ</option>
+                      <option value="revision">แก้ไข</option>
+                      <option value="completed">เสร็จสิ้น</option>
+                    </select>
+                  </div>
+
                   {/* มอบหมายให้ (Assignees) */}
                   <div className="space-y-1.5 relative">
                     <label className="text-xs font-bold text-slate-700">มอบหมายให้ (Assignees)</label>
@@ -2275,6 +2292,7 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
                       <option value="waiting">รอรับ</option>
                       <option value="pending">รอทำ</option>
                       <option value="in_progress">กำลังทำ</option>
+                      <option value="offsite">ออกหน้างาน</option>
                       <option value="in_review">รอตรวจ</option>
                       <option value="revision">แก้ไข</option>
                       <option value="completed">เสร็จสิ้น</option>
