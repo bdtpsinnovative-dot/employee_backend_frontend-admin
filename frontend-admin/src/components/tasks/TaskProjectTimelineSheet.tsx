@@ -811,8 +811,11 @@ export const TaskProjectTimelineSheet: React.FC<TaskProjectTimelineSheetProps> =
       setEditingList(null);
       await loadSubItems();
       onRefreshTask(true);
-    } catch (err) {
+      showCustomAlert('บันทึกข้อมูลงานย่อยสำเร็จ', 'success');
+    } catch (err: any) {
       console.error('Failed to update list details', err);
+      const errMsg = err?.response?.data?.error || err?.message || 'บันทึกข้อมูลงานย่อยล้มเหลว';
+      showCustomAlert(errMsg, 'error');
     } finally {
       setIsSavingDrawer(false);
     }

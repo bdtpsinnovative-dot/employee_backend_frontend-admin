@@ -194,13 +194,7 @@ func (r *TaskRepo) listAllByWorkspace(ctx context.Context, workspace string) ([]
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
-		       CASE
-				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
-					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
-				   ELSE 'in_progress'
-			   END AS status,
+		       t.status,
 		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
@@ -237,13 +231,7 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]do
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
-		       CASE
-				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
-					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
-				   ELSE 'in_progress'
-			   END AS status,
+		       t.status,
 		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
@@ -286,13 +274,7 @@ func (r *TaskRepo) listByUserAndWorkspace(ctx context.Context, userID uuid.UUID,
 	err := r.db.SelectContext(ctx, &rows, `
 		SELECT t.id, t.project_id, t.group_id, t.assigned_to, t.title, t.description,
 		       t.start_date, t.due_date, t.priority, t.attachment_url,
-		       CASE
-				   WHEN t.status = 'completed' THEN 'completed'
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) = 0 THEN t.status
-				   WHEN COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL AND tl.status = 'completed'), 0)
-					 = COALESCE((SELECT COUNT(*) FROM task_lists tl WHERE tl.task_id = t.id AND tl.deleted_at IS NULL), 0) THEN 'in_review'
-				   ELSE 'in_progress'
-			   END AS status,
+		       t.status,
 		       t.record_kind, t.sort_order,
 		       t.assigned_by, t.brand_id, t.category_id, t.workspace, t.created_at, t.needs_revision, t.completed_at, t.is_starred,
 		       COALESCE(u.first_name || ' ' || u.last_name, '') AS assigned_to_name,
@@ -460,10 +442,10 @@ func (r *TaskRepo) Update(ctx context.Context, t *domain.Task) error {
 		    brand_id = $4, 
 		    category_id = $5,
 		    assigned_to = $6,
-		    priority = $7,
-		    status = $8,
-		    attachment_url = $9,
-		    platforms = $10
+			priority = $7,
+			status = $8,
+			attachment_url = $9,
+			platforms = $10
 		WHERE id = $11
 	`, t.Title, t.Description, t.DueDate, t.BrandID, t.CategoryID, assignedTo, t.Priority, t.Status, t.AttachmentURL, pq.Array(t.Platforms), t.ID)
 	if err != nil {
@@ -520,6 +502,21 @@ func (r *TaskRepo) UpdateNeedsRevision(ctx context.Context, id uuid.UUID, needsR
 		UPDATE tasks SET needs_revision = $1 WHERE id = $2
 	`, needsRevision, id)
 	return err
+}
+
+// ListIncompleteTaskListNames returns active child work that prevents a task
+// from being submitted for review.
+func (r *TaskRepo) ListIncompleteTaskListNames(ctx context.Context, taskID uuid.UUID) ([]string, error) {
+	var names []string
+	err := r.db.SelectContext(ctx, &names, `
+		SELECT name
+		FROM task_lists
+		WHERE task_id = $1
+		  AND deleted_at IS NULL
+		  AND status <> 'completed'
+		ORDER BY sort_order, created_at
+	`, taskID)
+	return names, err
 }
 
 func (r *TaskRepo) Delete(ctx context.Context, id uuid.UUID) error {

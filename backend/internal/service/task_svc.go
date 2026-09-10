@@ -36,6 +36,17 @@ func taskStatusLabel(status string) string {
 	}
 }
 
+func (s *TaskService) ensureTaskReadyForReview(ctx context.Context, taskID uuid.UUID) error {
+	incompleteNames, err := s.taskRepo.ListIncompleteTaskListNames(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("ตรวจสอบงานย่อยก่อนส่งรอตรวจไม่สำเร็จ: %w", err)
+	}
+	if len(incompleteNames) == 0 {
+		return nil
+	}
+	return fmt.Errorf("ยังเปลี่ยนเป็นรอตรวจไม่ได้: งานย่อยที่ยังไม่เสร็จคือ %s", strings.Join(incompleteNames, ", "))
+}
+
 func NewTaskService(taskRepo *repository.TaskRepo, userRepo *repository.UserRepo, firebaseSvc *FirebaseService, notifSvc *NotificationService) *TaskService {
 	return &TaskService{
 		taskRepo:    taskRepo,
@@ -199,6 +210,11 @@ func (s *TaskService) UpdateTask(ctx context.Context, id uuid.UUID, assigneeIDs 
 		task.Priority = priority
 	}
 	if status != "" {
+		if status == "in_review" && status != oldStatus {
+			if err := s.ensureTaskReadyForReview(ctx, id); err != nil {
+				return nil, err
+			}
+		}
 		task.Status = status
 	}
 
@@ -330,13 +346,17 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, id uuid.UUID, status
 		log.Printf("[UpdateTaskStatus Debug] Invalid status: %s", status)
 		return fmt.Errorf("invalid status value")
 	}
+	if status == "in_review" && status != task.Status {
+		if err := s.ensureTaskReadyForReview(ctx, id); err != nil {
+			return err
+		}
+	}
 
 	err = s.taskRepo.UpdateStatus(ctx, id, status)
 	if err != nil {
 		log.Printf("[UpdateTaskStatus Debug] UpdateStatus failed: %v", err)
 		return err
 	}
-
 	content := "อัปเดตสถานะงานเป็น: " + status
 	_ = s.taskRepo.CreateTaskEvent(ctx, &domain.TaskEvent{
 		TaskID:    id,

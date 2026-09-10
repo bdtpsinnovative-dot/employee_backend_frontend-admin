@@ -319,7 +319,7 @@ func (h *BrandCategoryHandler) requireTaskAccess(c *gin.Context, taskID uuid.UUI
 			        FROM users u
 			        LEFT JOIN teams team ON team.id = u.team_id
 			        WHERE u.id = $2
-			          AND LOWER(BTRIM(COALESCE(team.name, u.team, ''))) = 'sales'
+				          AND LOWER(BTRIM(COALESCE(team.name, ''))) = 'sales'
 			      )
 			    )
 			    OR
@@ -341,6 +341,7 @@ func (h *BrandCategoryHandler) requireTaskAccess(c *gin.Context, taskID uuid.UUI
 		)
 	`, taskID, userID)
 	if err != nil {
+		log.Printf("task access check failed for task=%s user=%s: %v", taskID, userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ตรวจสอบสิทธิ์งานล้มเหลว"})
 		return false
 	}

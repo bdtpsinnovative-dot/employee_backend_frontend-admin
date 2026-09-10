@@ -246,8 +246,8 @@ type Task struct {
 	Description   string     `db:"description" json:"description"`
 	StartDate     *time.Time `db:"start_date" json:"start_date,omitempty"`
 	DueDate       *time.Time `db:"due_date" json:"due_date"`
-	Priority      string     `db:"priority" json:"priority"`       // "low" | "medium" | "high" | "urgent"
-	Status        string     `db:"status" json:"status"`           // "pending" | "in_progress" | "in_review" | "completed"
+	Priority      string     `db:"priority" json:"priority"` // "low" | "medium" | "high" | "urgent"
+	Status        string     `db:"status" json:"status"`     // "pending" | "in_progress" | "in_review" | "completed"
 	RecordKind    string     `db:"record_kind" json:"record_kind"` // "legacy_assignment" | "task"
 	SortOrder     int        `db:"sort_order" json:"sort_order"`
 	AssignedBy    *uuid.UUID `db:"assigned_by" json:"assigned_by,omitempty"`
