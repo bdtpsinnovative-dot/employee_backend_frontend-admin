@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Kanban,
@@ -591,9 +591,17 @@ export default function Dashboard() {
                       target="_blank"
                       rel="noopener noreferrer"
                       title={`${brand.name} - ${brand.description}`}
-                      className={`group relative z-0 hover:z-30 flex flex-col rounded-xl overflow-hidden bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_30px_-6px_rgba(0,0,0,0.5)] transform-gpu hover:scale-[1.25] sm:hover:scale-[1.8] hover:-translate-y-3.5 hover:shadow-[0_28px_55px_-12px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_28px_55px_-12px_rgba(0,0,0,0.95)] ${brand.hoverBorder} transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] [backface-visibility:hidden] [transform:translateZ(0)] cursor-pointer`}
+                      className={`group relative z-0 hover:z-30 flex flex-col rounded-2xl sm:rounded-3xl overflow-hidden bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_30px_-6px_rgba(0,0,0,0.5)] transform-gpu hover:scale-[1.08] sm:hover:scale-[1.12] hover:-translate-y-3.5 hover:shadow-[0_28px_55px_-12px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_28px_55px_-12px_rgba(0,0,0,0.95)] ${brand.hoverBorder} transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] [backface-visibility:hidden] [transform:translateZ(0)] cursor-pointer`}
                     >
-                      <LiveBrandPreview brand={brand} />
+                      {/* 16:10 Pure Brand Banner Cover */}
+                      <div className="relative aspect-[16/10] w-full overflow-hidden [backface-visibility:hidden]">
+                        <img
+                          src={brand.bannerImg}
+                          alt={brand.name}
+                          className="w-full h-full object-cover object-top [backface-visibility:hidden] pointer-events-none"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent pointer-events-none" />
+                      </div>
                     </a>
                   ))}
                 </div>
@@ -602,40 +610,6 @@ export default function Dashboard() {
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function LiveBrandPreview({ brand }: { brand: BrandBanner }) {
-  const [iframeReady, setIframeReady] = useState(false);
-  const [showLivePreview, setShowLivePreview] = useState(false);
-
-  useEffect(() => {
-    if (!iframeReady) return;
-
-    const animationTimer = window.setTimeout(() => setShowLivePreview(true), 180);
-    return () => window.clearTimeout(animationTimer);
-  }, [iframeReady]);
-
-  return (
-    <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100 dark:bg-slate-800 [backface-visibility:hidden]">
-      <img
-        src={brand.bannerImg}
-        alt={brand.name}
-        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ease-out [backface-visibility:hidden] ${showLivePreview ? 'opacity-0' : 'opacity-100'}`}
-      />
-
-      <iframe
-        src={brand.url}
-        title={`ตัวอย่างเว็บไซต์ ${brand.name}`}
-        loading="lazy"
-        tabIndex={-1}
-        scrolling="no"
-        onLoad={() => setIframeReady(true)}
-        className={`pointer-events-none absolute left-0 top-0 h-[500%] w-[500%] origin-top-left scale-[0.2] border-0 transition-opacity duration-700 ease-out ${showLivePreview ? 'opacity-100' : 'opacity-0'}`}
-      />
-
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent transition-opacity duration-700 ${showLivePreview ? 'opacity-0' : 'opacity-100'}`} />
     </div>
   );
 }
