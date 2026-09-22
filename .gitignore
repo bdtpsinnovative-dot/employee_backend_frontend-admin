@@ -15,16 +15,19 @@ backend/bin/
 backend/out/
 backend/dev-null
 
-# Go configuration / Secrets
-backend/.env
-backend/.env.local
+# Secrets & Configuration
+.env*
+!.env.example
+!.env.production.example
 backend/.data/
+*.key
+*.pem
+scratch/
+scripts/*.local.*
 
 # Web / Node / Frontend
 node_modules/
 dist/
-.env
-.env.local
 
 # Temp / Diff files
 diff.txt

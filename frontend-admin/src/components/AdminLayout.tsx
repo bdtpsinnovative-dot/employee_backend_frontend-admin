@@ -62,6 +62,9 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+  // PI Record is a focused read-only workspace, without the HR navigation shell.
+  const isPIRecord = location.pathname === '/pi-record' || location.pathname === '/pi-record/';
+  const showAppChrome = !isDashboard && !isPIRecord;
   const isTasksPage = location.pathname === '/tasks'
     || location.pathname === '/tasks/'
     || (location.pathname.startsWith('/tasks/') && location.pathname !== '/tasks/daily');
@@ -273,7 +276,7 @@ export default function AdminLayout() {
   return (
     <div id="app-section" style={{ display: 'flex', opacity: 1 }}>
       {/* Sidebar Overlay (Mobile) */}
-      {!isDashboard && (
+      {showAppChrome && (
         <div
           className={`sidebar-overlay ${sidebarOpen ? 'active' : ''}`}
           id="sidebar-overlay"
@@ -281,7 +284,7 @@ export default function AdminLayout() {
         ></div>
       )}
 
-      {!isDashboard && (
+      {showAppChrome && (
         <Sidebar
           currentUser={currentUser}
           isOpen={sidebarOpen}
@@ -290,9 +293,9 @@ export default function AdminLayout() {
         />
       )}
 
-      <div className={`main-container flex flex-col flex-1 h-screen overflow-hidden ${isDashboard ? 'ml-0! no-sidebar on-dashboard' : ''}`}>
+      <div className={`main-container flex flex-col flex-1 h-screen overflow-hidden ${isDashboard || isPIRecord ? 'ml-0! no-sidebar on-dashboard' : ''}`}>
         {/* Modern Top Header Bar (YouTube Studio / Linear style) */}
-        {!isDashboard && (
+        {showAppChrome && (
           <TopHeader
             currentUser={currentUser}
             notifications={notifications}
@@ -303,7 +306,7 @@ export default function AdminLayout() {
         )}
 
         <div className="flex-1 flex overflow-hidden w-full relative">
-          <div className={`content-area flex-1 overflow-y-auto ${isDashboard ? 'p-0!' : ''}`}>
+          <div className={`content-area flex-1 overflow-y-auto ${isDashboard || isPIRecord ? 'p-0!' : ''}`}>
             {/* Child Routes Render Here */}
             <Outlet context={{ selectedUser, setSelectedUser, currentUser, currentUserLoaded, notifications, setNotifications }} />
           </div>

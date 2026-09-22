@@ -19,6 +19,7 @@ const ContentCalendar = lazy(() => import('./pages/ContentCalendar'));
 const BrandResponsibilities = lazy(() => import('./pages/BrandResponsibilities'));
 const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 const AppDownload = lazy(() => import('./pages/AppDownload'));
+const PIRecord = lazy(() => import('./pages/PIRecord'));
 
 import { fetchMe } from './services/adminApi';
 import { clearQueryCache } from './lib/queryCache';
@@ -136,6 +137,8 @@ export default function App() {
           <Route path="/data-collection" element={<DataCollection />} />
           <Route path="/data-deletion" element={<DataDeletion />} />
           <Route path="/login" element={<Login />} />
+          {/* 🌟 จัดการซื้อ-ขาย (PI Record) เข้าถึงได้โดยไม่ต้องล็อกอิน (Public Access) */}
+          <Route path="/pi-record" element={<PIRecord />} />
 
           <Route
             path="/"

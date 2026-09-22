@@ -59,8 +59,12 @@ func New(cfg *config.Config) (*Server, error) {
 	notifRepo := repository.NewNotificationRepo(db)
 	settingRepo := repository.NewSettingRepo(db)
 	backupRepo := repository.NewBackupRepo(db)
+	piRecordRepo := repository.NewPIRecordRepo(db, cfg.WallcraftPIRecordsAPIURL, cfg.WallcraftPIRecordsAPIKey)
 	if err := backupRepo.EnsureTable(context.Background()); err != nil {
 		return nil, fmt.Errorf("backup table migration failed: %w", err)
+	}
+	if err := piRecordRepo.EnsureTable(context.Background()); err != nil {
+		return nil, fmt.Errorf("PI Record table migration failed: %w", err)
 	}
 
 	// Run card_attachments table migration (idempotent)
@@ -100,6 +104,7 @@ func New(cfg *config.Config) (*Server, error) {
 	taskEventH := handler.NewTaskEventHandler(taskEventRepo)
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
+	piRecordH := handler.NewPIRecordHandler(piRecordRepo)
 	maintenanceGate := middleware.NewMaintenanceGate()
 	var backupH *handler.BackupHandler
 	localBackupDir := os.Getenv("BACKUP_LOCAL_DIR")
@@ -156,7 +161,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, backupH, maintenanceGate)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, backupH, maintenanceGate)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -187,6 +192,7 @@ func registerRoutes(
 	taskEventH *handler.TaskEventHandler,
 	notifH *handler.NotificationHandler,
 	settingH *handler.SettingHandler,
+	piRecordH *handler.PIRecordHandler,
 	backupH *handler.BackupHandler,
 	maintenanceGate *middleware.MaintenanceGate,
 ) {
@@ -200,6 +206,9 @@ func registerRoutes(
 	loadUser := LoadUserMiddleware(userSvc)
 
 	// ─── เส้นทางสาธารณะ (ไม่ต้องล็อกอิน) ──────────────────
+	// จัดการซื้อ-ขาย (PI Record) ดูข้อมูลได้โดยไม่ต้องล็อกอิน
+	r.GET("/api/pi-records", maintenanceGate.ReadOnlyDuringRestore(), piRecordH.List)
+
 	auth := r.Group("/auth")
 	{
 		auth.POST("/signup", authH.SignUp)        // สมัคร Supabase Auth ผ่าน backend

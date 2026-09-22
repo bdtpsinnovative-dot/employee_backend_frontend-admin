@@ -206,6 +206,18 @@ export default function Dashboard() {
         isExternal: true,
       },
       {
+        id: 'purchase-sales',
+        name: 'จัดการซื้อ-ขาย',
+        category: 'management',
+        icon: Package,
+        iconBg: 'bg-[#f7ece0]',
+        imageSrc: '/brands/purchase-sales.png',
+        imageClassName: 'w-full h-full object-cover scale-[1.05]',
+        imageContainerClassName: 'w-full h-full rounded-2xl sm:rounded-3xl flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#fcf7ee] to-[#f4e2ca] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_10px_20px_rgba(180,83,9,0.15)]',
+        tileClassName: 'bg-gradient-to-br from-[#fffdfa] to-[#f7ece0] border-[#edd8c4]',
+        route: '/pi-record',
+      },
+      {
         id: 'download-app',
         name: 'ดาวน์โหลดแอป',
         category: 'management',

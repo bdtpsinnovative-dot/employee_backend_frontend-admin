@@ -21,6 +21,10 @@ type Config struct {
 	SupabaseDatabaseURL string
 	SupabaseJWTSecret   string
 
+	// Wallcraft PI Record bridge (server-to-server only)
+	WallcraftPIRecordsAPIURL string
+	WallcraftPIRecordsAPIKey string
+
 	// Geofencing
 	DefaultGeofenceRadiusM int
 	LateThresholdHour      int // Hour after which check-in is considered "late" (e.g., 9)
@@ -30,17 +34,19 @@ type Config struct {
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:                   getEnv("PORT", ""),
-		AppEnv:                 getEnv("APP_ENV", "development"),
-		BackupRestoreEnabled:   getEnv("BACKUP_RESTORE_ENABLED", "false") == "true",
-		BackupRestoreTarget:    getEnv("BACKUP_RESTORE_TARGET", ""),
-		SupabaseURL:            getEnv("SUPABASE_URL", ""),
-		SupabaseAnonKey:        getEnv("SUPABASE_ANON_KEY", ""),
-		SupabaseDatabaseURL:    getEnv("SUPABASE_DATABASE_URL", ""),
-		SupabaseJWTSecret:      getEnv("SUPABASE_JWT_SECRET", ""),
-		DefaultGeofenceRadiusM: 50,
-		LateThresholdHour:      9,
-		LateThresholdMinute:    0,
+		Port:                     getEnv("PORT", ""),
+		AppEnv:                   getEnv("APP_ENV", "development"),
+		BackupRestoreEnabled:     getEnv("BACKUP_RESTORE_ENABLED", "false") == "true",
+		BackupRestoreTarget:      getEnv("BACKUP_RESTORE_TARGET", ""),
+		SupabaseURL:              getEnv("SUPABASE_URL", ""),
+		SupabaseAnonKey:          getEnv("SUPABASE_ANON_KEY", ""),
+		SupabaseDatabaseURL:      getEnv("SUPABASE_DATABASE_URL", ""),
+		SupabaseJWTSecret:        getEnv("SUPABASE_JWT_SECRET", ""),
+		WallcraftPIRecordsAPIURL: getEnv("WALLCRAFT_PI_RECORDS_API_URL", "https://admin.wallcraftthailand.com/api/pi-records"),
+		WallcraftPIRecordsAPIKey: getEnv("WALLCRAFT_PI_RECORDS_API_KEY", ""),
+		DefaultGeofenceRadiusM:   50,
+		LateThresholdHour:        9,
+		LateThresholdMinute:      0,
 	}
 	if cfg.Port == "" {
 		return nil, fmt.Errorf("PORT is required")
