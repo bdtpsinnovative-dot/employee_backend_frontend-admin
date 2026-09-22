@@ -167,8 +167,6 @@ export default function PIRecordPage() {
   const [selectedBrand, setSelectedBrand] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterSaleName, setFilterSaleName] = useState('');
-  const [filterProjectName, setFilterProjectName] = useState('');
-  const [filterOrderNo, setFilterOrderNo] = useState('');
   const [filterPISupplier, setFilterPISupplier] = useState('');
   const [onlyWithDocs, setOnlyWithDocs] = useState(false);
   const [search, setSearch] = useState('');
@@ -280,8 +278,6 @@ export default function PIRecordPage() {
     setSelectedBrand('');
     setFilterSupplier('');
     setFilterSaleName('');
-    setFilterProjectName('');
-    setFilterOrderNo('');
     setFilterPISupplier('');
     setOnlyWithDocs(false);
     setSearch('');
@@ -293,8 +289,6 @@ export default function PIRecordPage() {
     selectedBrand ||
     filterSupplier ||
     filterSaleName ||
-    filterProjectName ||
-    filterOrderNo ||
     filterPISupplier ||
     onlyWithDocs ||
     search
@@ -328,17 +322,7 @@ export default function PIRecordPage() {
         return false;
       }
 
-      // 5. Project Name Filter
-      if (filterProjectName && record.project_name !== filterProjectName) {
-        return false;
-      }
-
-      // 6. Order No Filter
-      if (filterOrderNo && record.order_no !== filterOrderNo) {
-        return false;
-      }
-
-      // 7. PI Supplier Filter
+      // 5. PI Supplier Filter
       if (filterPISupplier && record.pi_supplier !== filterPISupplier) {
         return false;
       }
@@ -368,8 +352,6 @@ export default function PIRecordPage() {
     selectedBrand,
     filterSupplier,
     filterSaleName,
-    filterProjectName,
-    filterOrderNo,
     filterPISupplier,
     onlyWithDocs,
     startDate,
@@ -570,44 +552,6 @@ export default function PIRecordPage() {
                 <option value="">👤 เซลส์: ทั้งหมด</option>
                 {options.sale_name?.map((s) => (
                   <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Project Name Filter */}
-            <div className="relative">
-              <select 
-                className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
-                  filterProjectName 
-                    ? 'border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-                }`}
-                value={filterProjectName} 
-                onChange={(e) => setFilterProjectName(e.target.value)}
-              >
-                <option value="">📁 โครงการ: ทั้งหมด</option>
-                {options.project_name?.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Order No Filter */}
-            <div className="relative">
-              <select 
-                className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
-                  filterOrderNo 
-                    ? 'border-pink-500 bg-pink-50 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-pink-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-                }`}
-                value={filterOrderNo} 
-                onChange={(e) => setFilterOrderNo(e.target.value)}
-              >
-                <option value="">🔢 Order No.: ทั้งหมด</option>
-                {options.order_no?.map((o) => (
-                  <option key={o} value={o}>{o}</option>
                 ))}
               </select>
               <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
