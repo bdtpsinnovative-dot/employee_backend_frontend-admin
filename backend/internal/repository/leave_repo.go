@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/perf"
@@ -186,3 +187,20 @@ func (r *LeaveRepo) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) 
 	`, id, userID)
 	return err
 }
+
+// HasApprovedMorningOrFullDayLeaveForDate ตรวจสอบว่า user มีใบลาที่อนุมัติแล้ว (เต็มวัน หรือ ครึ่งวันเช้า) ในวันที่ระบุหรือไม่
+func (r *LeaveRepo) HasApprovedMorningOrFullDayLeaveForDate(ctx context.Context, userID uuid.UUID, date time.Time) (bool, error) {
+	var count int
+	err := r.db.GetContext(ctx, &count, `
+		SELECT COUNT(*) FROM leave_requests
+		WHERE user_id = $1 
+		  AND date = $2 
+		  AND status = 'approved'
+		  AND (duration = 'เต็มวัน' OR duration = 'ครึ่งวันเช้า' OR duration = 'full_day' OR duration = 'morning')
+	`, userID, date.Format("2006-01-02"))
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+

@@ -68,7 +68,7 @@ func (s *FirebaseService) SendNotification(ctx context.Context, fcmToken string,
 			Priority: "high",
 			Notification: &messaging.AndroidNotification{
 				Sound:     "custom_notification",
-				ChannelID: "custom_sound_channel",
+				ChannelID: "clock_in_tps_notifications_v2",
 			},
 		},
 		APNS: &messaging.APNSConfig{

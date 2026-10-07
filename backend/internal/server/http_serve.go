@@ -105,6 +105,20 @@ func New(cfg *config.Config) (*Server, error) {
 	notifH := handler.NewNotificationHandler(notifSvc)
 	settingH := handler.NewSettingHandler(settingSvc)
 	piRecordH := handler.NewPIRecordHandler(piRecordRepo)
+
+	// ระบบตรวจเวลาและส่งแจ้งเตือนเช็คอินเข้างานล่วงหน้า 5 นาที
+	reminderSvc := service.NewAttendanceReminderService(
+		userRepo,
+		attendanceRepo,
+		leaveRepo,
+		offsiteRepo,
+		holidayRepo,
+		firebaseSvc,
+		notifSvc,
+	)
+	reminderSvc.StartBackgroundWorker(context.Background())
+	reminderH := handler.NewAttendanceReminderHandler(reminderSvc)
+
 	maintenanceGate := middleware.NewMaintenanceGate()
 	var backupH *handler.BackupHandler
 	localBackupDir := os.Getenv("BACKUP_LOCAL_DIR")
@@ -161,7 +175,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, backupH, maintenanceGate)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, reminderH, backupH, maintenanceGate)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -193,6 +207,7 @@ func registerRoutes(
 	notifH *handler.NotificationHandler,
 	settingH *handler.SettingHandler,
 	piRecordH *handler.PIRecordHandler,
+	reminderH *handler.AttendanceReminderHandler,
 	backupH *handler.BackupHandler,
 	maintenanceGate *middleware.MaintenanceGate,
 ) {
@@ -200,6 +215,12 @@ func registerRoutes(
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "nexhr-api"})
 	})
+
+	// ─── ระบบทริกเกอร์แจ้งเตือนเช็คอินเข้างาน (สำหรับ Cron / Background Trigger) ───
+	r.GET("/api/v1/cron/checkin-reminders", reminderH.TriggerReminders)
+	r.POST("/api/v1/cron/checkin-reminders", reminderH.TriggerReminders)
+	r.GET("/cron/checkin-reminders", reminderH.TriggerReminders)
+	r.POST("/cron/checkin-reminders", reminderH.TriggerReminders)
 
 	// สร้าง KeyManager เพื่อดึงและแคช Public Keys จาก Supabase JWKS (สำหรับยืนยัน ES256 tokens)
 	keyManager := middleware.NewKeyManager(cfg.SupabaseURL, cfg.SupabaseAnonKey)
