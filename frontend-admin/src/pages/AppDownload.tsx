@@ -40,7 +40,7 @@ const MOBILE_APPS: MobileApp[] = [
     name: 'Wallcraft',
     icon: 'https://taskmanagementsystem.wallcraftthailand.com/brands/wallcraft.png',
     iosUrl: 'https://testflight.apple.com/join/BXMvdwVM',
-    androidUrl: 'https://drive.google.com/file/d/1zK11ohCeWKzEnhC8u1frKTY1W1p-tiib/view',
+    androidUrl: 'ttps://drive.google.com/file/d/1zK11ohCeWKzEnhC8u1frKTY1W1p-tiib/view?usp=sharing',
   },
 ];
 
