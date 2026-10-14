@@ -93,7 +93,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   }, []);
 
   return (
-    <header className="top-header-bar sticky top-0 z-40 w-full flex items-center justify-between px-4 sm:px-6 transition-colors">
+    <header className="top-header-bar sticky top-0 z-30 w-full flex items-center justify-between px-4 sm:px-6 transition-colors">
       {/* Left: Mobile Toggle & Mini Brand / Page Hint */}
       <div className="flex items-center gap-3">
         <button
@@ -114,7 +114,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           title="กลับไปหน้าแดชบอร์ด"
         >
           <img src="/app_icon_v2.svg" alt="HR System Logo" className="w-8 h-8 object-contain shrink-0 drop-shadow-xs" />
-          <span className="font-black text-[16px] text-blue-600 tracking-tight">
+          <span className="font-black text-[16px] text-blue-600 dark:text-zinc-100 tracking-tight">
             HR Studio
           </span>
         </button>
@@ -184,7 +184,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                   )}
                   <button
                     type="button"
-                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                    className="text-xs text-blue-600 dark:text-zinc-300 hover:text-blue-700 dark:hover:text-zinc-100 font-semibold cursor-pointer"
                     onClick={() => setNotifOpen(false)}
                   >
                     ปิด
@@ -192,7 +192,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 </div>
               </div>
 
-              <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
+              <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-zinc-800/60">
                 {notifications.length > 0 ? (
                   notifications.slice(0, 10).map((notif) => {
                     const sender = getNotificationSender(notif, users);
@@ -200,7 +200,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                       <div
                         key={notif.id}
                         onClick={() => handleNotificationClick(notif)}
-                        className={`top-notif-item p-3.5 flex items-start gap-3 transition-all cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
+                        className={`top-notif-item p-3.5 flex items-start gap-3 transition-all cursor-pointer group hover:bg-slate-50 dark:hover:bg-zinc-800/40 ${
                           !notif.is_read ? 'top-notif-unread' : ''
                         }`}
                       >
@@ -215,14 +215,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                         {/* Notification content */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-1.5">
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            <span className="text-xs font-bold text-slate-800 dark:text-zinc-100 truncate group-hover:text-blue-600 dark:group-hover:text-zinc-300 transition-colors">
                               {notif.title}
                             </span>
                             <span className="text-[10px] text-slate-400 shrink-0">
                               {new Date(notif.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
+                          <p className="text-[11.5px] text-slate-600 dark:text-zinc-300 mt-0.5 line-clamp-2 leading-relaxed">
                             {formatNotificationBody(notif.body, users)}
                           </p>
                         </div>
@@ -237,14 +237,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               </div>
 
               {/* View all notifications footer */}
-              <div className="p-2 border-t border-slate-100 dark:border-slate-800 text-center bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="p-2 border-t border-slate-100 dark:border-zinc-800 text-center bg-slate-50/50 dark:bg-zinc-900/50">
                 <button
                   type="button"
                   onClick={() => {
                     setNotifOpen(false);
                     navigate('/notifications');
                   }}
-                  className="w-full py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800/80 rounded-xl transition-all cursor-pointer"
+                  className="w-full py-1.5 text-xs font-semibold text-blue-600 dark:text-zinc-200 hover:text-blue-700 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-zinc-800/80 rounded-xl transition-all cursor-pointer"
                 >
                   ดูการแจ้งเตือนทั้งหมด
                 </button>
@@ -305,7 +305,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Top Right Mini User Avatar */}
         <div
-          className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all ml-1 shrink-0"
+          className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 dark:from-zinc-700 dark:to-zinc-800 text-white flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 dark:hover:ring-zinc-500 transition-all ml-1 shrink-0"
           onClick={() => navigate('/profile')}
           title={currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'โปรไฟล์'}
         >

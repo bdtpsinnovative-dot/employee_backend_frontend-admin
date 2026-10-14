@@ -123,7 +123,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
   return (
     <aside
-      className={`sidebar ${isOpen ? 'active' : 'collapsed'} fixed top-0 left-0 bottom-0 h-screen bg-white dark:bg-[#121214] border-r border-slate-200/80 dark:border-zinc-800 flex flex-col py-4 z-40 select-none transition-all duration-200 ease-out ${
+      className={`sidebar ${isOpen ? 'active' : 'collapsed'} fixed top-0 left-0 bottom-0 h-screen bg-white dark:bg-[#121214] border-r border-slate-200/80 dark:border-zinc-800 flex flex-col py-4 z-[100] select-none transition-all duration-200 ease-out ${
         isHovered
           ? 'w-[240px] shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]'
           : 'w-[68px] shadow-xs'
@@ -137,11 +137,11 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
         <NavLink
           to="/profile"
           onClick={handleNavClick}
-          className="flex items-center w-full rounded-2xl group cursor-pointer focus:outline-none transition-colors hover:bg-slate-100/80 dark:hover:bg-slate-800/60 p-0"
+          className="flex items-center w-full rounded-2xl group cursor-pointer focus:outline-none transition-colors hover:bg-slate-100/80 dark:hover:bg-zinc-800/60 p-0"
           title={`โปรไฟล์: ${profileName} (${roleBadgeText})`}
         >
           <div className="w-11 h-11 shrink-0 flex items-center justify-center relative">
-            <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs border border-white dark:border-slate-700 transition-transform group-hover:scale-105">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-600 dark:from-zinc-700 dark:to-zinc-800 text-white flex items-center justify-center font-bold text-sm shadow-xs border border-white dark:border-zinc-700 transition-transform group-hover:scale-105">
               {profileAvatar ? (
                 <img src={profileAvatar} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -157,20 +157,20 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
               isHovered ? 'opacity-100 max-w-[160px]' : 'opacity-0 max-w-0 pointer-events-none'
             }`}
           >
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+            <span className="text-sm font-bold text-slate-800 dark:text-zinc-100 truncate">
               {profileName}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span
                 className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-md ${
                   isAdmin
-                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/80 dark:text-rose-400'
-                    : 'bg-blue-100 text-blue-600 dark:bg-blue-950/80 dark:text-blue-400'
+                    ? 'bg-rose-100 text-rose-600 dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700'
+                    : 'bg-blue-100 text-blue-600 dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700'
                 }`}
               >
                 {roleBadgeText}
               </span>
-              <span className="text-xs text-slate-400 dark:text-slate-500 truncate">
+              <span className="text-xs text-slate-400 dark:text-zinc-400 truncate">
                 {currentUser?.position || (isAdmin ? 'ผู้ดูแลระบบ' : 'พนักงาน')}
               </span>
             </div>
