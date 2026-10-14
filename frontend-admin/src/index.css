@@ -61,59 +61,59 @@
   --focus-ring: rgba(161, 161, 170, 0.25);
   --text-main: #f4f4f5;
   --text-gray: #a1a1aa;
-  --blue-light: oklch(24% 0.1 250);
-  --blue-mid: oklch(48% 0.15 250);
-  --blue: oklch(74% 0.19 245);
-  --blue-dark: oklch(65% 0.22 250);
-  --blue-soft: oklch(84% 0.12 245);
-  --teal: oklch(77% 0.16 190);
-  --green: oklch(76% 0.17 158);
-  --green-soft: oklch(84% 0.13 158);
-  --yellow: oklch(84% 0.17 88);
-  --yellow-soft: oklch(88% 0.13 88);
-  --red: oklch(76% 0.18 16);
-  --red-soft: oklch(84% 0.13 16);
-  --purple: oklch(78% 0.16 300);
-  --purple-soft: oklch(84% 0.12 300);
-  --gold: oklch(84% 0.17 88);
-  --gold-bg: oklch(25% 0.09 88);
-  --gold-border: oklch(42% 0.12 88);
-  --red-text: oklch(84% 0.13 16);
-  --red-bg: oklch(24% 0.1 16);
-  --red-border: oklch(42% 0.12 16);
-  --green-text: oklch(84% 0.13 158);
-  --green-bg: oklch(23% 0.09 158);
-  --green-border: oklch(41% 0.12 158);
-  --status-blue-bg: oklch(23% 0.09 250);
-  --status-amber-bg: oklch(24% 0.09 88);
-  --status-green-bg: oklch(23% 0.09 158);
-  --status-red-bg: oklch(24% 0.1 16);
-  --status-purple-bg: oklch(25% 0.09 300);
-  --status-blue-border: oklch(41% 0.13 250);
-  --status-amber-border: oklch(42% 0.12 88);
-  --status-green-border: oklch(41% 0.12 158);
-  --status-red-border: oklch(42% 0.12 16);
-  --accent-shadow-color: oklch(65% 0.22 250 / 0.28);
+  --blue-light: #18181b;
+  --blue-mid: #27272a;
+  --blue: #d4d4d8;
+  --blue-dark: #a1a1aa;
+  --blue-soft: #e4e4e7;
+  --teal: #d4d4d8;
+  --green: #d4d4d8;
+  --green-soft: #e4e4e7;
+  --yellow: #d4d4d8;
+  --yellow-soft: #e4e4e7;
+  --red: #d4d4d8;
+  --red-soft: #e4e4e7;
+  --purple: #d4d4d8;
+  --purple-soft: #e4e4e7;
+  --gold: #d4d4d8;
+  --gold-bg: #1c1c20;
+  --gold-border: #27272a;
+  --red-text: #f4f4f5;
+  --red-bg: #1c1c20;
+  --red-border: #27272a;
+  --green-text: #f4f4f5;
+  --green-bg: #1c1c20;
+  --green-border: #27272a;
+  --status-blue-bg: #18181b;
+  --status-amber-bg: #18181b;
+  --status-green-bg: #18181b;
+  --status-red-bg: #18181b;
+  --status-purple-bg: #18181b;
+  --status-blue-border: #27272a;
+  --status-amber-border: #27272a;
+  --status-green-border: #27272a;
+  --status-red-border: #27272a;
+  --accent-shadow-color: transparent;
   --glass-bg: #121214;
   --glass-border-base: 1px solid #27272a;
   --glass-border-highlight: #3f3f46;
-  --glass-shadow: 0 16px 40px oklch(5% 0.03 264 / 0.52);
-  --primary-gradient: oklch(65% 0.22 250);
-  --primary-gradient-hover: oklch(72% 0.2 245);
-  --white: oklch(99% 0.01 264);
+  --glass-shadow: none;
+  --primary-gradient: #27272a;
+  --primary-gradient-hover: #3f3f46;
+  --white: #f4f4f5;
   --task-toolbar-bg: #121214;
   --task-toolbar-surface: #18181b;
   --task-toolbar-surface-soft: #202024;
   --task-toolbar-border: #27272a;
   --task-toolbar-ink: #f4f4f5;
   --task-toolbar-muted: #a1a1aa;
-  --task-toolbar-accent: oklch(74% 0.19 245);
-  --task-toolbar-accent-strong: oklch(66% 0.22 250);
-  --task-toolbar-accent-soft: oklch(25% 0.1 250);
-  --task-toolbar-shadow: 0 18px 40px oklch(5% 0.03 264 / 0.35);
-  --task-toolbar-primary-shadow: 0 8px 20px oklch(8% 0.04 264 / 0.28);
-  --task-toolbar-focus-shadow: 0 0 0 3px oklch(65% 0.22 250 / 0.18);
-  --task-toolbar-amber-ink: oklch(16% 0.04 80);
+  --task-toolbar-accent: #a1a1aa;
+  --task-toolbar-accent-strong: #27272a;
+  --task-toolbar-accent-soft: #18181b;
+  --task-toolbar-shadow: none;
+  --task-toolbar-primary-shadow: none;
+  --task-toolbar-focus-shadow: none;
+  --task-toolbar-amber-ink: #f4f4f5;
 }
 
 * {
@@ -7945,15 +7945,26 @@ td {
 }
 
 :root[data-theme='dark'] .pi-record-card,
-.dark .pi-record-card {
-  background-color: #121214 !important;
-  border-color: #27272a !important;
-}
-
+.dark .pi-record-card,
 :root[data-theme='dark'] .pi-record-table-box,
 .dark .pi-record-table-box {
   background-color: #121214 !important;
   border-color: #27272a !important;
+}
+
+:root[data-theme='dark'] .pi-record-table,
+:root[data-theme='dark'] .pi-record-table thead,
+:root[data-theme='dark'] .pi-record-table tbody,
+:root[data-theme='dark'] .pi-record-table tr,
+:root[data-theme='dark'] .pi-record-table td,
+.dark .pi-record-table,
+.dark .pi-record-table thead,
+.dark .pi-record-table tbody,
+.dark .pi-record-table tr,
+.dark .pi-record-table td {
+  background-color: #121214 !important;
+  color: #d4d4d8 !important;
+  border-color: #202024 !important;
 }
 
 :root[data-theme='dark'] .pi-record-table th,
@@ -7963,13 +7974,29 @@ td {
   border-color: #27272a !important;
 }
 
-:root[data-theme='dark'] .pi-record-table td,
-.dark .pi-record-table td {
-  border-color: #202024 !important;
+:root[data-theme='dark'] .pi-record-table tbody tr:hover,
+:root[data-theme='dark'] .pi-record-table tbody tr:hover td,
+.dark .pi-record-table tbody tr:hover,
+.dark .pi-record-table tbody tr:hover td {
+  background-color: #18181b !important;
+}
+
+:root[data-theme='dark'] .pi-record-table a,
+.dark .pi-record-table a {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
   color: #d4d4d8 !important;
 }
 
-:root[data-theme='dark'] .pi-record-table tr:hover,
-.dark .pi-record-table tr:hover {
-  background-color: #1a1a1e !important;
+:root[data-theme='dark'] .pi-record-table a:hover,
+.dark .pi-record-table a:hover {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme='dark'] .pi-record-table span[class*='rounded-lg'],
+.dark .pi-record-table span[class*='rounded-lg'] {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
+  color: #d4d4d8 !important;
 }

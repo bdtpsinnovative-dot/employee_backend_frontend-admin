@@ -135,19 +135,19 @@ function dateTimestamp(value: string) {
 function documentBadge(value: string, url: string, key: keyof PIRecord) {
   const source = `${value} ${url}`.toLowerCase();
   if (/\.pdf(?:[?#]|$)|\/pdf\b/.test(source)) {
-    return { label: safeUrl(value) ? 'PDF' : value, Icon: FileText, className: 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/25' };
+    return { label: safeUrl(value) ? 'PDF' : value, Icon: FileText, className: 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-white' };
   }
   if (/docs\.google\.com\/spreadsheets|\.xlsx?(?:[?#]|$)|\.csv(?:[?#]|$)/.test(source)) {
-    return { label: safeUrl(value) ? 'Google Sheet' : value, Icon: FileSpreadsheet, className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25' };
+    return { label: safeUrl(value) ? 'Google Sheet' : value, Icon: FileSpreadsheet, className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-white' };
   }
-  return { label: safeUrl(value) ? (key === 'file_name' ? 'ไฟล์แนบ' : 'เปิดเอกสาร') : value, Icon: FileIcon, className: 'bg-slate-50 text-slate-700 border border-slate-200 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/80' };
+  return { label: safeUrl(value) ? (key === 'file_name' ? 'ไฟล์แนบ' : 'เปิดเอกสาร') : value, Icon: FileIcon, className: 'bg-slate-50 text-slate-700 border border-slate-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 dark:hover:bg-zinc-700 dark:hover:text-white' };
 }
 
 function getEtdBadge(value: string) {
   const text = (value || '').trim();
   if (!text || text === '-') {
     return {
-      className: 'bg-slate-50 text-slate-400 border-slate-200/60 dark:bg-zinc-850/40 dark:text-zinc-500 dark:border-zinc-800',
+      className: 'bg-slate-50 text-slate-400 border-slate-200/60 dark:bg-zinc-900 dark:text-zinc-500 dark:border-zinc-800',
       dotClassName: 'bg-slate-300 dark:bg-zinc-600',
       label: '-'
     };
@@ -158,8 +158,8 @@ function getEtdBadge(value: string) {
   // 1. รอชำระ
   if (lower.includes('รอชำระ') || lower.includes('payment') || lower.includes('unpaid')) {
     return {
-      className: 'bg-rose-50 text-rose-700 border-rose-200/90 font-bold dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/25 shadow-2xs',
-      dotClassName: 'bg-rose-500 animate-pulse',
+      className: 'bg-rose-50 text-rose-700 border-rose-200/90 font-bold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-rose-500 animate-pulse dark:bg-zinc-400 dark:animate-none',
       label: text
     };
   }
@@ -167,8 +167,8 @@ function getEtdBadge(value: string) {
   // 2. รอสั่ง
   if (lower.includes('รอสั่ง') || lower.includes('pending order')) {
     return {
-      className: 'bg-amber-50 text-amber-700 border-amber-200/90 font-semibold dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/25 shadow-2xs',
-      dotClassName: 'bg-amber-500',
+      className: 'bg-amber-50 text-amber-700 border-amber-200/90 font-semibold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-amber-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -176,8 +176,8 @@ function getEtdBadge(value: string) {
   // 3. รอโรงงานส่งมา Warehouse
   if (lower.includes('รอโรงงาน') || lower.includes('โรงงานส่งมา warehouse')) {
     return {
-      className: 'bg-indigo-50 text-indigo-700 border-indigo-200/90 font-semibold dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/25 shadow-2xs',
-      dotClassName: 'bg-indigo-500',
+      className: 'bg-indigo-50 text-indigo-700 border-indigo-200/90 font-semibold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-indigo-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -185,8 +185,8 @@ function getEtdBadge(value: string) {
   // 4. โรงงานกำลังส่งมา
   if (lower.includes('กำลังส่ง') || lower.includes('shipping') || lower.includes('transit')) {
     return {
-      className: 'bg-sky-50 text-sky-700 border-sky-200/90 font-semibold dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/25 shadow-2xs',
-      dotClassName: 'bg-sky-500',
+      className: 'bg-sky-50 text-sky-700 border-sky-200/90 font-semibold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-sky-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -194,8 +194,8 @@ function getEtdBadge(value: string) {
   // 5. ของถึง Warehouse แล้ว
   if (lower.includes('ถึง warehouse') || lower.includes('warehouse แล้ว')) {
     return {
-      className: 'bg-teal-50 text-teal-700 border-teal-200/90 font-bold dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/25 shadow-2xs',
-      dotClassName: 'bg-teal-500',
+      className: 'bg-teal-50 text-teal-700 border-teal-200/90 font-bold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-teal-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -203,8 +203,8 @@ function getEtdBadge(value: string) {
   // 6. ของอยู่ในสต๊อกแล้ว
   if (lower.includes('สต๊อก') || lower.includes('stock')) {
     return {
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 font-bold dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25 shadow-2xs',
-      dotClassName: 'bg-emerald-500',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 font-bold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-emerald-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -212,8 +212,8 @@ function getEtdBadge(value: string) {
   // 7. รอส่งให้ลูกค้า
   if (lower.includes('รอส่งให้ลูกค้า') || lower.includes('รอส่งลูกค้า')) {
     return {
-      className: 'bg-yellow-50 text-yellow-800 border-yellow-200/90 font-bold dark:bg-yellow-500/10 dark:text-yellow-300 dark:border-yellow-500/25 shadow-2xs',
-      dotClassName: 'bg-yellow-500',
+      className: 'bg-yellow-50 text-yellow-800 border-yellow-200/90 font-bold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-yellow-500 dark:bg-zinc-400',
       label: text
     };
   }
@@ -221,8 +221,8 @@ function getEtdBadge(value: string) {
   // 8. ของถึงลูกค้าแล้ว / ส่งมอบแล้ว
   if (lower.includes('ถึงลูกค้า') || lower.includes('delivered') || lower.includes('สำเร็จ')) {
     return {
-      className: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30 shadow-2xs',
-      dotClassName: 'bg-emerald-600',
+      className: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-emerald-600 dark:bg-zinc-400',
       label: text
     };
   }
@@ -230,15 +230,15 @@ function getEtdBadge(value: string) {
   // 9. งาน Event
   if (lower.includes('event') || lower.includes('อีเวนต์') || lower.includes('งาน')) {
     return {
-      className: 'bg-purple-50 text-purple-700 border-purple-200/90 font-semibold dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/25 shadow-2xs',
-      dotClassName: 'bg-purple-500',
+      className: 'bg-purple-50 text-purple-700 border-purple-200/90 font-semibold dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700/80 shadow-2xs',
+      dotClassName: 'bg-purple-500 dark:bg-zinc-400',
       label: text
     };
   }
 
   // Default / Dates / Other text
   return {
-    className: 'bg-slate-100 text-slate-700 border-slate-200 font-medium dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/60',
+    className: 'bg-slate-100 text-slate-700 border-slate-200 font-medium dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800',
     dotClassName: 'bg-slate-400 dark:bg-zinc-500',
     label: text
   };
@@ -509,7 +509,7 @@ export default function PIRecordPage() {
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="mt-0.5 rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
+              className="mt-0.5 rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
               title="กลับหน้า Dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -524,8 +524,8 @@ export default function PIRecordPage() {
               </div>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 dark:bg-zinc-900 dark:text-zinc-300 sm:self-auto border border-blue-100 dark:border-zinc-800">
-            <FileSpreadsheet className="h-4 w-4 text-blue-600 dark:text-zinc-400" />
+          <div className="inline-flex items-center gap-2 self-start rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:bg-zinc-900 dark:text-zinc-300 sm:self-auto border border-slate-200 dark:border-zinc-800">
+            <FileSpreadsheet className="h-4 w-4 text-slate-500 dark:text-zinc-400" />
             {loading ? 'กำลังโหลดข้อมูล...' : `${displayedRecords.length.toLocaleString()} รายการ (จากทั้งหมด ${records.length.toLocaleString()})`}
           </div>
         </div>
@@ -612,7 +612,7 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   selectedBrand 
-                    ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30 font-bold' 
+                    ? 'border-amber-500 bg-amber-50 text-amber-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 font-bold' 
                     : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={selectedBrand} 
@@ -633,7 +633,7 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterSupplier 
-                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/30 font-bold' 
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 font-bold' 
                     : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterSupplier} 
@@ -652,7 +652,7 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterSaleName 
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/30 font-bold' 
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 font-bold' 
                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterSaleName} 
@@ -671,7 +671,7 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterPISupplier 
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30 font-bold' 
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 font-bold' 
                     : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterPISupplier} 
@@ -691,12 +691,12 @@ export default function PIRecordPage() {
               onClick={() => setOnlyWithDocs((prev) => !prev)}
               className={`flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shadow-sm cursor-pointer ${
                 onlyWithDocs 
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 font-bold ring-1 ring-emerald-200 dark:ring-emerald-950 dark:border-emerald-500/30' 
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 font-bold dark:ring-0' 
                   : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
               }`}
               title="กรองเฉพาะรายการที่มีเอกสารแนบ"
             >
-              <Paperclip size={14} className={onlyWithDocs ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-zinc-500'} />
+              <Paperclip size={14} className={onlyWithDocs ? 'text-emerald-600 dark:text-zinc-200' : 'text-slate-400 dark:text-zinc-500'} />
               <span>มีเอกสาร ({recordsWithDocsCount})</span>
             </button>
 
@@ -705,7 +705,7 @@ export default function PIRecordPage() {
               <button 
                 type="button"
                 onClick={clearAllFilters}
-                className="ml-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-500/10 dark:text-rose-300 p-1.5 rounded-lg transition-colors border border-rose-100 dark:border-rose-500/30 shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                className="ml-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-white dark:border-zinc-700 p-1.5 rounded-lg transition-colors border border-rose-100 shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                 title="ล้างตัวกรองทั้งหมด"
               >
                 <X size={14} strokeWidth={2.5} /> ล้าง
@@ -738,7 +738,7 @@ export default function PIRecordPage() {
             <button
               type="button"
               onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-600 bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:bg-emerald-800 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-600 bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:bg-emerald-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 transition cursor-pointer"
               title="ดาวน์โหลดข้อมูลตารางที่กำลังกรองเป็น Excel"
             >
               <Download size={14} />
@@ -900,7 +900,7 @@ export default function PIRecordPage() {
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700 rounded-lg hover:bg-blue-100 dark:hover:bg-zinc-700 transition cursor-pointer"
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition cursor-pointer"
               >
                 ล้างตัวกรองทั้งหมด
               </button>
@@ -913,7 +913,7 @@ export default function PIRecordPage() {
                     {columns.map(({ key, label, align }) => (
                       <th
                         key={key}
-                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-zinc-800 ${
+                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-zinc-800 dark:bg-[#18181b] ${
                           align === 'right' ? 'text-right' : 'text-left'
                         }`}
                       >
@@ -924,7 +924,7 @@ export default function PIRecordPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
                   {displayedRecords.map((record) => (
-                    <tr key={record.id} className="align-top hover:bg-blue-50/40 dark:hover:bg-zinc-800/40 transition-colors">
+                    <tr key={record.id} className="align-top bg-white hover:bg-slate-50 dark:bg-[#121214] dark:hover:bg-[#18181b] transition-colors">
                       {columns.map(({ key, linkKey, label, align }) => {
                         const recordKey = key as keyof PIRecord;
                         const value = record[recordKey] || '-';
@@ -932,7 +932,7 @@ export default function PIRecordPage() {
                         if (key === 'etd') {
                           const etdBadge = getEtdBadge(value);
                           return (
-                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:text-zinc-300">
+                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${etdBadge.className}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${etdBadge.dotClassName}`} />
                                 <span>{etdBadge.label}</span>
@@ -947,7 +947,7 @@ export default function PIRecordPage() {
                         return (
                           <td
                             key={key}
-                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:text-zinc-300 ${
+                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300 ${
                               align === 'right' ? 'text-right font-medium text-slate-900 dark:text-zinc-100 whitespace-nowrap' : ''
                             }`}
                           >
