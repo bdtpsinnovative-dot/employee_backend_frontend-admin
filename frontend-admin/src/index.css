@@ -45,21 +45,22 @@
   --focus-ring: rgba(96, 165, 250, 0.38);
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+.dark {
   color-scheme: dark;
-  /* Midnight Cobalt — a cool, luminous dark system shared by every page. */
-  --page-bg: oklch(11% 0.035 264);
-  --surface: oklch(15% 0.04 264);
-  --surface-elevated: oklch(19% 0.05 264);
-  --surface-muted: oklch(17% 0.045 264);
-  --border: oklch(29% 0.06 264);
-  --border-strong: oklch(38% 0.08 260);
-  --text-primary: oklch(96% 0.02 264);
-  --text-secondary: oklch(75% 0.045 264);
-  --text-placeholder: oklch(59% 0.035 264);
-  --focus-ring: oklch(76% 0.18 246 / 0.55);
-  --text-main: oklch(96% 0.02 264);
-  --text-gray: oklch(75% 0.045 264);
+  /* True Neutral Obsidian & Matte Charcoal Dark System (Zero Blue Tint) */
+  --page-bg: #09090b;
+  --surface: #121214;
+  --surface-elevated: #18181b;
+  --surface-muted: #1c1c20;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-placeholder: #71717a;
+  --focus-ring: rgba(161, 161, 170, 0.25);
+  --text-main: #f4f4f5;
+  --text-gray: #a1a1aa;
   --blue-light: oklch(24% 0.1 250);
   --blue-mid: oklch(48% 0.15 250);
   --blue: oklch(74% 0.19 245);
@@ -93,19 +94,19 @@
   --status-green-border: oklch(41% 0.12 158);
   --status-red-border: oklch(42% 0.12 16);
   --accent-shadow-color: oklch(65% 0.22 250 / 0.28);
-  --glass-bg: oklch(18% 0.05 264);
-  --glass-border-base: 1px solid oklch(30% 0.065 264);
-  --glass-border-highlight: oklch(39% 0.085 260);
+  --glass-bg: #121214;
+  --glass-border-base: 1px solid #27272a;
+  --glass-border-highlight: #3f3f46;
   --glass-shadow: 0 16px 40px oklch(5% 0.03 264 / 0.52);
   --primary-gradient: oklch(65% 0.22 250);
   --primary-gradient-hover: oklch(72% 0.2 245);
   --white: oklch(99% 0.01 264);
-  --task-toolbar-bg: oklch(13% 0.04 264);
-  --task-toolbar-surface: oklch(17% 0.05 264);
-  --task-toolbar-surface-soft: oklch(20% 0.055 264);
-  --task-toolbar-border: oklch(31% 0.07 264);
-  --task-toolbar-ink: oklch(97% 0.02 264);
-  --task-toolbar-muted: oklch(73% 0.045 264);
+  --task-toolbar-bg: #121214;
+  --task-toolbar-surface: #18181b;
+  --task-toolbar-surface-soft: #202024;
+  --task-toolbar-border: #27272a;
+  --task-toolbar-ink: #f4f4f5;
+  --task-toolbar-muted: #a1a1aa;
   --task-toolbar-accent: oklch(74% 0.19 245);
   --task-toolbar-accent-strong: oklch(66% 0.22 250);
   --task-toolbar-accent-soft: oklch(25% 0.1 250);
@@ -7934,4 +7935,41 @@ td {
   background: var(--surface-muted) !important;
   border-top: 1px solid var(--border) !important;
   color: var(--text-secondary) !important;
+}
+
+/* ──── PI Record Dedicated Pure Dark Theme Overrides (Zero Blue, Pure Charcoal) ──── */
+:root[data-theme='dark'] .pi-record-root,
+.dark .pi-record-root {
+  background-color: #09090b !important;
+  color: #f4f4f5 !important;
+}
+
+:root[data-theme='dark'] .pi-record-card,
+.dark .pi-record-card {
+  background-color: #121214 !important;
+  border-color: #27272a !important;
+}
+
+:root[data-theme='dark'] .pi-record-table-box,
+.dark .pi-record-table-box {
+  background-color: #121214 !important;
+  border-color: #27272a !important;
+}
+
+:root[data-theme='dark'] .pi-record-table th,
+.dark .pi-record-table th {
+  background-color: #18181b !important;
+  color: #a1a1aa !important;
+  border-color: #27272a !important;
+}
+
+:root[data-theme='dark'] .pi-record-table td,
+.dark .pi-record-table td {
+  border-color: #202024 !important;
+  color: #d4d4d8 !important;
+}
+
+:root[data-theme='dark'] .pi-record-table tr:hover,
+.dark .pi-record-table tr:hover {
+  background-color: #1a1a1e !important;
 }

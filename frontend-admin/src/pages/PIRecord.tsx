@@ -500,11 +500,11 @@ export default function PIRecordPage() {
   };
 
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#09090b] px-4 py-5 sm:px-6 lg:px-8">
+    <div className="pi-record-root fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#09090b] px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1700px] space-y-4 pb-16">
         
         {/* Header Bar */}
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#121214] sm:flex-row sm:items-center sm:justify-between">
+        <div className="pi-record-card flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#121214] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <button
               type="button"
@@ -531,7 +531,7 @@ export default function PIRecordPage() {
         </div>
 
         {/* ──── Filter Command Center (Style: adminwallcraft DashboardDateFilter) ──── */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#121214] space-y-3">
+        <div className="pi-record-card rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#121214] space-y-3">
           
           {/* Row 1: Date Presets, Custom Date Range, & Entity Filters */}
           <div className="flex flex-wrap items-center gap-2">
@@ -881,7 +881,7 @@ export default function PIRecordPage() {
         )}
 
         {/* ──── Table Section ──── */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#121214]">
+        <section className="pi-record-table-box overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#121214]">
           {loading ? (
             <div className="flex min-h-64 items-center justify-center gap-3 text-slate-500 dark:text-zinc-400">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-zinc-300" />
@@ -907,7 +907,7 @@ export default function PIRecordPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[1950px] w-full border-collapse text-left text-sm">
+              <table className="pi-record-table min-w-[1950px] w-full border-collapse text-left text-sm">
                 <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-[#18181b] dark:text-zinc-400">
                   <tr>
                     {columns.map(({ key, label, align }) => (
