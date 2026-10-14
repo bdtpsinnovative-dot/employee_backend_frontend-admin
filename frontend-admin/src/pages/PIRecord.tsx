@@ -135,20 +135,20 @@ function dateTimestamp(value: string) {
 function documentBadge(value: string, url: string, key: keyof PIRecord) {
   const source = `${value} ${url}`.toLowerCase();
   if (/\.pdf(?:[?#]|$)|\/pdf\b/.test(source)) {
-    return { label: safeUrl(value) ? 'PDF' : value, Icon: FileText, className: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300' };
+    return { label: safeUrl(value) ? 'PDF' : value, Icon: FileText, className: 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/25' };
   }
   if (/docs\.google\.com\/spreadsheets|\.xlsx?(?:[?#]|$)|\.csv(?:[?#]|$)/.test(source)) {
-    return { label: safeUrl(value) ? 'Google Sheet' : value, Icon: FileSpreadsheet, className: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' };
+    return { label: safeUrl(value) ? 'Google Sheet' : value, Icon: FileSpreadsheet, className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25' };
   }
-  return { label: safeUrl(value) ? (key === 'file_name' ? 'ไฟล์แนบ' : 'เปิดเอกสาร') : value, Icon: FileIcon, className: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300' };
+  return { label: safeUrl(value) ? (key === 'file_name' ? 'ไฟล์แนบ' : 'เปิดเอกสาร') : value, Icon: FileIcon, className: 'bg-slate-50 text-slate-700 border border-slate-200 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/80' };
 }
 
 function getEtdBadge(value: string) {
   const text = (value || '').trim();
   if (!text || text === '-') {
     return {
-      className: 'bg-slate-50 text-slate-400 border-slate-200/60 dark:bg-slate-800/40 dark:text-slate-500 dark:border-slate-800',
-      dotClassName: 'bg-slate-300 dark:bg-slate-600',
+      className: 'bg-slate-50 text-slate-400 border-slate-200/60 dark:bg-zinc-850/40 dark:text-zinc-500 dark:border-zinc-800',
+      dotClassName: 'bg-slate-300 dark:bg-zinc-600',
       label: '-'
     };
   }
@@ -158,7 +158,7 @@ function getEtdBadge(value: string) {
   // 1. รอชำระ
   if (lower.includes('รอชำระ') || lower.includes('payment') || lower.includes('unpaid')) {
     return {
-      className: 'bg-rose-50 text-rose-700 border-rose-200/90 font-bold dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900 shadow-2xs',
+      className: 'bg-rose-50 text-rose-700 border-rose-200/90 font-bold dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/25 shadow-2xs',
       dotClassName: 'bg-rose-500 animate-pulse',
       label: text
     };
@@ -167,7 +167,7 @@ function getEtdBadge(value: string) {
   // 2. รอสั่ง
   if (lower.includes('รอสั่ง') || lower.includes('pending order')) {
     return {
-      className: 'bg-amber-50 text-amber-700 border-amber-200/90 font-semibold dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900 shadow-2xs',
+      className: 'bg-amber-50 text-amber-700 border-amber-200/90 font-semibold dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/25 shadow-2xs',
       dotClassName: 'bg-amber-500',
       label: text
     };
@@ -176,7 +176,7 @@ function getEtdBadge(value: string) {
   // 3. รอโรงงานส่งมา Warehouse
   if (lower.includes('รอโรงงาน') || lower.includes('โรงงานส่งมา warehouse')) {
     return {
-      className: 'bg-indigo-50 text-indigo-700 border-indigo-200/90 font-semibold dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900 shadow-2xs',
+      className: 'bg-indigo-50 text-indigo-700 border-indigo-200/90 font-semibold dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/25 shadow-2xs',
       dotClassName: 'bg-indigo-500',
       label: text
     };
@@ -185,7 +185,7 @@ function getEtdBadge(value: string) {
   // 4. โรงงานกำลังส่งมา
   if (lower.includes('กำลังส่ง') || lower.includes('shipping') || lower.includes('transit')) {
     return {
-      className: 'bg-sky-50 text-sky-700 border-sky-200/90 font-semibold dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900 shadow-2xs',
+      className: 'bg-sky-50 text-sky-700 border-sky-200/90 font-semibold dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/25 shadow-2xs',
       dotClassName: 'bg-sky-500',
       label: text
     };
@@ -194,7 +194,7 @@ function getEtdBadge(value: string) {
   // 5. ของถึง Warehouse แล้ว
   if (lower.includes('ถึง warehouse') || lower.includes('warehouse แล้ว')) {
     return {
-      className: 'bg-teal-50 text-teal-700 border-teal-200/90 font-bold dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900 shadow-2xs',
+      className: 'bg-teal-50 text-teal-700 border-teal-200/90 font-bold dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/25 shadow-2xs',
       dotClassName: 'bg-teal-500',
       label: text
     };
@@ -203,7 +203,7 @@ function getEtdBadge(value: string) {
   // 6. ของอยู่ในสต๊อกแล้ว
   if (lower.includes('สต๊อก') || lower.includes('stock')) {
     return {
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 font-bold dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900 shadow-2xs',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 font-bold dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/25 shadow-2xs',
       dotClassName: 'bg-emerald-500',
       label: text
     };
@@ -212,7 +212,7 @@ function getEtdBadge(value: string) {
   // 7. รอส่งให้ลูกค้า
   if (lower.includes('รอส่งให้ลูกค้า') || lower.includes('รอส่งลูกค้า')) {
     return {
-      className: 'bg-yellow-50 text-yellow-800 border-yellow-200/90 font-bold dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-900 shadow-2xs',
+      className: 'bg-yellow-50 text-yellow-800 border-yellow-200/90 font-bold dark:bg-yellow-500/10 dark:text-yellow-300 dark:border-yellow-500/25 shadow-2xs',
       dotClassName: 'bg-yellow-500',
       label: text
     };
@@ -221,7 +221,7 @@ function getEtdBadge(value: string) {
   // 8. ของถึงลูกค้าแล้ว / ส่งมอบแล้ว
   if (lower.includes('ถึงลูกค้า') || lower.includes('delivered') || lower.includes('สำเร็จ')) {
     return {
-      className: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold dark:bg-emerald-900/50 dark:text-emerald-200 dark:border-emerald-700 shadow-2xs',
+      className: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30 shadow-2xs',
       dotClassName: 'bg-emerald-600',
       label: text
     };
@@ -230,7 +230,7 @@ function getEtdBadge(value: string) {
   // 9. งาน Event
   if (lower.includes('event') || lower.includes('อีเวนต์') || lower.includes('งาน')) {
     return {
-      className: 'bg-purple-50 text-purple-700 border-purple-200/90 font-semibold dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900 shadow-2xs',
+      className: 'bg-purple-50 text-purple-700 border-purple-200/90 font-semibold dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/25 shadow-2xs',
       dotClassName: 'bg-purple-500',
       label: text
     };
@@ -238,8 +238,8 @@ function getEtdBadge(value: string) {
 
   // Default / Dates / Other text
   return {
-    className: 'bg-slate-100 text-slate-700 border-slate-200 font-medium dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-    dotClassName: 'bg-slate-400',
+    className: 'bg-slate-100 text-slate-700 border-slate-200 font-medium dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/60',
+    dotClassName: 'bg-slate-400 dark:bg-zinc-500',
     label: text
   };
 }
@@ -500,16 +500,16 @@ export default function PIRecordPage() {
   };
 
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#0b1120] px-4 py-5 sm:px-6 lg:px-8">
+    <div className="fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#09090b] px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1700px] space-y-4 pb-16">
         
         {/* Header Bar */}
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#111a2d] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#121214] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="mt-0.5 rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              className="mt-0.5 rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
               title="กลับหน้า Dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -519,33 +519,33 @@ export default function PIRecordPage() {
                 <img src="/brands/purchase-sales.png" alt="" className="h-full w-full object-cover scale-[1.05]" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white">จัดการซื้อ-ขาย</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400">PI Record · หน้านี้สำหรับอ่านข้อมูลเท่านั้น</p>
+                <h1 className="text-lg font-bold text-slate-900 dark:text-zinc-100">จัดการซื้อ-ขาย</h1>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">PI Record · หน้านี้สำหรับอ่านข้อมูลเท่านั้น</p>
               </div>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 sm:self-auto border border-blue-100 dark:border-blue-900">
-            <FileSpreadsheet className="h-4 w-4" />
+          <div className="inline-flex items-center gap-2 self-start rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 dark:bg-zinc-900 dark:text-zinc-300 sm:self-auto border border-blue-100 dark:border-zinc-800">
+            <FileSpreadsheet className="h-4 w-4 text-blue-600 dark:text-zinc-400" />
             {loading ? 'กำลังโหลดข้อมูล...' : `${displayedRecords.length.toLocaleString()} รายการ (จากทั้งหมด ${records.length.toLocaleString()})`}
           </div>
         </div>
 
         {/* ──── Filter Command Center (Style: adminwallcraft DashboardDateFilter) ──── */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#111a2d] space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#121214] space-y-3">
           
           {/* Row 1: Date Presets, Custom Date Range, & Entity Filters */}
           <div className="flex flex-wrap items-center gap-2">
-            <Filter size={16} className="text-slate-400 hidden lg:block mr-1" />
+            <Filter size={16} className="text-slate-400 dark:text-zinc-500 hidden lg:block mr-1" />
 
             {/* Date Preset Segmented Buttons */}
-            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-inner">
+            <div className="flex bg-slate-100 dark:bg-zinc-900 p-1 rounded-lg border border-slate-200 dark:border-zinc-800 shadow-inner">
               <button 
                 type="button"
                 onClick={() => applyPreset('30DAYS')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   activePreset === '30DAYS' 
-                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' 
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-100' 
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
                 }`}
               >
                 <Clock size={14} /> 30 วัน
@@ -555,8 +555,8 @@ export default function PIRecordPage() {
                 onClick={() => applyPreset('90DAYS')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   activePreset === '90DAYS' 
-                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' 
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-100' 
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
                 }`}
               >
                 <Clock size={14} /> 90 วัน
@@ -566,8 +566,8 @@ export default function PIRecordPage() {
                 onClick={() => applyPreset('THIS_MONTH')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   activePreset === 'THIS_MONTH' 
-                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' 
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-100' 
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
                 }`}
               >
                 <CalendarDays size={14} /> เดือนนี้
@@ -577,8 +577,8 @@ export default function PIRecordPage() {
                 onClick={() => applyPreset('ALL_TIME')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   activePreset === 'ALL_TIME' 
-                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' 
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-zinc-800 dark:text-zinc-100' 
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
                 }`}
               >
                 <Globe size={14} /> ทั้งหมด
@@ -588,22 +588,22 @@ export default function PIRecordPage() {
             {/* Custom Date Range Trigger */}
             <div 
               onClick={openDateModal}
-              className={`flex items-center gap-2 bg-white dark:bg-slate-900 border rounded-lg px-3 py-1.5 shadow-sm transition-colors cursor-pointer ${
+              className={`flex items-center gap-2 bg-white dark:bg-zinc-900 border rounded-lg px-3 py-1.5 shadow-sm transition-colors cursor-pointer ${
                 activePreset === 'CUSTOM' 
-                  ? 'border-indigo-400 ring-1 ring-indigo-100 dark:border-indigo-500 dark:ring-indigo-950' 
-                  : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'
+                  ? 'border-indigo-400 ring-1 ring-indigo-100 dark:border-zinc-600 dark:ring-zinc-800' 
+                  : 'border-slate-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-zinc-700'
               }`} 
               title="คลิกเพื่อเลือกเดือนหรือระบุช่วงเวลาที่ต้องการเอง"
             >
-              <Calendar size={14} className={activePreset === 'CUSTOM' ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"} />
+              <Calendar size={14} className={activePreset === 'CUSTOM' ? "text-indigo-600 dark:text-zinc-200" : "text-slate-400 dark:text-zinc-500"} />
               {startDate || endDate ? (
                 <>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{startDate || '...'}</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-zinc-200">{startDate || '...'}</span>
                   <span className="text-slate-400 text-xs">-</span>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{endDate || '...'}</span>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-zinc-200">{endDate || '...'}</span>
                 </>
               ) : (
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">เลือกช่วงวันที่...</span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">เลือกช่วงวันที่...</span>
               )}
             </div>
 
@@ -612,8 +612,8 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   selectedBrand 
-                    ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                    ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30 font-bold' 
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={selectedBrand} 
                 onChange={(e) => setSelectedBrand(e.target.value)}
@@ -625,7 +625,7 @@ export default function PIRecordPage() {
                   </option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 dark:text-zinc-500 pointer-events-none" />
             </div>
 
             {/* Supplier Filter */}
@@ -633,8 +633,8 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterSupplier 
-                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 dark:border-teal-500/30 font-bold' 
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-teal-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterSupplier} 
                 onChange={(e) => setFilterSupplier(e.target.value)}
@@ -644,7 +644,7 @@ export default function PIRecordPage() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 dark:text-zinc-500 pointer-events-none" />
             </div>
 
             {/* Sale Name Filter */}
@@ -652,8 +652,8 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterSaleName 
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/30 font-bold' 
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterSaleName} 
                 onChange={(e) => setFilterSaleName(e.target.value)}
@@ -663,7 +663,7 @@ export default function PIRecordPage() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 dark:text-zinc-500 pointer-events-none" />
             </div>
 
             {/* PI-Supplier Filter */}
@@ -671,8 +671,8 @@ export default function PIRecordPage() {
               <select 
                 className={`appearance-none border rounded-lg px-3 py-1.5 pr-8 text-xs font-medium outline-none transition-colors cursor-pointer shadow-sm ${
                   filterPISupplier 
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-bold' 
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30 font-bold' 
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
                 }`}
                 value={filterPISupplier} 
                 onChange={(e) => setFilterPISupplier(e.target.value)}
@@ -682,7 +682,7 @@ export default function PIRecordPage() {
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2 top-2 text-slate-400 dark:text-zinc-500 pointer-events-none" />
             </div>
 
             {/* Only With Docs Toggle */}
@@ -691,12 +691,12 @@ export default function PIRecordPage() {
               onClick={() => setOnlyWithDocs((prev) => !prev)}
               className={`flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shadow-sm cursor-pointer ${
                 onlyWithDocs 
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold ring-1 ring-emerald-200 dark:ring-emerald-900' 
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300 font-bold ring-1 ring-emerald-200 dark:ring-emerald-950 dark:border-emerald-500/30' 
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-700'
               }`}
               title="กรองเฉพาะรายการที่มีเอกสารแนบ"
             >
-              <Paperclip size={14} className={onlyWithDocs ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'} />
+              <Paperclip size={14} className={onlyWithDocs ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-zinc-500'} />
               <span>มีเอกสาร ({recordsWithDocsCount})</span>
             </button>
 
@@ -705,7 +705,7 @@ export default function PIRecordPage() {
               <button 
                 type="button"
                 onClick={clearAllFilters}
-                className="ml-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 p-1.5 rounded-lg transition-colors border border-rose-100 dark:border-rose-900 shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                className="ml-1 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-500/10 dark:text-rose-300 p-1.5 rounded-lg transition-colors border border-rose-100 dark:border-rose-500/30 shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                 title="ล้างตัวกรองทั้งหมด"
               >
                 <X size={14} strokeWidth={2.5} /> ล้าง
@@ -714,21 +714,21 @@ export default function PIRecordPage() {
           </div>
 
           {/* Row 2: Search Input & Export Excel Button */}
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
             <div className="relative flex-1 min-w-[260px]">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="ค้นหาทุกช่อง (เลขที่, แบรนด์, ซัพพลายเออร์, ผู้ขาย, โครงการ...)"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-9 text-xs font-medium outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-indigo-950"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-2 pl-9 pr-9 text-xs font-medium outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-zinc-700 dark:focus:ring-0"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-200 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -749,39 +749,39 @@ export default function PIRecordPage() {
 
         {/* ──── Date Picker Modal (Exact adminwallcraft design) ──── */}
         {showDateModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-[#111a2d] border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-2xl w-[340px] sm:w-[380px] transform transition-all scale-100">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#121214] border border-slate-100 dark:border-zinc-800 p-6 rounded-2xl shadow-2xl w-[340px] sm:w-[380px] transform transition-all scale-100">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                  <Calendar size={18} className="text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-base font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
+                  <Calendar size={18} className="text-indigo-600 dark:text-zinc-300" />
                   เลือกช่วงเวลา
                 </h3>
                 <button 
                   type="button"
                   onClick={() => setShowDateModal(false)} 
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-200 cursor-pointer"
                 >
                   <X size={20} />
                 </button>
               </div>
               
               {/* Year Selector */}
-              <div className="flex items-center justify-between mb-3 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-3 bg-slate-50 dark:bg-zinc-900 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
                 <button 
                   type="button"
                   onClick={() => setSelectedYear((y) => y - 1)}
-                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-lg text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
                   title="ปีก่อนหน้า"
                 >
                   <ChevronDown size={16} className="rotate-90" />
                 </button>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">
+                <span className="font-bold text-slate-700 dark:text-zinc-200 text-sm">
                   ค.ศ. {selectedYear} (พ.ศ. {selectedYear + 543})
                 </span>
                 <button 
                   type="button"
                   onClick={() => setSelectedYear((y) => y + 1)}
-                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-lg text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
                   title="ปีถัดไป"
                 >
                   <ChevronDown size={16} className="-rotate-90" />
@@ -801,8 +801,8 @@ export default function PIRecordPage() {
                     }}
                     className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                       selectedMonths.includes(i) 
-                        ? 'bg-indigo-600 text-white shadow-sm' 
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        ? 'bg-zinc-800 text-white border border-zinc-700 shadow-sm font-bold' 
+                        : 'bg-slate-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800 dark:border dark:border-zinc-800/80'
                     }`}
                   >
                     {m}
@@ -813,13 +813,13 @@ export default function PIRecordPage() {
               {/* Target Date Column & Direct Date Inputs */}
               <div className="flex flex-col gap-3 mb-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  <label className="block text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1">
                     กรองจากคอลัมน์วันที่
                   </label>
                   <select
                     value={dateFieldTarget}
                     onChange={(e) => setDateFieldTarget(e.target.value as keyof PIRecord)}
-                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
+                    className="w-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-zinc-600"
                   >
                     {DATE_TARGET_FIELDS.map((f) => (
                       <option key={f.key} value={f.key}>{f.label}</option>
@@ -828,10 +828,10 @@ export default function PIRecordPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">วันเริ่มต้น (ปรับเอง)</label>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1">วันเริ่มต้น (ปรับเอง)</label>
                   <input 
                     type="date" 
-                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
+                    className="w-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-zinc-600"
                     value={tempStart}
                     onChange={(e) => {
                       setTempStart(e.target.value);
@@ -840,10 +840,10 @@ export default function PIRecordPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">วันสิ้นสุด (ปรับเอง)</label>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-zinc-400 mb-1">วันสิ้นสุด (ปรับเอง)</label>
                   <input 
                     type="date" 
-                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
+                    className="w-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-zinc-600"
                     value={tempEnd}
                     onChange={(e) => {
                       setTempEnd(e.target.value);
@@ -854,7 +854,7 @@ export default function PIRecordPage() {
               </div>
 
               {/* Calculated Days Badge */}
-              <div className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold px-3 py-2 rounded-lg mb-5 text-center border border-indigo-100 dark:border-indigo-900 flex items-center justify-center gap-2">
+              <div className="bg-indigo-50 dark:bg-zinc-900 text-indigo-700 dark:text-zinc-300 text-xs font-semibold px-3 py-2 rounded-lg mb-5 text-center border border-indigo-100 dark:border-zinc-800 flex items-center justify-center gap-2">
                 <CalendarDays size={15} />
                 จำนวนที่เลือก: {calculateDays()} วัน
               </div>
@@ -864,14 +864,14 @@ export default function PIRecordPage() {
                 <button 
                   type="button"
                   onClick={() => setShowDateModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button 
                   type="button"
                   onClick={applyCustomDate}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700 transition-colors shadow-sm cursor-pointer"
                 >
                   ตกลง
                 </button>
@@ -881,26 +881,26 @@ export default function PIRecordPage() {
         )}
 
         {/* ──── Table Section ──── */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#111a2d]">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#121214]">
           {loading ? (
-            <div className="flex min-h-64 items-center justify-center gap-3 text-slate-500">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            <div className="flex min-h-64 items-center justify-center gap-3 text-slate-500 dark:text-zinc-400">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-zinc-300" />
               กำลังโหลด PI Record
             </div>
           ) : error ? (
             <div className="min-h-64 p-8 text-center">
-              <p className="font-semibold text-rose-600">โหลดข้อมูลไม่สำเร็จ</p>
-              <p className="mt-1 text-sm text-slate-500">{error}</p>
+              <p className="font-semibold text-rose-600 dark:text-rose-400">โหลดข้อมูลไม่สำเร็จ</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">{error}</p>
             </div>
           ) : displayedRecords.length === 0 ? (
             <div className="min-h-64 p-8 text-center">
-              <FileSpreadsheet className="mx-auto h-9 w-9 text-slate-300" />
-              <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">ไม่พบข้อมูลที่ตรงตามตัวกรอง</p>
-              <p className="mt-1 text-sm text-slate-500">ลองปรับช่วงเวลาหรือล้างตัวกรองเพื่อดูข้อมูลทั้งหมด</p>
+              <FileSpreadsheet className="mx-auto h-9 w-9 text-slate-300 dark:text-zinc-600" />
+              <p className="mt-3 font-semibold text-slate-700 dark:text-zinc-200">ไม่พบข้อมูลที่ตรงตามตัวกรอง</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">ลองปรับช่วงเวลาหรือล้างตัวกรองเพื่อดูข้อมูลทั้งหมด</p>
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 rounded-lg hover:bg-blue-100 transition cursor-pointer"
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700 rounded-lg hover:bg-blue-100 dark:hover:bg-zinc-700 transition cursor-pointer"
               >
                 ล้างตัวกรองทั้งหมด
               </button>
@@ -908,12 +908,12 @@ export default function PIRecordPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[1950px] w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-[#18181b] dark:text-zinc-400">
                   <tr>
                     {columns.map(({ key, label, align }) => (
                       <th
                         key={key}
-                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-slate-700 ${
+                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-zinc-800 ${
                           align === 'right' ? 'text-right' : 'text-left'
                         }`}
                       >
@@ -922,9 +922,9 @@ export default function PIRecordPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
                   {displayedRecords.map((record) => (
-                    <tr key={record.id} className="align-top hover:bg-blue-50/40 dark:hover:bg-slate-800/50">
+                    <tr key={record.id} className="align-top hover:bg-blue-50/40 dark:hover:bg-zinc-800/40 transition-colors">
                       {columns.map(({ key, linkKey, label, align }) => {
                         const recordKey = key as keyof PIRecord;
                         const value = record[recordKey] || '-';
@@ -932,7 +932,7 @@ export default function PIRecordPage() {
                         if (key === 'etd') {
                           const etdBadge = getEtdBadge(value);
                           return (
-                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-slate-800 dark:text-slate-300">
+                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:text-zinc-300">
                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${etdBadge.className}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${etdBadge.dotClassName}`} />
                                 <span>{etdBadge.label}</span>
@@ -947,8 +947,8 @@ export default function PIRecordPage() {
                         return (
                           <td
                             key={key}
-                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-slate-800 dark:text-slate-300 ${
-                              align === 'right' ? 'text-right font-medium text-slate-900 dark:text-white whitespace-nowrap' : ''
+                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:text-zinc-300 ${
+                              align === 'right' ? 'text-right font-medium text-slate-900 dark:text-zinc-100 whitespace-nowrap' : ''
                             }`}
                           >
                             {safeUrl(url) ? (
