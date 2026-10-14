@@ -351,11 +351,11 @@ export default function Dashboard() {
   return (
     <div id="dashboard" className="page-section active min-h-screen bg-[var(--page-bg)] flex flex-col relative">
       {/* Subtle Luxury Ambient Radial Glow */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent dark:from-blue-950/20 dark:via-transparent dark:to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent dark:from-transparent dark:via-transparent dark:to-transparent" />
 
       {/* ──── Executive Luxury Floating Rounded Header ──── */}
       <div className="sticky top-0 z-30 w-full px-2.5 sm:px-6 pt-2 sm:pt-3 pb-1 pointer-events-none">
-        <header className="pointer-events-auto max-w-7xl mx-auto bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 rounded-xl sm:rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.4)] px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-2 sm:gap-4 transition-all">
+        <header className="pointer-events-auto max-w-7xl mx-auto bg-white/95 dark:bg-[#121214]/95 backdrop-blur-xl border border-slate-200/80 dark:border-zinc-800 rounded-xl sm:rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] dark:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.4)] px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-2 sm:gap-4 transition-all">
           {isMobileSearchOpen ? (
             /* Mobile Full-Width Search Mode */
             <div className="w-full flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
@@ -375,7 +375,7 @@ export default function Dashboard() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   autoFocus
-                  className="w-full pl-9 pr-8 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full pl-9 pr-8 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-slate-800 dark:text-zinc-100 placeholder-slate-400 outline-none text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/20"
                 />
                 {searchTerm && (
                   <button
@@ -405,7 +405,7 @@ export default function Dashboard() {
                   <span className="font-extrabold text-base sm:text-[18px] tracking-tight text-slate-800 dark:text-white font-['Prompt'] whitespace-nowrap select-none">
                     HR Studio
                   </span>
-                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-2xs whitespace-nowrap select-none">
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 shadow-2xs whitespace-nowrap select-none">
                     Portal
                   </span>
                 </div>
@@ -432,7 +432,7 @@ export default function Dashboard() {
                     placeholder="ค้นหาระบบงานหรือแบรนด์..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-7 py-1.5 bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-750 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all shadow-2xs focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full pl-9 pr-7 py-1.5 bg-slate-100/90 dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200/80 dark:border-zinc-800 focus:border-blue-500 focus:bg-white dark:focus:bg-zinc-900 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none text-xs transition-all shadow-2xs focus:ring-2 focus:ring-blue-500/20"
                   />
                   {searchTerm && (
                     <button
@@ -470,7 +470,7 @@ export default function Dashboard() {
                 >
                   <Bell className="w-4 h-4 shrink-0" />
                   {unreadNotifCount > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white dark:ring-[#0c1222] animate-pulse">
+                    <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white dark:ring-[#121214] animate-pulse">
                       {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                     </span>
                   )}
@@ -480,10 +480,10 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => navigate('/profile')}
-                  className="group flex items-center gap-2 p-1 sm:pl-1.5 sm:pr-3 sm:py-1 rounded-xl bg-slate-100/90 dark:bg-slate-850/90 hover:bg-slate-200/80 dark:hover:bg-slate-750 border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:shadow-xs transition-all cursor-pointer shrink-0"
+                  className="group flex items-center gap-2 p-1 sm:pl-1.5 sm:pr-3 sm:py-1 rounded-xl bg-slate-100/90 dark:bg-zinc-900 hover:bg-slate-200/80 dark:hover:bg-zinc-800 border border-slate-200/70 dark:border-zinc-800 shadow-2xs hover:shadow-xs transition-all cursor-pointer shrink-0"
                   title={`โปรไฟล์: ${profileName}`}
                 >
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center text-xs font-bold ring-1 ring-white/60 dark:ring-slate-700 shrink-0">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg overflow-hidden bg-gradient-to-tr from-blue-600 to-indigo-500 dark:from-zinc-700 dark:to-zinc-800 text-white flex items-center justify-center text-xs font-bold ring-1 ring-white/60 dark:ring-zinc-700 shrink-0">
                     {profileAvatar ? (
                       <img src={profileAvatar} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -551,7 +551,7 @@ export default function Dashboard() {
                         className="group flex flex-col items-center justify-start p-1.5 sm:p-2 rounded-2xl hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all duration-150 cursor-pointer focus:outline-none w-20 xs:w-24 sm:w-28"
                       >
                         {/* Clean Squircle Icon Tile */}
-                        <div className={`relative w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border border-slate-200/60 dark:border-slate-700/60 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-1.5 sm:mb-2 ${app.tileClassName || 'bg-white dark:bg-[#182035]'}`}>
+                        <div className={`relative w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border border-slate-200/60 dark:border-zinc-800 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.07)] dark:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-center group-hover:scale-105 group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-200 mb-1.5 sm:mb-2 ${app.tileClassName || 'bg-white dark:bg-[#121214]'}`}>
                           {app.imageSrc ? (
                             <div className={`${app.imageContainerClassName || 'w-9 h-9 xs:w-11 xs:h-11 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl flex items-center justify-center overflow-hidden shadow-2xs'} ${app.iconBg || 'bg-black'}`}>
                               <img

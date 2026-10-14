@@ -63,13 +63,13 @@ export default function AppDownload() {
   const guideUrl = installGuide ? (isIosGuide ? installGuide.app.iosUrl : installGuide.app.androidUrl) : '';
 
   return (
-    <div className="min-h-full bg-slate-50 px-4 py-6 text-slate-900 dark:bg-[#070b14] dark:text-slate-100 sm:px-6 sm:py-10">
+    <div className="min-h-full bg-slate-50 px-4 py-6 text-slate-900 dark:bg-[#09090b] dark:text-slate-100 sm:px-6 sm:py-10">
       <main className="mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:text-blue-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 sm:text-sm"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:text-blue-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-slate-300 sm:text-sm"
           >
             <ArrowLeft className="h-4 w-4" />
             กลับหน้าหลัก
@@ -91,12 +91,12 @@ export default function AppDownload() {
 
         <section className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {MOBILE_APPS.map((app) => (
-            <article key={app.label} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#0f172a]">
+            <article key={app.label} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-[#121214]">
               <div className="mb-5 flex items-center gap-4">
                 <AppIcon
                   src={app.icon}
                   name={app.name}
-                  className="h-16 w-16 rounded-2xl border border-slate-100 bg-white p-1 object-cover shadow-sm dark:border-slate-700"
+                  className="h-16 w-16 rounded-2xl border border-slate-100 bg-white p-1 object-cover shadow-sm dark:border-zinc-700"
                   fallbackClassName="h-16 w-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-xl"
                 />
                 <div className="min-w-0">
@@ -132,7 +132,7 @@ export default function AppDownload() {
           ))}
         </section>
 
-        <div className="mt-5 flex items-start gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-relaxed text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+        <div className="mt-5 flex items-start gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-relaxed text-blue-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
           <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
           <p>กดปุ่ม iPhone หรือ Android เพื่อดู QR และวิธีติดตั้งของแอปนั้น</p>
         </div>
@@ -145,7 +145,7 @@ export default function AppDownload() {
             if (event.target === event.currentTarget) setInstallGuide(null);
           }}
         >
-          <section className="relative w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl dark:bg-[#0f172a] sm:p-6">
+          <section className="relative w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl dark:bg-[#121214] sm:p-6">
             <button
               type="button"
               onClick={() => setInstallGuide(null)}
@@ -159,7 +159,7 @@ export default function AppDownload() {
               <AppIcon
                 src={installGuide.app.icon}
                 name={installGuide.app.name}
-                className="h-11 w-11 rounded-xl border border-slate-200 bg-white p-0.5 object-cover shadow-sm dark:border-slate-700"
+                className="h-11 w-11 rounded-xl border border-slate-200 bg-white p-0.5 object-cover shadow-sm dark:border-zinc-700"
                 fallbackClassName="h-11 w-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-sm"
               />
               <div>
@@ -170,7 +170,7 @@ export default function AppDownload() {
               </div>
             </div>
 
-            <div className={`mb-5 flex items-center gap-4 rounded-2xl border p-3 ${isIosGuide ? 'border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 dark:border-blue-900/50 dark:from-blue-950/50 dark:to-sky-950/30' : 'border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 dark:border-emerald-900/50 dark:from-emerald-950/50 dark:to-teal-950/30'}`}>
+            <div className={`mb-5 flex items-center gap-4 rounded-2xl border p-3 ${isIosGuide ? 'border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900' : 'border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 dark:border-emerald-900/50 dark:from-emerald-950/50 dark:to-teal-950/30'}`}>
               {isIosGuide ? (
                 <img src={TESTFLIGHT_LOGO_URL} alt="TestFlight" className="h-16 w-16 rounded-2xl border border-white bg-white object-cover object-center shadow-sm" />
               ) : (

@@ -69,7 +69,7 @@ export default function Login() {
   };
 
   return (
-    <div className="relative z-0 min-h-screen flex items-center justify-center bg-slate-100 dark:bg-[#070b14] p-4 overflow-hidden transition-colors duration-300">
+    <div className="relative z-0 min-h-screen flex items-center justify-center bg-slate-100 dark:bg-[#09090b] p-4 overflow-hidden transition-colors duration-300">
       <AnimatedBackground />
 
       {/* Floating Theme Switcher */}
@@ -77,7 +77,7 @@ export default function Login() {
         <button
           type="button"
           onClick={toggleTheme}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-slate-850/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 shadow-md hover:shadow-lg transition-all cursor-pointer text-xs font-bold hover:scale-105 active:scale-95"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-zinc-800 text-slate-700 dark:text-slate-200 shadow-md hover:shadow-lg transition-all cursor-pointer text-xs font-bold hover:scale-105 active:scale-95"
           title={`เปลี่ยนเป็นโหมด${resolvedTheme === 'dark' ? 'สว่าง' : 'มืด'}`}
         >
           {resolvedTheme === 'dark' ? (
@@ -95,7 +95,7 @@ export default function Login() {
       </div>
 
       {/* Main Glass Card Container */}
-      <div className="relative z-10 w-full max-w-4xl h-[620px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-slate-200/90 dark:border-slate-800/90 shadow-2xl dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden transition-colors duration-300">
+      <div className="relative z-10 w-full max-w-4xl h-[620px] bg-white/95 dark:bg-[#121214]/95 backdrop-blur-xl rounded-3xl border border-slate-200/90 dark:border-zinc-800 shadow-2xl dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden transition-colors duration-300">
         
         {/* Form Container */}
         <div className={`absolute top-0 left-0 w-full md:w-1/2 h-full transition-transform transform-gpu duration-[600ms] ease-in-out z-10 ${isSignUp ? '-translate-x-full md:translate-x-full' : 'translate-x-0'}`}>
@@ -104,20 +104,20 @@ export default function Login() {
           <div className={`absolute inset-0 p-8 md:p-10 flex flex-col justify-center transition-all duration-[600ms] ${isSignUp ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div className="mb-6 text-center">
               <div className="mb-3 flex justify-center">
-                <img src="/app_icon_v2.svg" alt="Logo" className="w-14 h-14 rounded-2xl object-contain shadow-lg shadow-teal-500/10 border border-slate-100 dark:border-slate-800" />
+                <img src="/app_icon_v2.svg" alt="Logo" className="w-14 h-14 rounded-2xl object-contain shadow-lg shadow-teal-500/10 border border-slate-100 dark:border-zinc-800" />
               </div>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-1">Create Account</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Register to HR Management System</p>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); alert('กรุณาติดต่อผู้ดูแลระบบเพื่อสร้างบัญชีผู้ใช้'); }} className="space-y-3.5">
                <div>
-                 <input type="text" placeholder="ชื่อ-นามสกุล" required className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                 <input type="text" placeholder="ชื่อ-นามสกุล" required className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
                </div>
                <div>
-                 <input type="email" placeholder="อีเมล (Email)" required className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                 <input type="email" placeholder="อีเมล (Email)" required className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
                </div>
                <div>
-                 <input type="password" placeholder="รหัสผ่าน (Password)" required className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                 <input type="password" placeholder="รหัสผ่าน (Password)" required className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500" />
                </div>
                <button type="submit" className="w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 transform hover:-translate-y-0.5 active:translate-y-0 transition-all text-sm mt-2 cursor-pointer">ลงทะเบียน</button>
             </form>
@@ -130,7 +130,7 @@ export default function Login() {
           <div className={`absolute inset-0 p-8 md:p-10 flex flex-col justify-center transition-all duration-[600ms] ${isSignUp ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
             <div className="mb-6 text-center">
               <div className="mb-3 flex justify-center">
-                <img src="/app_icon_v2.svg" alt="Logo" className="w-14 h-14 rounded-2xl object-contain shadow-lg shadow-teal-500/10 border border-slate-100 dark:border-slate-800" />
+                <img src="/app_icon_v2.svg" alt="Logo" className="w-14 h-14 rounded-2xl object-contain shadow-lg shadow-teal-500/10 border border-slate-100 dark:border-zinc-800" />
               </div>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-1">Welcome Back</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">เข้าสู่ระบบจัดการบุคลากร (HR Dashboard)</p>
@@ -151,7 +151,7 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
                 />
               </div>
               
@@ -163,7 +163,7 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
                 />
               </div>
               
@@ -216,7 +216,7 @@ export default function Login() {
         </div>
 
         {/* Overlay Panel (Sliding Image / Mascot) */}
-        <div className={`absolute top-0 left-1/2 w-1/2 h-full overflow-hidden bg-gradient-to-br from-indigo-50/80 via-sky-50/60 to-emerald-50/80 dark:from-slate-850 dark:via-slate-900 dark:to-slate-950 border-l border-slate-200/60 dark:border-slate-800/80 transition-transform transform-gpu duration-[600ms] ease-in-out z-50 hidden md:block ${isSignUp ? '-translate-x-full' : 'translate-x-0'}`}>
+        <div className={`absolute top-0 left-1/2 w-1/2 h-full overflow-hidden bg-gradient-to-br from-indigo-50/80 via-sky-50/60 to-emerald-50/80 dark:from-slate-850 dark:via-slate-900 dark:to-slate-950 border-l border-slate-200/60 dark:border-zinc-800/80 transition-transform transform-gpu duration-[600ms] ease-in-out z-50 hidden md:block ${isSignUp ? '-translate-x-full' : 'translate-x-0'}`}>
           
           {/* Left Overlay (Shown when isSignUp is true) */}
           <div className={`absolute inset-0 flex flex-col justify-between items-center p-8 text-center transition-all transform-gpu duration-[600ms] ease-in-out ${isSignUp ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[20%]'} ${isSignUp ? 'pointer-events-auto' : 'pointer-events-none'}`}>

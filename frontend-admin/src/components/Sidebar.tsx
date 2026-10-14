@@ -123,7 +123,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
   return (
     <aside
-      className={`sidebar ${isOpen ? 'active' : 'collapsed'} fixed top-0 left-0 bottom-0 h-screen bg-white dark:bg-[#0c1222] border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col py-4 z-40 select-none transition-all duration-200 ease-out ${
+      className={`sidebar ${isOpen ? 'active' : 'collapsed'} fixed top-0 left-0 bottom-0 h-screen bg-white dark:bg-[#121214] border-r border-slate-200/80 dark:border-zinc-800 flex flex-col py-4 z-40 select-none transition-all duration-200 ease-out ${
         isHovered
           ? 'w-[240px] shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]'
           : 'w-[68px] shadow-xs'
@@ -149,7 +149,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
               )}
             </div>
             {/* Status Dot */}
-            <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0c1222]" />
+            <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#121214]" />
           </div>
 
           <div
@@ -181,7 +181,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       {/* Centered Divider */}
       <div className="w-full px-3 mb-2 shrink-0">
         <div
-          className={`h-[1px] bg-slate-200/80 dark:bg-slate-800 transition-all duration-200 ${
+          className={`h-[1px] bg-slate-200/80 dark:bg-zinc-800 transition-all duration-200 ${
             isHovered ? 'w-full' : 'w-8 mx-auto'
           }`}
         />
@@ -202,8 +202,8 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
                   const active = item.isActiveOverride !== undefined ? item.isActiveOverride : isActive;
                   return `group flex items-center w-full h-11 rounded-2xl transition-all duration-200 shrink-0 ${
                     active
-                      ? 'bg-blue-600 text-white shadow-[0_4px_14px_-2px_rgba(37,99,235,0.45)]'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                      ? 'bg-blue-600 text-white shadow-[0_4px_14px_-2px_rgba(37,99,235,0.45)] dark:bg-zinc-800 dark:border dark:border-zinc-700 dark:text-white dark:shadow-none'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60'
                   }`;
                 }}
               >
@@ -220,7 +220,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
                         {/* Notification Badge */}
                         {Boolean(item.badge && item.badge > 0) && (
-                          <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shadow-xs border-2 border-white dark:border-[#0c1222]">
+                          <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shadow-xs border-2 border-white dark:border-[#121214]">
                             {(item.badge ?? 0) > 99 ? '99+' : item.badge}
                           </span>
                         )}
@@ -241,7 +241,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
 
                       {/* Floating Tooltip only when collapsed */}
                       {!isHovered && (
-                        <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-xs text-white text-xs font-medium rounded-lg whitespace-nowrap opacity-0 shadow-lg scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
+                        <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1 bg-slate-900/95 dark:bg-zinc-800/95 backdrop-blur-xs text-white text-xs font-medium rounded-lg whitespace-nowrap opacity-0 shadow-lg scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-150 z-50">
                           {item.label}
                         </span>
                       )}
@@ -256,7 +256,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       {/* Centered Divider */}
       <div className="w-full px-3 my-2 shrink-0">
         <div
-          className={`h-[1px] bg-slate-200/80 dark:bg-slate-800 transition-all duration-200 ${
+          className={`h-[1px] bg-slate-200/80 dark:bg-zinc-800 transition-all duration-200 ${
             isHovered ? 'w-full' : 'w-8 mx-auto'
           }`}
         />
@@ -267,7 +267,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
         <button
           type="button"
           onClick={handleLogout}
-          className="group flex items-center w-full h-11 rounded-2xl text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors focus:outline-none cursor-pointer"
+          className="group flex items-center w-full h-11 rounded-2xl text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none cursor-pointer"
           title="ออกจากระบบ"
           aria-label="ออกจากระบบ"
         >

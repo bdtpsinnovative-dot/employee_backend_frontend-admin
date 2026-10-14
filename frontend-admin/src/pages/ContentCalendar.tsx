@@ -64,9 +64,9 @@ const PLATFORM_META: Record<PlatformType, { label: string; short: string; bg: st
 const STATUS_META: Record<ContentStatus, { label: string; bg: string; text: string; border: string }> = {
   idea: { label: 'ไอเดีย / แผนงาน', bg: 'bg-purple-50 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
   drafting: { label: 'กำลังผลิต (Drafting)', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-  in_review: { label: 'รอตรวจ (In Review)', bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
+  in_review: { label: 'รอตรวจ (In Review)', bg: 'bg-blue-50 dark:bg-zinc-800', text: 'text-blue-700 dark:text-zinc-200', border: 'border-blue-200 dark:border-zinc-700' },
   ready: { label: 'พร้อมโพสต์ (Ready)', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
-  published: { label: 'โพสต์แล้ว (Published)', bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200 dark:border-slate-700' },
+  published: { label: 'โพสต์แล้ว (Published)', bg: 'bg-slate-100 dark:bg-zinc-800', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200 dark:border-slate-700' },
 };
 
 const FORMAT_META: Record<ContentFormat, { label: string; icon: typeof Video }> = {
@@ -521,7 +521,7 @@ export default function ContentCalendar() {
   return (
     <div className="content-calendar-page space-y-5 pb-12">
       {/* ── Top Header Bar ── */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-slate-200/80 dark:border-zinc-800 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
             <CalendarIcon className="w-6 h-6" />
@@ -529,7 +529,7 @@ export default function ContentCalendar() {
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
               ปฏิทินคอนเทนต์ (Content Calendar)
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-zinc-800 text-blue-600 dark:text-zinc-300 border border-blue-200 dark:border-zinc-700">
                 {filteredContents.length} โพสต์
               </span>
             </h1>
@@ -542,13 +542,13 @@ export default function ContentCalendar() {
         {/* View mode & Action Buttons */}
         <div className="flex items-center flex-wrap gap-2.5">
           {/* Month / List Switcher */}
-          <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/70 dark:border-slate-700">
+          <div className="flex items-center p-1 bg-slate-100 dark:bg-zinc-800 rounded-xl border border-slate-200/70 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setViewMode('month')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 viewMode === 'month'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                  ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-zinc-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -560,7 +560,7 @@ export default function ContentCalendar() {
               onClick={() => setViewMode('list')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                  ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-zinc-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -581,7 +581,7 @@ export default function ContentCalendar() {
       </div>
 
       {/* ── Compact filters: long lists belong in dropdowns, not a horizontal rail ── */}
-      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-zinc-800 shadow-xs">
         <div className="flex flex-col xl:flex-row xl:items-center gap-3">
           <div className="flex items-center justify-between xl:justify-start gap-2 shrink-0">
             <div>
@@ -599,7 +599,7 @@ export default function ContentCalendar() {
                   setSelectedStatus('all');
                   setSearchQuery('');
                 }}
-                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 whitespace-nowrap"
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-zinc-300 whitespace-nowrap"
               >
                 ล้างตัวกรอง
               </button>
@@ -613,9 +613,9 @@ export default function ContentCalendar() {
                 onClick={() => setIsAssigneeMenuOpen((open) => !open)}
                 aria-haspopup="listbox"
                 aria-expanded={isAssigneeMenuOpen}
-                className="w-full h-9 px-2.5 flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full h-9 px-2.5 flex items-center gap-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               >
-                <span className="w-5 h-5 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 flex items-center justify-center text-[10px] font-bold shrink-0">
+                <span className="w-5 h-5 rounded-full overflow-hidden bg-blue-100 dark:bg-zinc-800 text-blue-600 dark:text-zinc-200 flex items-center justify-center text-[10px] font-bold shrink-0">
                   {selectedUser ? (
                     selectedUserAvatar ? <img src={selectedUserAvatar} alt="" className="w-full h-full object-cover" /> : selectedUser.first_name.charAt(0)
                   ) : (
@@ -629,7 +629,7 @@ export default function ContentCalendar() {
               </button>
 
               {isAssigneeMenuOpen && (
-                <div className="absolute z-30 mt-1.5 w-full min-w-52 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 shadow-lg shadow-slate-900/10" role="listbox" aria-label="เลือกผู้รับผิดชอบ">
+                <div className="absolute z-30 mt-1.5 w-full min-w-52 max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-zinc-900 p-1.5 shadow-lg shadow-slate-900/10" role="listbox" aria-label="เลือกผู้รับผิดชอบ">
                   <button
                     type="button"
                     role="option"
@@ -638,9 +638,9 @@ export default function ContentCalendar() {
                       setSelectedUserId('all');
                       setIsAssigneeMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${selectedUserId === 'all' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${selectedUserId === 'all' ? 'bg-blue-50 text-blue-700 dark:bg-zinc-800 dark:text-zinc-200' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
                   >
-                    <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0"><Users className="w-3.5 h-3.5" /></span>
+                    <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-zinc-800 text-blue-600 dark:text-zinc-200 flex items-center justify-center shrink-0"><Users className="w-3.5 h-3.5" /></span>
                     <span className="flex-1">ผู้รับผิดชอบทั้งหมด</span>
                     <span className="text-[10px] text-slate-400">{allContents.length}</span>
                   </button>
@@ -658,7 +658,7 @@ export default function ContentCalendar() {
                           setSelectedUserId(user.id);
                           setIsAssigneeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${isSelected ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                        className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors ${isSelected ? 'bg-blue-50 text-blue-700 dark:bg-zinc-800 dark:text-zinc-200' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}
                       >
                         <span className="w-6 h-6 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
                           {userAvatar ? <img src={userAvatar} alt="" className="w-full h-full object-cover" /> : user.first_name.charAt(0)}
@@ -676,7 +676,7 @@ export default function ContentCalendar() {
               value={selectedBrandId}
               onChange={(e) => setSelectedBrandId(e.target.value)}
               aria-label="กรองตามแบรนด์"
-              className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             >
               <option value="all">ทุกแบรนด์</option>
               {brands.map((brand) => (
@@ -688,7 +688,7 @@ export default function ContentCalendar() {
           <select
             value={selectedCategoryId}
             onChange={(e) => setSelectedCategoryId(e.target.value)}
-            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="all">ทุกหมวดคอนเทนต์</option>
             {(contentCategories.length > 0 ? contentCategories : categories).map((cat) => (
@@ -702,7 +702,7 @@ export default function ContentCalendar() {
           <select
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value)}
-            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="all">ทุกแพลตฟอร์ม</option>
             <option value="facebook">Facebook</option>
@@ -718,7 +718,7 @@ export default function ContentCalendar() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="min-w-0 xl:w-40 px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="all">ทุกสถานะ</option>
             <option value="idea">💡 ไอเดีย</option>
@@ -736,7 +736,7 @@ export default function ContentCalendar() {
               placeholder="ค้นหาชื่อคอนเทนต์..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full xl:w-52 pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="w-full xl:w-52 pl-8 pr-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>
         </div>
@@ -745,9 +745,9 @@ export default function ContentCalendar() {
 
       {/* ── Main Content Area: Monthly Calendar or List View ── */}
       {viewMode === 'month' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200/80 dark:border-zinc-800 shadow-xs overflow-hidden">
           {/* Calendar Month Navigator */}
-          <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-200/80 dark:border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 {monthNames[month]} {year + 543}
@@ -755,7 +755,7 @@ export default function ContentCalendar() {
               <button
                 type="button"
                 onClick={handleToday}
-                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
               >
                 วันนี้
               </button>
@@ -782,7 +782,7 @@ export default function ContentCalendar() {
           </div>
 
           {/* Weekday Headers */}
-          <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 text-center text-xs font-bold text-slate-500 py-2.5">
+          <div className="grid grid-cols-7 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-800/50 text-center text-xs font-bold text-slate-500 py-2.5">
             <div className="text-rose-500">อา.</div>
             <div>จ.</div>
             <div>อ.</div>
@@ -803,9 +803,9 @@ export default function ContentCalendar() {
                   key={idx}
                   className={`min-h-[125px] p-2 flex flex-col transition-colors group relative ${
                     cell.isCurrentMonth
-                      ? 'bg-white dark:bg-slate-900'
+                      ? 'bg-white dark:bg-zinc-900'
                       : 'bg-slate-50/50 dark:bg-slate-950/40 text-slate-400 dark:text-slate-600'
-                  } ${isToday ? 'ring-2 ring-blue-500/30 bg-blue-50/20 dark:bg-blue-950/20' : ''}`}
+                  } ${isToday ? 'ring-2 ring-blue-500/30 bg-blue-50/20 dark:bg-zinc-800/40' : ''}`}
                 >
                   {/* Date Header */}
                   <div className="flex items-center justify-between mb-1.5">
@@ -841,7 +841,7 @@ export default function ContentCalendar() {
                         <div
                           key={content.id}
                           onClick={() => setViewingDetail(content)}
-                          className={`p-1.5 rounded-xl border text-[11px] cursor-pointer transition-all hover:scale-[1.01] hover:shadow-sm bg-white dark:bg-slate-800/90 ${statusInfo.border}`}
+                          className={`p-1.5 rounded-xl border text-[11px] cursor-pointer transition-all hover:scale-[1.01] hover:shadow-sm bg-white dark:bg-zinc-800/90 ${statusInfo.border}`}
                         >
                           {/* Platform Badges & Status */}
                           <div className="flex items-center justify-between gap-1 mb-1">
@@ -912,10 +912,10 @@ export default function ContentCalendar() {
 
       {/* ── List / Table View ── */}
       {viewMode === 'list' && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200/80 dark:border-zinc-800 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold">
+              <thead className="bg-slate-50 dark:bg-zinc-800/60 border-b border-slate-200 dark:border-zinc-800 text-slate-500 font-bold">
                 <tr>
                   <th className="py-3 px-4">วันที่ & เวลา</th>
                   <th className="py-3 px-4">แพลตฟอร์ม</th>
@@ -964,7 +964,7 @@ export default function ContentCalendar() {
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
                           {content.categoryName ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-zinc-800 text-indigo-700 dark:text-zinc-200 border border-indigo-200 dark:border-zinc-700">
                               📁 {content.categoryName}
                             </span>
                           ) : (
@@ -1026,9 +1026,9 @@ export default function ContentCalendar() {
       {/* ── Detail Drawer / Modal ── */}
       {viewingDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+            <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between bg-slate-50/50 dark:bg-zinc-800/50">
               <div className="flex items-center gap-2 flex-wrap">
                 {viewingDetail.platforms.map(p => {
                   const pInfo = PLATFORM_META[p] || PLATFORM_META.other;
@@ -1056,7 +1056,7 @@ export default function ContentCalendar() {
               <div>
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   {viewingDetail.categoryName && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-zinc-800 text-indigo-700 dark:text-zinc-200 border border-indigo-200 dark:border-zinc-700">
                       📁 {viewingDetail.categoryName}
                     </span>
                   )}
@@ -1071,7 +1071,7 @@ export default function ContentCalendar() {
                 </h3>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-zinc-800/60 rounded-xl text-xs">
                 <div>
                   <span className="text-slate-400 block mb-0.5">กำหนดการโพสต์</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200">
@@ -1095,7 +1095,7 @@ export default function ContentCalendar() {
               {viewingDetail.description && (
                 <div>
                   <h4 className="text-xs font-bold text-slate-500 mb-1">รายละเอียด / สคริปต์ / แคปชัน:</h4>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  <div className="p-3 bg-slate-50 dark:bg-zinc-800 rounded-xl text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {viewingDetail.description}
                   </div>
                 </div>
@@ -1118,7 +1118,7 @@ export default function ContentCalendar() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap bg-slate-50/50 dark:bg-slate-800/50">
+            <div className="p-4 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2 flex-wrap bg-slate-50/50 dark:bg-zinc-800/50">
               <button
                 type="button"
                 onClick={() => handleDeleteContent(viewingDetail.id)}
@@ -1161,8 +1161,8 @@ export default function ContentCalendar() {
       {/* ── Create / Edit Content Modal ── */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-600" />
                 <span>{editingContent ? 'แก้ไขคอนเทนต์' : 'สร้างคอนเทนต์ใหม่บนปฏิทิน'}</span>
@@ -1188,7 +1188,7 @@ export default function ContentCalendar() {
                   placeholder="เช่น แนะนำสินค้าใหม่ Ember, คลิปสั้น TikTok..."
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 />
               </div>
 
@@ -1202,7 +1202,7 @@ export default function ContentCalendar() {
                     value={formData.categoryId}
                     onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
                     required
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   >
                     <option value="">-- เลือกหมวดหมู่ --</option>
                     {(contentCategories.length > 0 ? contentCategories : categories).map((c) => (
@@ -1220,7 +1220,7 @@ export default function ContentCalendar() {
                   <select
                     value={formData.brandId}
                     onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   >
                     <option value="">-- ไม่ระบุแบรนด์ --</option>
                     {brands.map((b) => (
@@ -1241,7 +1241,7 @@ export default function ContentCalendar() {
                   <select
                     value={formData.format}
                     onChange={(e) => setFormData({ ...formData, format: e.target.value as ContentFormat })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   >
                     <option value="graphic">รูปภาพ / แบนเนอร์ (Graphic)</option>
                     <option value="video">วิดีโอ (Video / Short)</option>
@@ -1258,7 +1258,7 @@ export default function ContentCalendar() {
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as ContentStatus })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   >
                     <option value="idea">💡 ไอเดีย / แผนงาน</option>
                     <option value="drafting">✍️ กำลังผลิต (Drafting)</option>
@@ -1280,7 +1280,7 @@ export default function ContentCalendar() {
                     required
                     value={formData.scheduledDate}
                     onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   />
                 </div>
 
@@ -1292,7 +1292,7 @@ export default function ContentCalendar() {
                     type="time"
                     value={formData.scheduledTime}
                     onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                   />
                 </div>
               </div>
@@ -1305,7 +1305,7 @@ export default function ContentCalendar() {
                 <select
                   value={formData.assignedTo}
                   onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 >
                   <option value="">-- เลือกผู้รับผิดชอบ --</option>
                   {users.map((u) => (
@@ -1326,7 +1326,7 @@ export default function ContentCalendar() {
                   placeholder="เขียนแคปชัน บรีฟงาน หรือแนวทางการทำคอนเทนต์..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
                 />
               </div>
 
@@ -1340,7 +1340,7 @@ export default function ContentCalendar() {
                   placeholder="https://..."
                   value={formData.postUrl}
                   onChange={(e) => setFormData({ ...formData, postUrl: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 />
               </div>
 
