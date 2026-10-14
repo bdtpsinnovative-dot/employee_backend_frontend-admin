@@ -37,6 +37,8 @@ func (r *PIRecordRepo) EnsureTable(ctx context.Context) error {
 			supplier TEXT NOT NULL DEFAULT '',
 			link_file TEXT NOT NULL DEFAULT '',
 			link_file_url TEXT NOT NULL DEFAULT '',
+			amount_yuan TEXT NOT NULL DEFAULT '',
+			amount_dollar TEXT NOT NULL DEFAULT '',
 			etd TEXT NOT NULL DEFAULT '',
 			brand TEXT NOT NULL DEFAULT '',
 			order_no TEXT NOT NULL DEFAULT '',
@@ -49,6 +51,8 @@ func (r *PIRecordRepo) EnsureTable(ctx context.Context) error {
 			date_order TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		ALTER TABLE pi_records ADD COLUMN IF NOT EXISTS amount_yuan TEXT NOT NULL DEFAULT '';
+		ALTER TABLE pi_records ADD COLUMN IF NOT EXISTS amount_dollar TEXT NOT NULL DEFAULT '';
 		CREATE INDEX IF NOT EXISTS idx_pi_records_pi_supplier ON pi_records(pi_supplier);
 		CREATE INDEX IF NOT EXISTS idx_pi_records_order_no ON pi_records(order_no);
 		ALTER TABLE pi_records ENABLE ROW LEVEL SECURITY;
@@ -80,6 +84,7 @@ func (r *PIRecordRepo) List(ctx context.Context) ([]domain.PIRecord, error) {
 	records := []domain.PIRecord{}
 	if err := r.db.SelectContext(ctx, &records, `
 		SELECT id, pi_supplier, record_date, supplier, link_file, link_file_url,
+			amount_yuan, amount_dollar,
 			etd, brand, order_no, file_name, file_url, sale_name, project_name,
 			payment_date, delivered_date, date_order
 		FROM pi_records

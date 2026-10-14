@@ -27,6 +27,8 @@ type PIRecord = {
   supplier: string;
   link_file: string;
   link_file_url: string;
+  amount_yuan: string;
+  amount_dollar: string;
   etd: string;
   brand: string;
   order_no: string;
@@ -43,21 +45,25 @@ type Column = {
   key: keyof PIRecord | 'documents';
   label: string;
   linkKey?: keyof PIRecord;
+  align?: 'left' | 'right';
 };
 
 const columns: Column[] = [
   { key: 'pi_supplier', label: 'PI-Supplier' },
-  { key: 'record_date', label: 'วันที่' },
+  { key: 'record_date', label: 'Date' },
   { key: 'supplier', label: 'Supplier' },
-  { key: 'documents', label: 'เอกสาร' },
+  { key: 'link_file', label: 'Link/File', linkKey: 'link_file_url' },
+  { key: 'amount_yuan', label: 'จำนวนเงิน (Yuan)', align: 'right' },
+  { key: 'amount_dollar', label: 'จำนวนเงิน ($)', align: 'right' },
   { key: 'etd', label: 'ETD' },
-  { key: 'brand', label: 'Brand' },
-  { key: 'order_no', label: 'Order No.' },
-  { key: 'sale_name', label: 'Sale Name' },
-  { key: 'project_name', label: 'Project Name' },
-  { key: 'payment_date', label: 'Payment Date' },
-  { key: 'delivered_date', label: 'Delivered Date' },
-  { key: 'date_order', label: 'วันที่ลูกค้าชำระเงิน' },
+  { key: 'brand', label: 'Band' },
+  { key: 'order_no', label: 'Order_NO.' },
+  { key: 'file_name', label: 'File', linkKey: 'file_url' },
+  { key: 'sale_name', label: 'Sale_Name' },
+  { key: 'project_name', label: 'Project_name' },
+  { key: 'payment_date', label: 'Payment_Date' },
+  { key: 'delivered_date', label: 'Delivered_Date' },
+  { key: 'date_order', label: 'Date_Order / วันที่ลูกค้าชำระเงิน' },
 ];
 
 const visibleValue = (value: string) => value?.trim() && value.trim() !== '-';
@@ -366,18 +372,20 @@ export default function PIRecordPage() {
       const rows = displayedRecords.map((r, idx) => ({
         'ลำดับ': idx + 1,
         'PI-Supplier': r.pi_supplier || '',
-        'วันที่': r.record_date || '',
+        'Date': r.record_date || '',
         'Supplier': r.supplier || '',
-        'ETD': r.etd || '',
-        'Brand': r.brand || '',
-        'Order No.': r.order_no || '',
-        'Sale Name': r.sale_name || '',
-        'Project Name': r.project_name || '',
-        'Payment Date': r.payment_date || '',
-        'Delivered Date': r.delivered_date || '',
-        'วันที่ลูกค้าชำระเงิน': r.date_order || '',
         'Link/File': r.link_file || r.link_file_url || '',
-        'File แนบ': r.file_name || r.file_url || '',
+        'จำนวนเงิน (Yuan)': r.amount_yuan || '',
+        'จำนวนเงิน ($)': r.amount_dollar || '',
+        'ETD': r.etd || '',
+        'Band': r.brand || '',
+        'Order_NO.': r.order_no || '',
+        'File': r.file_name || r.file_url || '',
+        'Sale_Name': r.sale_name || '',
+        'Project_name': r.project_name || '',
+        'Payment_Date': r.payment_date || '',
+        'Delivered_Date': r.delivered_date || '',
+        'Date_Order / วันที่ลูกค้าชำระเงิน': r.date_order || '',
       }));
 
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -798,11 +806,16 @@ export default function PIRecordPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[1700px] w-full border-collapse text-left text-sm">
+              <table className="min-w-[1950px] w-full border-collapse text-left text-sm">
                 <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   <tr>
-                    {columns.map(({ key, label }) => (
-                      <th key={key} className="whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-slate-700">
+                    {columns.map(({ key, label, align }) => (
+                      <th
+                        key={key}
+                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-slate-700 ${
+                          align === 'right' ? 'text-right' : 'text-left'
+                        }`}
+                      >
                         {label}
                       </th>
                     ))}
@@ -811,48 +824,19 @@ export default function PIRecordPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {displayedRecords.map((record) => (
                     <tr key={record.id} className="align-top hover:bg-blue-50/40 dark:hover:bg-slate-800/50">
-                      {columns.map(({ key, linkKey, label }) => {
-                        if (key === 'documents') {
-                          const documents = [
-                            { value: record.link_file, url: record.link_file_url || record.link_file, source: 'Link/File' },
-                            { value: record.file_name, url: record.file_url || record.file_name, source: 'File' },
-                          ].filter(({ url }) => safeUrl(url));
-                          return (
-                            <td key={key} className="border-r border-slate-100 px-3 py-3 last:border-r-0 dark:border-slate-800">
-                              {documents.length > 0 ? (
-                                <div className="flex items-center gap-1.5">
-                                  {documents.map(({ value, url, source }, index) => {
-                                    const badge = documentBadge(value, url, source === 'File' ? 'file_name' : 'link_file');
-                                    const DocumentIcon = badge.Icon;
-                                    return (
-                                      <a 
-                                        key={`${source}-${url}`} 
-                                        href={url} 
-                                        target="_blank" 
-                                        rel="noreferrer" 
-                                        title={`${source}: ${badge.label || 'เปิดเอกสาร'}`} 
-                                        aria-label={`${source}: ${badge.label || 'เปิดเอกสาร'}`} 
-                                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:scale-105 hover:brightness-95 ${badge.className}`}
-                                      >
-                                        <DocumentIcon className="h-4 w-4" />
-                                        <span className="sr-only">{index + 1}</span>
-                                      </a>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                          );
-                        }
+                      {columns.map(({ key, linkKey, label, align }) => {
                         const recordKey = key as keyof PIRecord;
                         const value = record[recordKey] || '-';
-                        const url = (linkKey ? record[linkKey] : '') || value;
+                        const url = (linkKey ? record[linkKey] : '') || (safeUrl(value) ? value : '');
                         const badge = documentBadge(value, url, recordKey);
                         const LinkIcon = badge.Icon;
                         return (
-                          <td key={key} className="max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-slate-800 dark:text-slate-300">
+                          <td
+                            key={key}
+                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-slate-800 dark:text-slate-300 ${
+                              align === 'right' ? 'text-right font-medium text-slate-900 dark:text-white whitespace-nowrap' : ''
+                            }`}
+                          >
                             {safeUrl(url) ? (
                               <a 
                                 href={url} 

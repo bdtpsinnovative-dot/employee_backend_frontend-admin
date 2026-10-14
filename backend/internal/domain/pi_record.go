@@ -10,6 +10,8 @@ type PIRecord struct {
 	Supplier      string    `db:"supplier" json:"supplier"`
 	LinkFile      string    `db:"link_file" json:"link_file"`
 	LinkFileURL   string    `db:"link_file_url" json:"link_file_url"`
+	AmountYuan    string    `db:"amount_yuan" json:"amount_yuan"`
+	AmountDollar  string    `db:"amount_dollar" json:"amount_dollar"`
 	ETD           string    `db:"etd" json:"etd"`
 	Brand         string    `db:"brand" json:"brand"`
 	OrderNo       string    `db:"order_no" json:"order_no"`
