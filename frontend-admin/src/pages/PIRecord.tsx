@@ -740,6 +740,16 @@ export default function PIRecordPage() {
               )}
             </div>
 
+            <a
+              href="/PI_Record_Template.xlsx"
+              download="PI_Record_Template.xlsx"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 hover:border-slate-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐาน 16 คอลัมน์ (.xlsx)"
+            >
+              <FileSpreadsheet size={14} className="text-emerald-600 dark:text-emerald-400" />
+              <span>ดาวน์โหลดเทมเพลต</span>
+            </a>
+
             <button
               type="button"
               onClick={handleExportExcel}
