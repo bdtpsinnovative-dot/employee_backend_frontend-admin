@@ -36,7 +36,9 @@ type PIRecord = {
   file_url: string;
   sale_name: string;
   project_name: string;
+  requested_date: string;
   payment_date: string;
+  shipping_method: string;
   delivered_date: string;
   date_order: string;
 };
@@ -61,8 +63,9 @@ const columns: Column[] = [
   { key: 'file_name', label: 'File', linkKey: 'file_url' },
   { key: 'sale_name', label: 'Sale_Name' },
   { key: 'project_name', label: 'Project_name' },
+  { key: 'requested_date', label: 'Requested_Date' },
   { key: 'payment_date', label: 'Payment_Date' },
-  { key: 'delivered_date', label: 'Delivered_Date' },
+  { key: 'shipping_method', label: 'Shipping_Method' },
   { key: 'date_order', label: 'Date_Order / วันที่ลูกค้าชำระเงิน' },
 ];
 
@@ -74,6 +77,7 @@ const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.',
 const DATE_TARGET_FIELDS: { key: keyof PIRecord; label: string }[] = [
   { key: 'record_date', label: 'วันที่บันทึก (Date)' },
   { key: 'etd', label: 'กำหนดส่ง (ETD)' },
+  { key: 'requested_date', label: 'วันที่ต้องการ (Requested)' },
   { key: 'payment_date', label: 'วันที่ชำระเงิน (Payment)' },
   { key: 'delivered_date', label: 'วันที่ส่งมอบ (Delivered)' },
   { key: 'date_order', label: 'วันที่ลูกค้าชำระเงิน' },
@@ -484,8 +488,9 @@ export default function PIRecordPage() {
         'File': r.file_name || r.file_url || '',
         'Sale_Name': r.sale_name || '',
         'Project_name': r.project_name || '',
+        'Requested_Date': r.requested_date || '',
         'Payment_Date': r.payment_date || '',
-        'Delivered_Date': r.delivered_date || '',
+        'Shipping_Method': r.shipping_method || '',
         'Date_Order / วันที่ลูกค้าชำระเงิน': r.date_order || '',
       }));
 
@@ -907,7 +912,7 @@ export default function PIRecordPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="pi-record-table min-w-[1950px] w-full border-collapse text-left text-sm">
+              <table className="pi-record-table min-w-[2100px] w-full border-collapse text-left text-sm">
                 <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-[#18181b] dark:text-zinc-400">
                   <tr>
                     {columns.map(({ key, label, align }) => (
@@ -937,6 +942,30 @@ export default function PIRecordPage() {
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${etdBadge.dotClassName}`} />
                                 <span>{etdBadge.label}</span>
                               </span>
+                            </td>
+                          );
+                        }
+
+                        if (key === 'shipping_method') {
+                          const isSea = value.toLowerCase().includes('sea');
+                          const isAir = value.toLowerCase().includes('air');
+                          return (
+                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
+                              {value && value !== '-' ? (
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                                  isSea
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200/90 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/60'
+                                    : isAir
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200/90 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60'
+                                    : 'bg-slate-50 text-slate-700 border-slate-200/80 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700'
+                                }`}>
+                                  {isSea && <span>🚢</span>}
+                                  {isAir && <span>✈️</span>}
+                                  <span>{value}</span>
+                                </span>
+                              ) : (
+                                '-'
+                              )}
                             </td>
                           );
                         }

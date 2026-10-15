@@ -18,8 +18,10 @@ type PIRecord struct {
 	FileName      string    `db:"file_name" json:"file_name"`
 	FileURL       string    `db:"file_url" json:"file_url"`
 	SaleName      string    `db:"sale_name" json:"sale_name"`
-	ProjectName   string    `db:"project_name" json:"project_name"`
-	PaymentDate   string    `db:"payment_date" json:"payment_date"`
-	DeliveredDate string    `db:"delivered_date" json:"delivered_date"`
-	DateOrder     string    `db:"date_order" json:"date_order"`
+	ProjectName    string    `db:"project_name" json:"project_name"`
+	RequestedDate  string    `db:"requested_date" json:"requested_date"`
+	PaymentDate    string    `db:"payment_date" json:"payment_date"`
+	ShippingMethod string    `db:"shipping_method" json:"shipping_method"`
+	DeliveredDate  string    `db:"delivered_date" json:"delivered_date"`
+	DateOrder      string    `db:"date_order" json:"date_order"`
 }
