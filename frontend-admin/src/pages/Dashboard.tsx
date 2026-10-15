@@ -335,8 +335,51 @@ export default function Dashboard() {
     return brandBanners;
   }, [brandBanners, activeCategory, searchTerm]);
 
-  const handleOpenApp = (app: AppItem) => {
+  const handleOpenApp = async (app: AppItem) => {
     if (app.isExternal && app.url) {
+      // 🚀 Single Sign-On (SSO): ล็อกอินข้ามระบบอัตโนมัติ ไม่ต้องกรอกรหัสผ่านซ้ำ
+      if (app.id === 'inventory-system' || app.id === 'wallcraft-admin') {
+        const targetWindow = window.open('about:blank', '_blank');
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            if (app.id === 'inventory-system') {
+              const ssoUrl = `https://admin-and-manager-seven.vercel.app/api/auth/sso?token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token || '')}`;
+              if (targetWindow) {
+                targetWindow.location.href = ssoUrl;
+              } else {
+                window.location.href = ssoUrl;
+              }
+              return;
+            }
+            if (app.id === 'wallcraft-admin') {
+              const ssoUrl = `https://admin.wallcraftthailand.com/api/auth/sso?token=${encodeURIComponent(session.access_token)}`;
+              if (targetWindow) {
+                targetWindow.location.href = ssoUrl;
+              } else {
+                window.location.href = ssoUrl;
+              }
+              return;
+            }
+          }
+
+          // Fallback หากยังไม่ได้ล็อกอินหรือไม่มี token
+          if (targetWindow) {
+            targetWindow.location.href = app.url;
+          } else {
+            window.open(app.url, '_blank', 'noopener,noreferrer');
+          }
+        } catch (err) {
+          console.error('SSO redirection error:', err);
+          if (targetWindow) {
+            targetWindow.location.href = app.url;
+          } else {
+            window.open(app.url, '_blank', 'noopener,noreferrer');
+          }
+        }
+        return;
+      }
+
       window.open(app.url, '_blank', 'noopener,noreferrer');
     } else if (app.route) {
       navigate(app.route);
