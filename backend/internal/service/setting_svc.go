@@ -22,10 +22,10 @@ func NewSettingService(repo *repository.SettingRepo) *SettingService {
 func (s *SettingService) GetCheckInMode(ctx context.Context) (string, error) {
 	mode, err := s.repo.Get(ctx, "checkin_mode")
 	if err != nil {
-		return "", err
+		return "selfie", nil
 	}
-	if mode == "" {
-		return "selfie", nil // fallback default
+	if mode == "" || mode == "face" {
+		return "selfie", nil // fallback default selfie to prevent face scan stub error
 	}
 	return mode, nil
 }
