@@ -99,8 +99,15 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 	user, err := h.svc.GetByAuthID(c.Request.Context(), authID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลผู้ใช้"})
-		return
+		emailStr := ""
+		if em, exists := c.Get(middleware.ContextKeyEmail); exists {
+			emailStr, _ = em.(string)
+		}
+		user, err = h.svc.EnsureActiveUser(c.Request.Context(), authID, emailStr)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลผู้ใช้"})
+			return
+		}
 	}
 	user.HasFace = true
 

@@ -185,3 +185,34 @@ func (s *UserService) UpdateFcmToken(ctx context.Context, userID uuid.UUID, fcmT
 	}
 	return s.userRepo.UpdateFcmToken(ctx, userID, fcmToken)
 }
+
+// EnsureActiveUser creates an active user profile if one doesn't exist yet, avoiding forcing users to profile setup.
+func (s *UserService) EnsureActiveUser(ctx context.Context, authID uuid.UUID, email string) (*domain.User, error) {
+	existing, _ := s.userRepo.FindByAuthID(ctx, authID)
+	if existing != nil {
+		return existing, nil
+	}
+	email = strings.TrimSpace(email)
+	if email == "" {
+		email = "user@company.com"
+	}
+	name := strings.Split(email, "@")[0]
+	user := &domain.User{
+		ID:        uuid.New(),
+		AuthID:    authID,
+		Email:     email,
+		FirstName: name,
+		LastName:  "Employee",
+		Nickname:  name,
+		Role:      "employee",
+		Status:    "active",
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		if found, _ := s.userRepo.FindByAuthID(ctx, authID); found != nil {
+			return found, nil
+		}
+		return user, nil
+	}
+	return user, nil
+}
+

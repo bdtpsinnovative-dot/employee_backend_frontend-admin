@@ -32,6 +32,8 @@ type User struct {
 	FcmToken      *string   `db:"fcm_token" json:"fcm_token,omitempty"`
 	FaceEmbedding *string   `db:"face_embedding" json:"-"`
 	HasFace       bool      `db:"-" json:"has_face_embedding"`
+	BranchID      int       `db:"branch_id" json:"branch_id"`
+	BranchName    string    `db:"branch_name" json:"branch_name"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }

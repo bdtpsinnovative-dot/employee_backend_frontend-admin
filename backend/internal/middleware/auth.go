@@ -138,6 +138,7 @@ const (
 	ContextKeyUserID = "user_id" // UUID ของ user ในตาราง public.users
 	ContextKeyStatus = "status"  // สถานะบัญชี (pending/active/disabled)
 	ContextKeyUser   = "user"    // ข้อมูลผู้ใช้ที่ LoadUserMiddleware โหลดไว้แล้ว
+	ContextKeyEmail  = "email"   // อีเมลของ user จาก JWT claims
 )
 
 // JWTAuth ตรวจสอบ JWT ที่ส่งมาจาก Client ผ่าน Header: Authorization: Bearer <token>
@@ -207,6 +208,9 @@ func JWTAuth(jwtSecret string, keyManager *KeyManager) gin.HandlerFunc {
 
 		// ฝัง auth_id ลง Context เพื่อให้ middleware/handler ถัดไปใช้ได้
 		c.Set(ContextKeyAuthID, authID)
+		if em, ok := claims["email"].(string); ok && em != "" {
+			c.Set(ContextKeyEmail, em)
+		}
 		c.Next()
 	}
 }

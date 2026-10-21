@@ -162,6 +162,11 @@ func New(cfg *config.Config) (*Server, error) {
 		uploadH = handler.NewUploadHandler(storageSvc)
 	}
 
+	// POS & Dispatch
+	posRepo := repository.NewPosRepo(db)
+	posSvc := service.NewPosService(posRepo)
+	posH := handler.NewPosHandler(posSvc)
+
 	// --- สร้าง Router และลงทะเบียน Routes ---
 	router := gin.Default()
 	router.Use(perf.Middleware())
@@ -175,7 +180,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, reminderH, backupH, maintenanceGate)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, reminderH, backupH, posH, maintenanceGate)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -209,6 +214,7 @@ func registerRoutes(
 	piRecordH *handler.PIRecordHandler,
 	reminderH *handler.AttendanceReminderHandler,
 	backupH *handler.BackupHandler,
+	posH *handler.PosHandler,
 	maintenanceGate *middleware.MaintenanceGate,
 ) {
 	// ตรวจสอบว่า server ยังทำงานอยู่ (ไม่ต้องล็อกอิน)
@@ -365,6 +371,23 @@ func registerRoutes(
 		// ข้อมูลแบรนด์และหมวดหมู่ของพนักงาน
 		api.GET("/brands", brandCategoryH.ListBrands)
 		api.GET("/task-categories", brandCategoryH.ListTaskCategories)
+
+		// ─── POS & Dispatch (ระบบขายและขนส่ง) ───
+		pos := api.Group("/pos")
+		{
+			pos.GET("/products", posH.GetProducts)
+			pos.GET("/furniture", posH.GetFurniture)
+			pos.GET("/slabs", posH.GetSlabs)
+			pos.POST("/custom-product", posH.CreateCustomProduct)
+			pos.POST("/coupons/validate", posH.ValidateCoupon)
+			pos.POST("/checkout", posH.Checkout)
+			pos.POST("/quotes", posH.CreateQuote)
+			pos.GET("/dispatches", posH.GetDispatches)
+			pos.POST("/dispatches/approve", posH.ApproveDispatch)
+			pos.POST("/dispatches/ship", posH.ShipDispatch)
+			pos.POST("/dispatches/cancel", posH.CancelDispatch)
+			pos.POST("/dispatches/update-customer", posH.UpdateCustomer)
+		}
 	}
 
 	// ─── เส้นทางแอดมิน (ต้องล็อกอิน + active + role admin) ─

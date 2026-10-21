@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   CheckSquare,
+  MessageSquareText,
   Users,
   Building2,
   Calendar,
@@ -37,9 +38,39 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
   const roleBadgeText = isAdmin ? 'ADMIN' : 'STAFF';
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
+  const [newInquiriesCount, setNewInquiriesCount] = useState(0);
+
   useEffect(() => {
-    if (isAdmin) void loadPendingCount();
+    if (isAdmin) {
+      void loadPendingCount();
+      void loadNewInquiriesCount();
+
+      const channel = supabase
+        .channel('sidebar_contact_inquiries_badge')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'contact_inquiries' },
+          () => {
+            void loadNewInquiriesCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [isAdmin]);
+
+  async function loadNewInquiriesCount() {
+    try {
+      const { count } = await supabase
+        .from('contact_inquiries')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'new');
+      setNewInquiriesCount(count ?? 0);
+    } catch { }
+  }
 
   async function loadPendingCount() {
     try {
@@ -75,6 +106,13 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       label: 'อนุมัติคำขอ',
       adminOnly: true,
       badge: pendingCount,
+    },
+    {
+      to: '/inquiries',
+      icon: MessageSquareText,
+      label: 'ลูกค้าติดต่อเว็บ',
+      adminOnly: true,
+      badge: newInquiriesCount,
     },
     {
       to: `/tasks${tasksSearch}`,

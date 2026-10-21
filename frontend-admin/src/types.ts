@@ -354,3 +354,19 @@ export interface TaskEvent {
   entity_type?: 'task' | 'board' | 'list' | 'card' | 'sub_item';
   entity_id?: string;
 }
+
+
+export interface ContactInquiry {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string;
+  message: string;
+  source: string;
+  status: 'new' | 'in_progress' | 'contacted' | 'closed';
+  assigned_to?: string | null;
+  admin_notes?: string;
+  created_at: string;
+  updated_at: string;
+}

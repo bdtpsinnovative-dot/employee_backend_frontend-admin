@@ -16,7 +16,8 @@ const ADMIN_ONLY_ROUTES = [
   '/backups',
   '/brand-responsibilities',
   '/teams',
-  '/task-logs'
+  '/task-logs',
+  '/inquiries'
 ];
 
 function getInitialSidebarOpen(): boolean {

@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   LayoutDashboard,
   CheckSquare,
+  MessageSquareText,
   Building2,
   BriefcaseBusiness,
   Sparkles,
@@ -61,6 +62,14 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
       category: 'หน้าหลัก',
       path: '/requests',
       icon: CheckSquare,
+      adminOnly: true,
+    },
+    {
+      id: 'inquiries',
+      title: 'ลูกค้าติดต่อเว็บ (Customer Inquiries)',
+      category: 'หน้าหลัก',
+      path: '/inquiries',
+      icon: MessageSquareText,
       adminOnly: true,
     },
     {

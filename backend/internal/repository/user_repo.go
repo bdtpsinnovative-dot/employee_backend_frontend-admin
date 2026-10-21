@@ -24,12 +24,16 @@ const userSelectColumns = `
 	to_char(u.work_end_time, 'HH24:MI') AS work_end_time,
 	u.device_id, u.avatar_url, u.fcm_token,
 	NULL::text AS face_embedding,
+	COALESCE(pr.branch_id, 0) AS branch_id,
+	COALESCE(b.branch_name, '') AS branch_name,
 	u.created_at, u.updated_at`
 
 const userSelectJoins = `
 	FROM users u
 	LEFT JOIN teams t ON t.id = u.team_id
-	LEFT JOIN positions p ON p.id = u.position_id`
+	LEFT JOIN positions p ON p.id = u.position_id
+	LEFT JOIN profiles pr ON pr.user_id = u.auth_id
+	LEFT JOIN branches b ON b.id = pr.branch_id`
 
 func NewUserRepo(db *sqlx.DB) *UserRepo {
 	return &UserRepo{db: db}
