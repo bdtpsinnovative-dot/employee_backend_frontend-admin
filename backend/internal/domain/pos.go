@@ -31,11 +31,13 @@ type PosProduct struct {
 	DiscountName   *string              `json:"discount_name,omitempty"`
 	ImageURL       *string              `json:"image_url"`
 	ProductSup     string               `json:"product_sup"`
+	Brand          string               `json:"brand,omitempty"`
 	AvailableQty   int                  `json:"available_qty"`
 	OwnBranchQty   int                  `json:"own_branch_qty"`
 	OtherBranchQty int                  `json:"other_branch_qty"`
 	TotalStock     int                  `json:"total_stock"`
 	IsFurniture    bool                 `json:"is_furniture,omitempty"`
+	IsSlab         bool                 `json:"is_slab,omitempty"`
 	IsExternal     bool                 `json:"is_external,omitempty"`
 	Stocks         []ProductBranchStock `json:"stocks"`
 }
@@ -51,12 +53,13 @@ type CreateCustomProductInput struct {
 }
 
 type PosCatalogResponse struct {
-	Success    bool         `json:"success"`
-	Products   []PosProduct `json:"products"`
-	Categories []string     `json:"categories"`
+	Success    bool            `json:"success"`
+	Products   []PosProduct    `json:"products"`
+	Categories []string        `json:"categories"`
+	Brands     []string        `json:"brands,omitempty"`
 	Branches   []PosBranchInfo `json:"branches"`
-	BranchID   int          `json:"branch_id"`
-	BranchName string       `json:"branch_name"`
+	BranchID   int             `json:"branch_id"`
+	BranchName string          `json:"branch_name"`
 }
 
 type PosCouponInfo struct {

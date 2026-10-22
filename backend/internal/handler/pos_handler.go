@@ -22,7 +22,11 @@ func (h *PosHandler) getUserInfo(c *gin.Context) (userID uuid.UUID, branchID int
 	branchID = 1
 	if cachedUser, ok := c.Get(middleware.ContextKeyUser); ok {
 		if user, valid := cachedUser.(*domain.User); valid && user != nil {
-			userID = user.ID
+			if user.AuthID != uuid.Nil {
+				userID = user.AuthID
+			} else {
+				userID = user.ID
+			}
 			branchID = h.svc.GetUserBranchID(c.Request.Context(), user.AuthID)
 			return
 		}

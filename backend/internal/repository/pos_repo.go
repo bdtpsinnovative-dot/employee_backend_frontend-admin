@@ -78,6 +78,7 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 		Barcode       sql.NullString  `db:"barcode"`
 		Price         sql.NullFloat64 `db:"price"`
 		ImageURL      sql.NullString  `db:"image_url"`
+		Brand         sql.NullString  `db:"brand"`
 		ProductSup    sql.NullString  `db:"product_sup"`
 		CgImageURL    sql.NullString  `db:"cg_image_url"`
 		CgCoverImage  sql.NullString  `db:"cg_cover_image"`
@@ -91,6 +92,7 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 			p.barcode, 
 			p.price, 
 			p.image_url,
+			COALESCE(p.specs->>'brand', p.specs->>'Brand', '') as brand,
 			cg.product_sup, 
 			cg.image_url as cg_image_url, 
 			cg.cover_image_url as cg_cover_image
@@ -171,6 +173,7 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 
 	// Build products
 	categorySet := make(map[string]bool)
+	brandSet := make(map[string]bool)
 	var products []domain.PosProduct
 
 	for _, p := range rawProducts {
@@ -219,7 +222,6 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 		ownQty := 0
 		otherQty := 0
 		var detailedStocks []domain.ProductBranchStock
-
 		for _, s := range stockMap[p.ID] {
 			qty := 0
 			if s.Qty.Valid {
@@ -243,6 +245,14 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 			})
 		}
 
+		brand := strings.TrimSpace(p.Brand.String)
+		if brand == "" || strings.EqualFold(brand, "null") {
+			brand = "ทั่วไป"
+		}
+		if brand != "ทั่วไป" {
+			brandSet[brand] = true
+		}
+
 		rawCat := ""
 		if p.ProductSup.Valid {
 			rawCat = strings.TrimSpace(p.ProductSup.String)
@@ -264,6 +274,7 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 			DiscountName:   discName,
 			ImageURL:       resolvedImage,
 			ProductSup:     rawCat,
+			Brand:          brand,
 			AvailableQty:   ownQty,
 			OwnBranchQty:   ownQty,
 			OtherBranchQty: otherQty,
@@ -278,6 +289,12 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 	}
 	sort.Strings(categories)
 
+	brands := make([]string, 0, len(brandSet))
+	for b := range brandSet {
+		brands = append(brands, b)
+	}
+	sort.Strings(brands)
+
 	ownBranchName := branchMap[ownBranchID]
 	if ownBranchName == "" {
 		ownBranchName = "สาขาหลัก"
@@ -287,6 +304,7 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 		Success:    true,
 		Products:   products,
 		Categories: categories,
+		Brands:     brands,
 		Branches:   branches,
 		BranchID:   ownBranchID,
 		BranchName: ownBranchName,
@@ -452,6 +470,7 @@ func (r *PosRepo) GetFurnitureCatalog(ctx context.Context, ownBranchID int) (*do
 			OtherBranchQty: otherQty,
 			TotalStock:     ownQty + otherQty,
 			IsFurniture:    true,
+			Brand:          "Ember & Ash",
 			Stocks:         detailedStocks,
 		})
 	}
@@ -471,6 +490,7 @@ func (r *PosRepo) GetFurnitureCatalog(ctx context.Context, ownBranchID int) (*do
 		Success:    true,
 		Products:   products,
 		Categories: categories,
+		Brands:     []string{"Ember & Ash"},
 		Branches:   branches,
 		BranchID:   ownBranchID,
 		BranchName: ownBranchName,
@@ -651,6 +671,8 @@ func (r *PosRepo) GetSlabsCatalog(ctx context.Context, ownBranchID int) (*domain
 			OtherBranchQty: otherQty,
 			TotalStock:     ownQty + otherQty,
 			IsFurniture:    false,
+			IsSlab:         true,
+			Brand:          "ZENSLABS",
 			Stocks:         detailedStocks,
 		})
 	}
@@ -670,6 +692,7 @@ func (r *PosRepo) GetSlabsCatalog(ctx context.Context, ownBranchID int) (*domain
 		Success:    true,
 		Products:   products,
 		Categories: categories,
+		Brands:     []string{"ZENSLABS"},
 		Branches:   branches,
 		BranchID:   ownBranchID,
 		BranchName: ownBranchName,
@@ -954,12 +977,13 @@ func (r *PosRepo) Checkout(ctx context.Context, userID uuid.UUID, userBranchID i
 
 	// Query products
 	type ProdInfo struct {
-		ID    int64           `db:"id"`
-		Name  string          `db:"name"`
-		Price sql.NullFloat64 `db:"price"`
+		ID         int64           `db:"id"`
+		Name       string          `db:"name"`
+		Price      sql.NullFloat64 `db:"price"`
+		CategoryID string          `db:"category_id"`
 	}
 	var prods []ProdInfo
-	pQuery, pArgs, err := sqlx.In(`SELECT id, name, price FROM products WHERE id IN (?)`, productIDs)
+	pQuery, pArgs, err := sqlx.In(`SELECT id, name, price, COALESCE(category_id, '') as category_id FROM products WHERE id IN (?)`, productIDs)
 	if err != nil {
 		return nil, fmt.Errorf("invalid query params: %w", err)
 	}
@@ -969,6 +993,22 @@ func (r *PosRepo) Checkout(ctx context.Context, userID uuid.UUID, userBranchID i
 	}
 	if len(prods) == 0 {
 		return nil, fmt.Errorf("พบสินค้าที่ไม่สามารถทำรายการได้")
+	}
+
+	// 🏷️ กฎธุรกิจ: สินค้าพรอพ (Prop) ไม่สามารถรวมกับเฟอร์นิเจอร์ (Furniture) หรือแผ่นไม้ (Wood Slabs) ในบิลเดียวกันได้
+	// แต่ เฟอร์นิเจอร์ กับ แผ่นไม้ สามารถรวมในบิลเดียวกันได้!
+	hasProp := false
+	hasFurnOrWood := false
+	for _, p := range prods {
+		c := strings.ToLower(p.CategoryID)
+		if c == "prop" || c == "" {
+			hasProp = true
+		} else if c == "furniture" || c == "slabs" || c == "rough_wood" {
+			hasFurnOrWood = true
+		}
+	}
+	if hasProp && hasFurnOrWood {
+		return nil, fmt.Errorf("ไม่สามารถรวมสินค้าพรอพ กับเฟอร์นิเจอร์หรือแผ่นไม้ในบิลเดียวกันได้ กรุณาแยกบิลครับ")
 	}
 
 	prodLookup := make(map[int64]ProdInfo)
@@ -1030,11 +1070,17 @@ func (r *PosRepo) Checkout(ctx context.Context, userID uuid.UUID, userBranchID i
 		if err == nil && currentStock.Valid {
 			available = int(currentStock.Float64)
 		} else {
-			// If stock doesn't exist yet, check if product is custom or non-prop
-			var isCustom bool
-			_ = tx.GetContext(ctx, &isCustom, `SELECT COALESCE((specs->>'is_custom')::boolean, false) FROM products WHERE id = $1`, item.ProductID)
-			if isCustom {
+			// If stock doesn't exist yet, check if product is custom, furniture or slab
+			var isExemptStock bool
+			_ = tx.GetContext(ctx, &isExemptStock, `SELECT COALESCE((specs->>'is_custom')::boolean, false) OR category_id IN ('furniture', 'SLABS') FROM products WHERE id = $1`, item.ProductID)
+			if isExemptStock {
 				_, _ = tx.ExecContext(ctx, `INSERT INTO stock (product_id, branch_id, qty) VALUES ($1, $2, 999) ON CONFLICT (product_id, branch_id) DO UPDATE SET qty = 999`, item.ProductID, item.FulfillBranchID)
+				available = 999
+			}
+		}
+		// Also if product is furniture or slab (made-to-order), allow made-to-order without stock block
+		if pCat := strings.ToLower(prod.CategoryID); pCat == "furniture" || pCat == "slabs" {
+			if available < item.Quantity {
 				available = 999
 			}
 		}
@@ -1136,6 +1182,15 @@ func (r *PosRepo) Checkout(ctx context.Context, userID uuid.UUID, userBranchID i
 		}
 	}
 	snapshotJSON, _ := json.Marshal(snapshot)
+
+	// Ensure user exists in profiles to satisfy orders_user_fk
+	if userID != uuid.Nil {
+		_, _ = tx.ExecContext(ctx, `
+			INSERT INTO profiles (user_id, role, created_at)
+			VALUES ($1, 'sale', NOW())
+			ON CONFLICT (user_id) DO NOTHING
+		`, userID)
+	}
 
 	// Insert order
 	var orderID int64
@@ -1267,12 +1322,13 @@ func (r *PosRepo) CreateQuote(ctx context.Context, userID uuid.UUID, userBranchI
 	}
 
 	type ProdRow struct {
-		ID    int64           `db:"id"`
-		Name  string          `db:"name"`
-		Price sql.NullFloat64 `db:"price"`
+		ID         int64           `db:"id"`
+		Name       string          `db:"name"`
+		Price      sql.NullFloat64 `db:"price"`
+		CategoryID string          `db:"category_id"`
 	}
 	var prods []ProdRow
-	query, args, err := sqlx.In(`SELECT id, name, price FROM products WHERE id IN (?)`, productIDs)
+	query, args, err := sqlx.In(`SELECT id, name, price, COALESCE(category_id, '') as category_id FROM products WHERE id IN (?)`, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1282,6 +1338,22 @@ func (r *PosRepo) CreateQuote(ctx context.Context, userID uuid.UUID, userBranchI
 	}
 	if len(prods) != len(productIDs) {
 		return nil, fmt.Errorf("พบสินค้าที่ไม่สามารถเสนอราคาได้")
+	}
+
+	// 🏷️ กฎธุรกิจ: สินค้าพรอพ (Prop) ไม่สามารถรวมกับเฟอร์นิเจอร์ (Furniture) หรือแผ่นไม้ (Wood Slabs) ในใบเสนอราคาเดียวกันได้
+	// แต่ เฟอร์นิเจอร์ กับ แผ่นไม้ สามารถรวมในใบเสนอราคาเดียวกันได้!
+	hasProp := false
+	hasFurnOrWood := false
+	for _, p := range prods {
+		c := strings.ToLower(p.CategoryID)
+		if c == "prop" || c == "" {
+			hasProp = true
+		} else if c == "furniture" || c == "slabs" || c == "rough_wood" {
+			hasFurnOrWood = true
+		}
+	}
+	if hasProp && hasFurnOrWood {
+		return nil, fmt.Errorf("ไม่สามารถรวมสินค้าพรอพ กับเฟอร์นิเจอร์หรือแผ่นไม้ในใบเสนอราคาเดียวกันได้ กรุณาแยกบิลครับ")
 	}
 
 	tx, err := r.db.BeginTxx(ctx, nil)
@@ -1347,6 +1419,15 @@ func (r *PosRepo) CreateQuote(ctx context.Context, userID uuid.UUID, userBranchI
 	if input.TaxID != "" {
 		s := strings.TrimSpace(input.TaxID)
 		taxID = &s
+	}
+
+	// Ensure user exists in profiles to satisfy orders_user_fk
+	if userID != uuid.Nil {
+		_, _ = tx.ExecContext(ctx, `
+			INSERT INTO profiles (user_id, role, created_at)
+			VALUES ($1, 'sale', NOW())
+			ON CONFLICT (user_id) DO NOTHING
+		`, userID)
 	}
 
 	insertOrderQuery := `
