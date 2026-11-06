@@ -12,7 +12,7 @@ import {
   CalendarCheck,
   Kanban,
   LogOut,
-  SlidersHorizontal,
+  Settings,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
@@ -156,8 +156,8 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
     },
     {
       to: '/chat-settings',
-      icon: SlidersHorizontal,
-      label: 'ตั้งค่าช่องทางแชท',
+      icon: Settings,
+      label: 'ตั้งค่าช่องทางแชท (Admin)',
       adminOnly: true,
     },
     {

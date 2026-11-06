@@ -395,9 +395,10 @@ export interface ChatMessage {
   sender_type: 'customer' | 'agent' | 'bot';
   sender_name?: string;
   sender_avatar?: string;
-  message_type: 'text' | 'image' | 'file';
+  message_type: 'text' | 'image' | 'file' | 'sticker';
   content: string;
   media_url?: string | null;
+  metadata?: Record<string, any>;
   created_at: string;
   status?: 'sending' | 'sent' | 'delivered' | 'failed';
 }

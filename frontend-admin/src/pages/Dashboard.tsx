@@ -213,7 +213,7 @@ export default function Dashboard() {
         imageClassName: 'w-full h-full object-cover scale-[1.08]',
         imageContainerClassName: 'w-full h-full rounded-2xl sm:rounded-3xl flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#fbf8f3] to-[#f2e6d6] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_10px_20px_rgba(180,120,60,0.15)]',
         tileClassName: 'bg-gradient-to-br from-[#fffdfa] to-[#f7eee1] border-[#eadcc9]',
-        url: 'https://admin-and-manager-seven.vercel.app/',
+        url: 'https://inventory.terrahome-studio.com/',
         isExternal: true,
       },
       {
@@ -292,8 +292,8 @@ export default function Dashboard() {
         badge: 'Luxury Living',
         accentBadge: 'text-violet-400 border-violet-500/30',
         description: 'เฟอร์นิเจอร์สไตล์โมเดิร์นลักชัวรี่ ผสานหินอ่อนและไม้ธรรมชาติ',
-        domain: 'emberandashliving.com',
-        url: 'https://emberandashliving.vercel.app/',
+        domain: 'emberandashliving.terrahome-studio.com',
+        url: 'https://emberandashliving.terrahome-studio.com/',
         bannerImg: '/banners/emberash.webp',
         hoverBorder: 'hover:border-violet-500/50 dark:hover:border-violet-500/50',
         hoverText: 'group-hover:text-violet-500 dark:group-hover:text-violet-400',
@@ -355,7 +355,7 @@ export default function Dashboard() {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.access_token) {
             if (app.id === 'inventory-system') {
-              const ssoUrl = `https://admin-and-manager-seven.vercel.app/api/auth/sso?token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token || '')}`;
+              const ssoUrl = `https://inventory.terrahome-studio.com/api/auth/sso?token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token || '')}`;
               if (targetWindow) {
                 targetWindow.location.href = ssoUrl;
               } else {

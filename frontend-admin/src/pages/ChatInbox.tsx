@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Search,
   Send,
@@ -8,7 +7,6 @@ import {
   Clock,
   RotateCcw,
   Sparkles,
-  Settings,
   X,
   Volume2,
   VolumeX,
@@ -19,6 +17,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { ChatConversation, ChatMessage, ChatChannel } from '../types';
+import { LineIcon, FacebookIcon, InstagramIcon } from './ChatSettings';
 
 const QUICK_REPLIES = [
   'สวัสดีครับ ยินดีให้บริการครับ มีอะไรให้เราช่วยดูแลวันนี้ครับ?',
@@ -27,6 +26,28 @@ const QUICK_REPLIES = [
   'ขอบคุณที่ติดต่อสอบถามเข้ามาครับ หากมีข้อสงสัยเพิ่มเติมสอบถามได้ตลอดเวลานะครับ',
   'สินค้าชิ้นนี้มีพร้อมส่งครับ จัดส่งได้ภายใน 1-2 วันทำการครับ',
 ];
+
+// 🎨 Multi-Brand Presets & Styling
+const BRAND_PRESETS: Record<string, { label: string; shortLabel: string; bg: string; color: string }> = {
+  terrahome: { label: 'Terra Home Studio', shortLabel: 'TERRA', bg: '#B45309', color: '#FFFFFF' },
+  zenslab: { label: 'Zenslab by Woodden', shortLabel: 'ZENSLAB', bg: '#065F46', color: '#FFFFFF' },
+  emberandash: { label: 'Ember and Ash', shortLabel: 'EMBER & ASH', bg: '#9A3412', color: '#FFFFFF' },
+  wallcraft: { label: 'Wallcraft Thailand', shortLabel: 'WALLCRAFT', bg: '#1E3A8A', color: '#FFFFFF' },
+};
+
+function getBrandDisplay(brandSlug?: string, channelsList?: ChatChannel[]) {
+  const slug = (brandSlug || 'terrahome').toLowerCase().trim();
+  const matchedChannel = channelsList?.find(c => c.brand_slug.toLowerCase() === slug);
+  const preset = BRAND_PRESETS[slug];
+
+  return {
+    label: matchedChannel?.brand_name || preset?.label || slug.toUpperCase(),
+    shortLabel: preset?.shortLabel || matchedChannel?.brand_name?.slice(0, 10) || slug.toUpperCase(),
+    bg: preset?.bg || '#374151',
+    color: preset?.color || '#FFFFFF',
+    logo: matchedChannel?.brand_logo || null,
+  };
+}
 
 export default function ChatInbox() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -41,7 +62,7 @@ export default function ChatInbox() {
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'line' | 'facebook' | 'instagram'>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('active');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'unread' | 'resolved'>('active');
 
   // Multi-Channel (Multi-Brand LINE OA, FB & IG)
   const [channels, setChannels] = useState<ChatChannel[]>([]);
@@ -58,11 +79,16 @@ export default function ChatInbox() {
 
   // Webhook & sound settings
   const [outboundWebhookUrl, setOutboundWebhookUrl] = useState(() => {
-    return localStorage.getItem('n8n_outbound_webhook_url') || import.meta.env.VITE_N8N_OUTBOUND_WEBHOOK_URL || '';
+    return (
+      localStorage.getItem('n8n_outbound_webhook_url') ||
+      import.meta.env.VITE_N8N_OUTBOUND_WEBHOOK_URL ||
+      'https://bddevelopment.app.n8n.cloud/webhook/send-chat'
+    );
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [tempWebhookUrl, setTempWebhookUrl] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentConvIdRef = useRef<string | null>(null);
@@ -405,8 +431,15 @@ export default function ChatInbox() {
       (c.last_message && c.last_message.toLowerCase().includes(search.toLowerCase()));
 
     const matchesPlatform = platformFilter === 'all' || c.platform === platformFilter;
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesBrand = brandFilter === 'all' || (c.brand || 'terrahome') === brandFilter;
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'unread'
+        ? (c.unread_count || 0) > 0
+        : c.status === statusFilter;
+    const matchesBrand =
+      brandFilter === 'all' ||
+      (c.brand || 'terrahome').toLowerCase() === brandFilter.toLowerCase();
 
     return matchesSearch && matchesPlatform && matchesStatus && matchesBrand;
   });
@@ -414,123 +447,7 @@ export default function ChatInbox() {
   const activeUnreadTotal = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
 
   return (
-    <div style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* Top Bar / Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px',
-          padding: '4px 0',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #06C755 0%, #0084FF 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
-            }}
-          >
-            <MessageSquare size={20} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-              ศูนย์รวมแชท (Omnichannel Chat)
-            </h1>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              รวมข้อความจาก Facebook Messenger และ LINE OA ตอบที่เดียว ไม่ต้องสลับแอป
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {activeUnreadTotal > 0 && (
-            <span
-              style={{
-                background: '#EF4444',
-                color: '#fff',
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-              }}
-            >
-              ยังไม่อ่าน {activeUnreadTotal} ข้อความ
-            </span>
-          )}
-
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            title={soundEnabled ? 'ปิดเสียงแจ้งเตือน' : 'เปิดเสียงแจ้งเตือน'}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: soundEnabled ? 'var(--blue)' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.85rem',
-            }}
-          >
-            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-            <span>{soundEnabled ? 'เสียงเปิดอยู่' : 'ปิดเสียง'}</span>
-          </button>
-
-          <Link
-            to="/chat-settings"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '8px',
-              border: '1px solid #10B981',
-              background: 'rgba(16, 185, 129, 0.12)',
-              color: '#10B981',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-            }}
-          >
-            <Radio size={16} />
-            <span>⚙️ หลังบ้านรวมแชท ({channels.length} ช่องทาง)</span>
-          </Link>
-
-          <button
-            onClick={() => {
-              setTempWebhookUrl(outboundWebhookUrl);
-              setShowSettingsModal(true);
-            }}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.85rem',
-            }}
-          >
-            <Settings size={16} />
-            <span>ตั้งค่า n8n Webhook</span>
-          </button>
-        </div>
-      </div>
-
+    <div style={{ height: 'calc(100vh - 30px)', display: 'flex', flexDirection: 'column' }}>
       {/* Main Chat Box Container */}
       <div
         style={{
@@ -556,32 +473,57 @@ export default function ChatInbox() {
         >
           {/* Search & Filters */}
           <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                padding: '6px 10px',
-              }}
-            >
-              <Search size={16} style={{ color: 'var(--text-secondary)' }} />
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อลูกค้าหรือข้อความ..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div
                 style={{
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  width: '100%',
-                  fontSize: '0.85rem',
-                  color: 'var(--text-primary)',
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
                 }}
-              />
+              >
+                <Search size={16} style={{ color: 'var(--text-secondary)' }} />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อลูกค้าหรือข้อความ..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    width: '100%',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+
+              {/* Sound Toggle Icon Button */}
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                title={soundEnabled ? 'เสียงแจ้งเตือน: เปิดอยู่ (คลิกเพื่อปิด)' : 'เสียงแจ้งเตือน: ปิดอยู่ (คลิกเพื่อเปิด)'}
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: soundEnabled ? 'var(--blue)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              </button>
             </div>
 
             {/* Platform Filter Tabs */}
@@ -641,9 +583,9 @@ export default function ChatInbox() {
               >
                 ทุกแบรนด์
               </button>
-              {channels.map((ch) => {
-                const isActive = brandFilter === ch.brand_slug;
-                const isZenslab = ch.brand_slug === 'zenslab';
+              {Array.from(new Map(channels.map((ch) => [ch.brand_slug.toLowerCase(), ch])).values()).map((ch) => {
+                const isActive = brandFilter.toLowerCase() === ch.brand_slug.toLowerCase();
+                const bInfo = getBrandDisplay(ch.brand_slug, channels);
                 return (
                   <button
                     key={ch.id}
@@ -657,12 +599,8 @@ export default function ChatInbox() {
                       borderRadius: '6px',
                       border: 'none',
                       cursor: 'pointer',
-                      background: isActive
-                        ? isZenslab
-                          ? '#059669'
-                          : '#D97706'
-                        : 'var(--surface)',
-                      color: isActive ? '#fff' : 'var(--text-secondary)',
+                      background: isActive ? bInfo.bg : 'var(--surface)',
+                      color: isActive ? bInfo.color : 'var(--text-secondary)',
                       transition: 'all 0.15s ease',
                       display: 'flex',
                       alignItems: 'center',
@@ -671,35 +609,49 @@ export default function ChatInbox() {
                     }}
                     title={ch.brand_name}
                   >
-                    {ch.brand_logo && (
+                    {bInfo.logo && (
                       <img
-                        src={ch.brand_logo}
+                        src={bInfo.logo}
                         alt=""
                         style={{ width: '13px', height: '13px', borderRadius: '50%', objectFit: 'cover' }}
                       />
                     )}
-                    <span>{ch.brand_slug.toUpperCase().slice(0, 8)}</span>
+                    <span>{bInfo.shortLabel}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Status Filter */}
-            <div style={{ display: 'flex', gap: '6px', fontSize: '0.75rem' }}>
-              {(['active', 'resolved', 'all'] as const).map((s) => (
-                <span
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  style={{
-                    cursor: 'pointer',
-                    color: statusFilter === s ? 'var(--blue)' : 'var(--text-secondary)',
-                    fontWeight: statusFilter === s ? 700 : 500,
-                    textDecoration: statusFilter === s ? 'underline' : 'none',
-                  }}
-                >
-                  {s === 'active' ? 'เปิดอยู่' : s === 'resolved' ? 'ปิดเคสแล้ว' : 'แสดงทุกสถานะ'}
-                </span>
-              ))}
+            <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {(['unread', 'active', 'resolved', 'all'] as const).map((s) => {
+                const isSelected = statusFilter === s;
+                return (
+                  <span
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    style={{
+                      cursor: 'pointer',
+                      color:
+                        s === 'unread' && activeUnreadTotal > 0
+                          ? '#EF4444'
+                          : isSelected
+                          ? 'var(--blue)'
+                          : 'var(--text-secondary)',
+                      fontWeight: isSelected || (s === 'unread' && activeUnreadTotal > 0) ? 700 : 500,
+                      textDecoration: isSelected ? 'underline' : 'none',
+                    }}
+                  >
+                    {s === 'unread'
+                      ? `🔴 ยังไม่อ่าน${activeUnreadTotal > 0 ? ` (${activeUnreadTotal})` : ''}`
+                      : s === 'active'
+                      ? 'เปิดอยู่'
+                      : s === 'resolved'
+                      ? 'ปิดเคสแล้ว'
+                      : 'ทั้งหมด'}
+                  </span>
+                );
+              })}
             </div>
           </div>
 
@@ -724,8 +676,6 @@ export default function ChatInbox() {
                 const isIg = conv.platform === 'instagram';
                 const avatarBg = isLine ? '#D1FAE5' : isIg ? '#FCE7F3' : '#DBEAFE';
                 const avatarColor = isLine ? '#065F46' : isIg ? '#9D174D' : '#1E40AF';
-                const badgeBg = isLine ? '#06C755' : isIg ? '#E1306C' : '#0084FF';
-                const badgeLabel = isLine ? 'L' : isIg ? 'IG' : 'F';
                 const badgeTitle = isLine
                   ? 'LINE Official Account'
                   : isIg
@@ -781,22 +731,26 @@ export default function ChatInbox() {
                           position: 'absolute',
                           bottom: '-2px',
                           right: '-2px',
-                          minWidth: '16px',
-                          height: '16px',
-                          padding: '0 3px',
-                          borderRadius: '8px',
-                          background: badgeBg,
-                          color: '#fff',
-                          fontSize: '8px',
-                          fontWeight: 900,
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: 'var(--surface)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '2px solid var(--surface)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                          overflow: 'hidden',
                         }}
                         title={badgeTitle}
                       >
-                        {badgeLabel}
+                        {isLine ? (
+                          <LineIcon size={14} />
+                        ) : isIg ? (
+                          <InstagramIcon size={14} />
+                        ) : (
+                          <FacebookIcon size={14} />
+                        )}
                       </span>
                     </div>
 
@@ -816,32 +770,34 @@ export default function ChatInbox() {
                           >
                             {conv.customer_name}
                           </span>
-                          <span
-                            style={{
-                              fontSize: '9px',
-                              fontWeight: 700,
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              background: (conv.brand || 'terrahome').toLowerCase() === 'zenslab' ? '#065F46' : '#B45309',
-                              color: '#ffffff',
-                              flexShrink: 0,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            {(() => {
-                              const ch = channels.find(c => c.brand_slug.toLowerCase() === (conv.brand || 'terrahome').toLowerCase());
-                              return ch?.brand_logo ? (
-                                <img
-                                  src={ch.brand_logo}
-                                  alt=""
-                                  style={{ width: '11px', height: '11px', borderRadius: '50%', objectFit: 'cover' }}
-                                />
-                              ) : null;
-                            })()}
-                            {(conv.brand || 'terrahome').toLowerCase() === 'zenslab' ? 'ZENSLAB' : 'TERRA'}
-                          </span>
+                          {(() => {
+                            const bInfo = getBrandDisplay(conv.brand, channels);
+                            return (
+                              <span
+                                style={{
+                                  fontSize: '9px',
+                                  fontWeight: 700,
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  background: bInfo.bg,
+                                  color: bInfo.color,
+                                  flexShrink: 0,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                {bInfo.logo && (
+                                  <img
+                                    src={bInfo.logo}
+                                    alt=""
+                                    style={{ width: '11px', height: '11px', borderRadius: '50%', objectFit: 'cover' }}
+                                  />
+                                )}
+                                <span>{bInfo.shortLabel}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                           {conv.last_message_at
@@ -941,24 +897,62 @@ export default function ChatInbox() {
                         borderRadius: '12px',
                         fontSize: '0.7rem',
                         fontWeight: 700,
-                        background: selectedConv.platform === 'line' ? '#06C755' : '#0084FF',
+                        background:
+                          selectedConv.platform === 'line'
+                            ? '#06C755'
+                            : selectedConv.platform === 'instagram'
+                            ? '#E1306C'
+                            : '#0084FF',
                         color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}
                     >
-                      {selectedConv.platform === 'line' ? 'LINE OA' : 'Facebook Page'}
+                      {selectedConv.platform === 'line' ? (
+                        <>
+                          <LineIcon size={12} />
+                          <span>LINE OA</span>
+                        </>
+                      ) : selectedConv.platform === 'instagram' ? (
+                        <>
+                          <InstagramIcon size={12} />
+                          <span>Instagram</span>
+                        </>
+                      ) : (
+                        <>
+                          <FacebookIcon size={12} />
+                          <span>Facebook Page</span>
+                        </>
+                      )}
                     </span>
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '0.7rem',
-                        fontWeight: 800,
-                        background: (selectedConv.brand || 'terrahome').toLowerCase() === 'zenslab' ? '#065F46' : '#B45309',
-                        color: '#fff',
-                      }}
-                    >
-                      {(selectedConv.brand || 'terrahome').toLowerCase() === 'zenslab' ? 'ZENSLAB' : 'TERRA HOME'}
-                    </span>
+                    {(() => {
+                      const bInfo = getBrandDisplay(selectedConv.brand, channels);
+                      return (
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            background: bInfo.bg,
+                            color: bInfo.color,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          {bInfo.logo && (
+                            <img
+                              src={bInfo.logo}
+                              alt=""
+                              style={{ width: '13px', height: '13px', borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                          )}
+                          <span>{bInfo.label}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                     ID: {selectedConv.platform_user_id.slice(0, 16)}...
@@ -1046,25 +1040,69 @@ export default function ChatInbox() {
                           {isAgent ? (msg.sender_type === 'bot' ? '🤖 AI Bot' : '🧑‍💼 แอดมิน') : selectedConv.customer_name}
                         </span>
 
-                        {/* Bubble */}
-                        <div
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: '14px',
-                            borderBottomRightRadius: isAgent ? '3px' : '14px',
-                            borderBottomLeftRadius: !isAgent ? '3px' : '14px',
-                            background: isAgent ? 'var(--blue)' : 'var(--surface)',
-                            color: isAgent ? '#ffffff' : 'var(--text-primary)',
-                            fontSize: '0.88rem',
-                            lineHeight: 1.45,
-                            border: isAgent ? 'none' : '1px solid var(--border)',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                            wordBreak: 'break-word',
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          {msg.content}
-                        </div>
+                        {/* Message Content (Sticker / Image / Text Bubble) */}
+                        {msg.message_type === 'sticker' && msg.media_url ? (
+                          <div style={{ padding: '4px' }}>
+                            <img
+                              src={msg.media_url}
+                              alt="LINE Sticker"
+                              style={{
+                                width: '130px',
+                                height: '130px',
+                                objectFit: 'contain',
+                                display: 'block',
+                              }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : (msg.message_type === 'image' || msg.content?.startsWith('📷')) && msg.media_url ? (
+                          <div style={{ padding: '4px' }}>
+                            <div
+                              onClick={() => setPreviewImage(msg.media_url || null)}
+                              style={{ cursor: 'pointer', display: 'inline-block' }}
+                              title="คลิกเพื่อดูรูปภาพขนาดใหญ่"
+                            >
+                              <img
+                                src={msg.media_url}
+                                alt="รูปภาพจากแชท"
+                                loading="lazy"
+                                style={{
+                                  maxWidth: '260px',
+                                  maxHeight: '300px',
+                                  borderRadius: '12px',
+                                  border: '1px solid var(--border)',
+                                  objectFit: 'cover',
+                                  display: 'block',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                  transition: 'transform 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '14px',
+                              borderBottomRightRadius: isAgent ? '3px' : '14px',
+                              borderBottomLeftRadius: !isAgent ? '3px' : '14px',
+                              background: isAgent ? 'var(--blue)' : 'var(--surface)',
+                              color: isAgent ? '#ffffff' : 'var(--text-primary)',
+                              fontSize: '0.88rem',
+                              lineHeight: 1.45,
+                              border: isAgent ? 'none' : '1px solid var(--border)',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                              wordBreak: 'break-word',
+                              whiteSpace: 'pre-wrap',
+                            }}
+                          >
+                            {msg.content}
+                          </div>
+                        )}
 
                         {/* Timestamp */}
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -1703,6 +1741,73 @@ export default function ChatInbox() {
                 </form>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Image Preview Modal */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.88)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            cursor: 'zoom-out',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '92vw',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              title="ปิด (Esc)"
+              style={{
+                position: 'absolute',
+                top: '-42px',
+                right: '0',
+                background: 'rgba(255,255,255,0.2)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.4)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={previewImage}
+              alt="ภาพขยายขนาดใหญ่"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '85vh',
+                borderRadius: '12px',
+                objectFit: 'contain',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+              }}
+            />
           </div>
         </div>
       )}
