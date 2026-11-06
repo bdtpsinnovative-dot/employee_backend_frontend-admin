@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   MessageSquareText,
+  MessagesSquare,
   Users,
   Building2,
   Calendar,
@@ -11,6 +12,7 @@ import {
   CalendarCheck,
   Kanban,
   LogOut,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchPendingRequests } from '../services/adminApi';
@@ -39,6 +41,37 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
   const profileInitial = currentUser?.first_name?.trim().charAt(0).toUpperCase() || 'U';
 
   const [newInquiriesCount, setNewInquiriesCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    void loadUnreadChatCount();
+
+    const chatChannel = supabase
+      .channel('sidebar_chat_inbox_badge')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_conversations' },
+        () => {
+          void loadUnreadChatCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chatChannel);
+    };
+  }, []);
+
+  async function loadUnreadChatCount() {
+    try {
+      const { data } = await supabase
+        .from('chat_conversations')
+        .select('unread_count')
+        .gt('unread_count', 0);
+      const total = data?.reduce((acc, curr) => acc + (curr.unread_count || 0), 0) ?? 0;
+      setUnreadChatCount(total);
+    } catch { }
+  }
 
   useEffect(() => {
     if (isAdmin) {
@@ -113,6 +146,19 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       label: 'ลูกค้าติดต่อเว็บ',
       adminOnly: true,
       badge: newInquiriesCount,
+    },
+    {
+      to: '/chat-inbox',
+      icon: MessagesSquare,
+      label: 'รวมแชท LINE FB IG',
+      adminOnly: false,
+      badge: unreadChatCount,
+    },
+    {
+      to: '/chat-settings',
+      icon: SlidersHorizontal,
+      label: 'ตั้งค่าช่องทางแชท',
+      adminOnly: true,
     },
     {
       to: `/tasks${tasksSearch}`,

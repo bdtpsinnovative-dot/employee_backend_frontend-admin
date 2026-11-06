@@ -21,6 +21,8 @@ const TeamManagement = lazy(() => import('./pages/TeamManagement'));
 const AppDownload = lazy(() => import('./pages/AppDownload'));
 const PIRecord = lazy(() => import('./pages/PIRecord'));
 const ContactInquiries = lazy(() => import('./pages/ContactInquiries'));
+const ChatInbox = lazy(() => import('./pages/ChatInbox'));
+const ChatSettings = lazy(() => import('./pages/ChatSettings'));
 
 import { fetchMe } from './services/adminApi';
 import { clearQueryCache } from './lib/queryCache';
@@ -169,6 +171,8 @@ export default function App() {
             <Route path="notifications" element={<Notifications />} />
             <Route path="download-app" element={<AppDownload />} />
             <Route path="inquiries" element={<ContactInquiries />} />
+            <Route path="chat-inbox" element={<ChatInbox />} />
+            <Route path="chat-settings" element={<ChatSettings />} />
           </Route>
         </Routes>
       </Suspense>

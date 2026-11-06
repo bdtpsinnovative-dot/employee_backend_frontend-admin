@@ -370,3 +370,51 @@ export interface ContactInquiry {
   created_at: string;
   updated_at: string;
 }
+
+export interface ChatConversation {
+  id: string;
+  platform: 'line' | 'facebook' | 'instagram';
+  platform_user_id: string;
+  brand: string;
+  customer_name: string;
+  customer_avatar?: string | null;
+  last_message?: string | null;
+  last_message_at?: string | null;
+  unread_count: number;
+  status: 'active' | 'resolved';
+  assigned_to?: string | null;
+  assigned_name?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversation_id: string;
+  sender_type: 'customer' | 'agent' | 'bot';
+  sender_name?: string;
+  sender_avatar?: string;
+  message_type: 'text' | 'image' | 'file';
+  content: string;
+  media_url?: string | null;
+  created_at: string;
+  status?: 'sending' | 'sent' | 'delivered' | 'failed';
+}
+
+export interface ChatChannel {
+  id: string;
+  brand_slug: string;
+  brand_name: string;
+  brand_logo?: string;
+  account_handle?: string;
+  platform: 'line' | 'facebook' | 'instagram';
+  channel_id?: string | null;
+  channel_secret?: string | null;
+  channel_access_token: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+

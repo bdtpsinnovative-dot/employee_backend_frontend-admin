@@ -126,11 +126,13 @@ type DispatchProductInfo struct {
 	ID         int64   `json:"id"`
 	Name       string  `json:"name"`
 	Sku        string  `json:"sku"`
+	CategoryID *string `json:"category_id"`
 	ImageURL   *string `json:"image_url"`
 	Price      float64 `json:"price"`
 	ProductSup *string `json:"product_sup"`
 	Material   *string `json:"material"`
 	SizeStr    *string `json:"size_str"`
+	IsWoodSlab bool    `json:"is_wood_slab"`
 }
 
 type DispatchOrderItemInfo struct {

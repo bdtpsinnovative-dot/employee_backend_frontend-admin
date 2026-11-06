@@ -8,6 +8,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-v2-[hash].js',
+        chunkFileNames: 'assets/[name]-v2-[hash].js',
+        assetFileNames: 'assets/[name]-v2-[hash].[ext]',
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('xlsx-js-style')) {
@@ -29,4 +32,3 @@ export default defineConfig({
     },
   },
 })
-

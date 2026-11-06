@@ -283,6 +283,34 @@ func (r *PosRepo) GetCatalog(ctx context.Context, ownBranchID int) (*domain.PosC
 		})
 	}
 
+	sort.SliceStable(products, func(i, j int) bool {
+		a, b := products[i], products[j]
+		aTier := 2
+		if a.OwnBranchQty > 0 {
+			aTier = 0
+		} else if a.OtherBranchQty > 0 {
+			aTier = 1
+		}
+		bTier := 2
+		if b.OwnBranchQty > 0 {
+			bTier = 0
+		} else if b.OtherBranchQty > 0 {
+			bTier = 1
+		}
+		if aTier != bTier {
+			return aTier < bTier
+		}
+		aHasPrice := a.Price > 0
+		bHasPrice := b.Price > 0
+		if aHasPrice != bHasPrice {
+			return aHasPrice
+		}
+		if a.TotalStock != b.TotalStock {
+			return a.TotalStock > b.TotalStock
+		}
+		return a.Name < b.Name
+	})
+
 	categories := make([]string, 0, len(categorySet))
 	for c := range categorySet {
 		categories = append(categories, c)
@@ -350,7 +378,7 @@ func (r *PosRepo) GetFurnitureCatalog(ctx context.Context, ownBranchID int) (*do
 		LEFT JOIN collection_groups cg ON cg.id = p.collection_group_id
 		WHERE p.category_id = 'furniture'
 		ORDER BY p.name ASC
-		LIMIT 1000
+		LIMIT 5000
 	`
 
 	var rawProducts []ProductRow
@@ -475,6 +503,34 @@ func (r *PosRepo) GetFurnitureCatalog(ctx context.Context, ownBranchID int) (*do
 		})
 	}
 
+	sort.SliceStable(products, func(i, j int) bool {
+		a, b := products[i], products[j]
+		aTier := 2
+		if a.OwnBranchQty > 0 {
+			aTier = 0
+		} else if a.OtherBranchQty > 0 {
+			aTier = 1
+		}
+		bTier := 2
+		if b.OwnBranchQty > 0 {
+			bTier = 0
+		} else if b.OtherBranchQty > 0 {
+			bTier = 1
+		}
+		if aTier != bTier {
+			return aTier < bTier
+		}
+		aHasPrice := a.Price > 0
+		bHasPrice := b.Price > 0
+		if aHasPrice != bHasPrice {
+			return aHasPrice
+		}
+		if a.TotalStock != b.TotalStock {
+			return a.TotalStock > b.TotalStock
+		}
+		return a.Name < b.Name
+	})
+
 	categories := make([]string, 0, len(categorySet))
 	for c := range categorySet {
 		categories = append(categories, c)
@@ -535,8 +591,11 @@ func (r *PosRepo) GetSlabsCatalog(ctx context.Context, ownBranchID int) (*domain
 		FROM products p
 		LEFT JOIN collection_groups cg ON cg.id = p.collection_group_id
 		WHERE p.category_id = 'SLABS'
+		   OR p.sku ILIKE 'ZLB-%'
+		   OR p.sku ILIKE 'WOODSLABS%'
+		   OR p.sku ILIKE 'LEG-%'
 		ORDER BY p.name ASC
-		LIMIT 1500
+		LIMIT 5000
 	`
 
 	var rawProducts []ProductRow
@@ -676,6 +735,34 @@ func (r *PosRepo) GetSlabsCatalog(ctx context.Context, ownBranchID int) (*domain
 			Stocks:         detailedStocks,
 		})
 	}
+
+	sort.SliceStable(products, func(i, j int) bool {
+		a, b := products[i], products[j]
+		aTier := 2
+		if a.OwnBranchQty > 0 {
+			aTier = 0
+		} else if a.OtherBranchQty > 0 {
+			aTier = 1
+		}
+		bTier := 2
+		if b.OwnBranchQty > 0 {
+			bTier = 0
+		} else if b.OtherBranchQty > 0 {
+			bTier = 1
+		}
+		if aTier != bTier {
+			return aTier < bTier
+		}
+		aHasPrice := a.Price > 0
+		bHasPrice := b.Price > 0
+		if aHasPrice != bHasPrice {
+			return aHasPrice
+		}
+		if a.TotalStock != b.TotalStock {
+			return a.TotalStock > b.TotalStock
+		}
+		return a.Name < b.Name
+	})
 
 	categories := make([]string, 0, len(categorySet))
 	for c := range categorySet {
@@ -1556,6 +1643,7 @@ func (r *PosRepo) GetDispatches(ctx context.Context, myBranchID int, userID uuid
 			FulfillBranchID int             `db:"fulfill_branch_id"`
 			ProductName     string          `db:"product_name"`
 			ProductSku      sql.NullString  `db:"product_sku"`
+			CategoryID      sql.NullString  `db:"category_id"`
 			ProductImageURL sql.NullString  `db:"product_image_url"`
 			ProductPrice    sql.NullFloat64 `db:"product_price"`
 			Specs           []byte          `db:"specs"`
@@ -1567,7 +1655,7 @@ func (r *PosRepo) GetDispatches(ctx context.Context, myBranchID int, userID uuid
 
 		itemQuery, itemArgs, err := sqlx.In(`
 			SELECT oi.id, oi.order_id, oi.product_id, oi.qty, oi.item_status, oi.price_at_sale, oi.fulfill_branch_id,
-			       p.name as product_name, p.sku as product_sku, p.image_url as product_image_url, p.price as product_price,
+			       p.name as product_name, p.sku as product_sku, p.category_id, p.image_url as product_image_url, p.price as product_price,
 			       p.specs, p.width_cm, p.length_cm, p.thickness_cm, cg.product_sup
 			FROM order_items oi
 			JOIN products p ON p.id = oi.product_id
@@ -1670,6 +1758,42 @@ func (r *PosRepo) GetDispatches(ctx context.Context, myBranchID int, userID uuid
 				sizeStr = &s
 			}
 
+			var catPtr *string
+			catUpper := ""
+			if item.CategoryID.Valid && item.CategoryID.String != "" {
+				s := item.CategoryID.String
+				catPtr = &s
+				catUpper = strings.ToUpper(s)
+			}
+
+			skuUpper := strings.ToUpper(item.ProductSku.String)
+			nameLower := strings.ToLower(item.ProductName)
+			supLower := ""
+			if supPtr != nil {
+				supLower = strings.ToLower(*supPtr)
+			}
+			matLower := ""
+			if materialPtr != nil {
+				matLower = strings.ToLower(*materialPtr)
+			}
+
+			isWoodSlab := catUpper == "SLABS" || catUpper == "WOODSLAB" || catUpper == "SLAB" ||
+				strings.HasPrefix(skuUpper, "ZLB-") ||
+				strings.HasPrefix(skuUpper, "WOOD-") ||
+				strings.HasPrefix(skuUpper, "LEG-") ||
+				strings.HasPrefix(skuUpper, "SLB-") ||
+				strings.HasPrefix(skuUpper, "SLAB-") ||
+				strings.Contains(supLower, "slab") ||
+				strings.Contains(supLower, "แผ่นไม้") ||
+				strings.Contains(nameLower, "slab") ||
+				strings.Contains(nameLower, "สแลป") ||
+				strings.Contains(nameLower, "แผ่นไม้") ||
+				strings.Contains(nameLower, "stand") ||
+				strings.Contains(nameLower, "ขาโต๊ะ") ||
+				strings.Contains(nameLower, "ขาตั้ง") ||
+				strings.Contains(matLower, "wood") ||
+				strings.Contains(matLower, "ไม้")
+
 			itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], domain.DispatchOrderItemInfo{
 				ID:                item.ID,
 				Qty:               item.Qty,
@@ -1683,11 +1807,13 @@ func (r *PosRepo) GetDispatches(ctx context.Context, myBranchID int, userID uuid
 					ID:         item.ProductID,
 					Name:       item.ProductName,
 					Sku:        item.ProductSku.String,
+					CategoryID: catPtr,
 					ImageURL:   imgPtr,
 					Price:      prodPrice,
 					ProductSup: supPtr,
 					Material:   materialPtr,
 					SizeStr:    sizeStr,
+					IsWoodSlab: isWoodSlab,
 				},
 			})
 		}
