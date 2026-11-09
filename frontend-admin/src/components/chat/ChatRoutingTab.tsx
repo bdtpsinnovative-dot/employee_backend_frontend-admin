@@ -75,6 +75,10 @@ export default function ChatRoutingTab() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [testRandomResult, setTestRandomResult] = useState<{
+    user: User;
+    isRolling: boolean;
+  } | null>(null);
 
   // Form State
   const [formName, setFormName] = useState('');
@@ -132,7 +136,9 @@ export default function ChatRoutingTab() {
     setFormError('');
     setAgentSearch('');
     setAgentFilter('all');
+    setTestRandomResult(null);
     setAgentFilter('all');
+    setTestRandomResult(null);
     setShowModal(true);
   };
 
@@ -155,6 +161,53 @@ export default function ChatRoutingTab() {
     setFormAgentIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
+  };
+
+  // Test / Simulate Randomizer live inside the modal
+  const handleTestRandom = () => {
+    if (formAgentIds.length === 0) {
+      setFormError('กรุณาเลือกสมาชิกในฝั่งขวาอย่างน้อย 1 คนก่อนทดสอบสุ่มครับ');
+      return;
+    }
+    const candidateUsers = users.filter((u) => formAgentIds.includes(u.id));
+    if (candidateUsers.length === 0) return;
+
+    setFormError('');
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const randomPick = candidateUsers[Math.floor(Math.random() * candidateUsers.length)];
+      setTestRandomResult({
+        user: randomPick,
+        isRolling: true,
+      });
+
+      if (step >= 8) {
+        clearInterval(interval);
+        let finalPick: User;
+        if (formMode === 'random') {
+          finalPick = candidateUsers[Math.floor(Math.random() * candidateUsers.length)];
+        } else {
+          finalPick = candidateUsers[step % candidateUsers.length];
+        }
+        setTestRandomResult({
+          user: finalPick,
+          isRolling: false,
+        });
+      }
+    }, 85);
+  };
+
+  // Test random for an existing group on main screen
+  const handleTestGroupRandom = (grp: ChatRoutingGroup) => {
+    const candidateUsers = users.filter((u) => (grp.agent_ids || []).includes(u.id));
+    if (candidateUsers.length === 0) {
+      showNotification('กลุ่มนี้ยังไม่มีสมาชิก ไม่สามารถสุ่มได้');
+      return;
+    }
+    const winner = candidateUsers[Math.floor(Math.random() * candidateUsers.length)];
+    const wName = winner.nickname ? `${winner.first_name} (${winner.nickname})` : winner.first_name;
+    showNotification(`🎲 กลุ่ม "${grp.name}" สุ่มติด: คุณ ${wName} (${winner.department || 'แอดมิน'}) พร้อมรับลูกค้า!`);
   };
 
   // Save Group
@@ -235,7 +288,43 @@ export default function ChatRoutingTab() {
 
       setGroups(updatedList);
       setShowModal(false);
-      showNotification(modalMode === 'create' ? 'สร้างกลุ่มดูแลลูกค้าเรียบร้อย!' : 'บันทึกการแก้ไขเรียบร้อย!');
+
+      // ⚡ Immediate assignment check: If there are unassigned customer chats, assign right now!
+      try {
+        const { data: pendingConvs } = await supabase
+          .from('chat_conversations')
+          .select('*')
+          .is('assigned_to', null)
+          .limit(50);
+
+        if (pendingConvs && pendingConvs.length > 0) {
+          const assignResult = await autoAssignConversations(
+            pendingConvs as ChatConversation[],
+            updatedList,
+            users
+          );
+          if (assignResult.assignedCount > 0) {
+            showNotification(
+              `🎉 สุ่มติดทันที! สุ่มแจกแชทลูกค้า ${assignResult.assignedCount} เคสให้สมาชิกในกลุ่มเรียบร้อยแล้วครับ!`
+            );
+            await loadData();
+            return;
+          }
+        }
+      } catch (assignErr) {
+        console.warn('Immediate auto-assign error:', assignErr);
+      }
+
+      // If no pending chats, demonstrate the first queued agent
+      const candidateUsers = users.filter((u) => formAgentIds.includes(u.id));
+      const firstPicker = candidateUsers[Math.floor(Math.random() * candidateUsers.length)];
+      const firstName = firstPicker ? (firstPicker.nickname ? `${firstPicker.first_name} (${firstPicker.nickname})` : firstPicker.first_name) : 'แอดมิน';
+
+      showNotification(
+        modalMode === 'create'
+          ? `🎉 สร้างกลุ่มสำเร็จ! สุ่มตั้งต้นติดคุณ ${firstName} เป็นคิวแรก พร้อมรับลูกค้าทันทีครับ`
+          : 'บันทึกการแก้ไขกลุ่มเรียบร้อยแล้ว!'
+      );
     } catch (err: any) {
       setFormError(err.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -492,6 +581,14 @@ export default function ChatRoutingTab() {
                       {grp.is_active ? 'ปิด' : 'เปิด'}
                     </button>
                     <button
+                      onClick={() => handleTestGroupRandom(grp)}
+                      className="px-2 py-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[11px] font-bold hover:bg-blue-100 flex items-center gap-1 cursor-pointer transition-all"
+                      title="กดทดสอบสุ่มคนดูแลของกลุ่มนี้"
+                    >
+                      <Dices size={12} />
+                      <span>สุ่มเลย</span>
+                    </button>
+                    <button
                       onClick={() => handleOpenEdit(grp)}
                       style={{
                         padding: '5px',
@@ -724,6 +821,60 @@ export default function ChatRoutingTab() {
                     </div>
                   </div>
 
+                  {/* 🎲 LIVE RANDOMIZER TEST WIDGET */}
+                  <div className="p-3 rounded-2xl border border-dashed border-blue-300 dark:border-blue-700 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 dark:from-blue-950/40 dark:to-indigo-950/20 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Dices size={16} className="text-blue-600 dark:text-blue-400" />
+                        <span className="text-xs font-black text-slate-800 dark:text-zinc-100">
+                          ทดสอบสุ่มคนดูแลทันที
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestRandom}
+                        disabled={formAgentIds.length === 0}
+                        className="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all"
+                      >
+                        <Dices size={13} className={testRandomResult?.isRolling ? 'animate-spin' : ''} />
+                        <span>{testRandomResult?.isRolling ? 'กำลังสุ่ม...' : 'กดสุ่มเลย!'}</span>
+                      </button>
+                    </div>
+
+                    {testRandomResult ? (
+                      <div
+                        className={`p-2.5 rounded-xl border transition-all flex items-center gap-2.5 ${
+                          testRandomResult.isRolling
+                            ? 'bg-amber-50/90 border-amber-300 dark:bg-amber-950/50 dark:border-amber-700 animate-pulse text-amber-900'
+                            : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100 shadow-xs'
+                        }`}
+                      >
+                        <AvatarImg
+                          url={testRandomResult.user.avatar_url}
+                          name={testRandomResult.user.nickname || testRandomResult.user.first_name}
+                          size={32}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold block text-slate-500 dark:text-zinc-400">
+                            {testRandomResult.isRolling ? '🎲 กำลังหมุนเลือก...' : '🎉 สุ่มติดคนนี้แล้ว!'}
+                          </span>
+                          <span className="text-xs font-black truncate block text-slate-900 dark:text-white">
+                            {testRandomResult.user.first_name} {testRandomResult.user.nickname ? `(${testRandomResult.user.nickname})` : ''}
+                          </span>
+                        </div>
+                        {!testRandomResult.isRolling && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-600 text-white shrink-0 shadow-2xs">
+                            ติดตัวจริง!
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 m-0">
+                        เลือกสมาชิกในฝั่งขวา แล้วกดปุ่ม <b>"กดสุ่มเลย!"</b> เพื่อดูระบบสุ่มติดคนดูแลแบบสดๆ ได้ทันทีครับ
+                      </p>
+                    )}
+                  </div>
+
                   {/* Is Active Toggle */}
                   <div className="pt-1">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -882,12 +1033,16 @@ export default function ChatRoutingTab() {
                           (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
                         );
 
+                        const isPickedLive = testRandomResult?.user?.id === u.id;
+
                         return (
                           <div
                             key={u.id}
                             onClick={() => toggleAgent(u.id)}
                             className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-all border ${
-                              isSelected
+                              isPickedLive
+                                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 ring-2 ring-amber-400 shadow-md scale-[1.02]'
+                                : isSelected
                                 ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 dark:border-blue-600 shadow-2xs'
                                 : 'bg-white dark:bg-zinc-850 hover:bg-slate-50 dark:hover:bg-zinc-800 border-slate-200/80 dark:border-zinc-750'
                             }`}
