@@ -280,99 +280,47 @@ export default function ChatRoutingTab() {
   });
 
   return (
-    <div>
+    <div className="space-y-5">
       {/* Toast Notification */}
       {successToast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            zIndex: 9999,
-            background: '#059669',
-            color: '#fff',
-            padding: '10px 18px',
-            borderRadius: '10px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            animation: 'fadeIn 0.2s ease',
-          }}
-        >
+        <div className="fixed top-5 right-5 z-[9999] bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-bold animate-fadeIn">
           <Check size={16} />
           <span>{successToast}</span>
         </div>
       )}
 
-      {/* Header & Actions */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          marginBottom: '20px',
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            กลุ่มผู้ดูแล & ระบบสุ่มจ่ายงานลูกค้า
-          </h2>
-          <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            จัดทีมแอดมินดูแลลูกค้าแต่ละแบรนด์ และกำหนดระบบสุ่มหรือหมุนเวียนจ่ายงานอัตโนมัติ
-          </p>
+      {/* Top Utility & Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-2.5 text-xs text-slate-500">
+          <span className="font-extrabold text-slate-800 dark:text-zinc-100">
+            กลุ่มแอดมินดูแลลูกค้า ({groups.length} กลุ่ม)
+          </span>
+          {unassignedCount > 0 && (
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-bold text-[11px] border border-amber-200 dark:border-amber-800 inline-flex items-center gap-1">
+              <span>⚠️ ลูกค้ายังไม่มีผู้ดูแล {unassignedCount} คน</span>
+            </span>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleBulkAutoAssign}
             disabled={autoAssigning || unassignedCount === 0}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #F59E0B',
-              background: 'rgba(245, 158, 11, 0.1)',
-              color: '#D97706',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              cursor: autoAssigning || unassignedCount === 0 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              opacity: unassignedCount === 0 ? 0.6 : 1,
-            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-bold shadow-2xs hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
             title={unassignedCount > 0 ? `สุ่มจ่ายลูกค้า ${unassignedCount} คน` : 'ไม่มีลูกค้าที่ยังไม่มีผู้ดูแล'}
           >
-            <Dices size={15} />
+            <Dices size={14} className={autoAssigning ? 'animate-spin' : ''} />
             <span>
-              {autoAssigning
-                ? 'กำลังสุ่มจ่ายงาน...'
-                : `สุ่มจ่ายลูกค้าค้างอยู่ (${unassignedCount} คน)`}
+              {autoAssigning ? 'กำลังสุ่ม...' : `สุ่มจ่ายลูกค้าค้างอยู่ (${unassignedCount})`}
             </span>
           </button>
 
           <button
             onClick={handleOpenCreate}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'var(--blue)',
-              color: '#fff',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <Plus size={16} />
-            <span>+ สร้างกลุ่มดูแลลูกค้า</span>
+            <Plus size={15} />
+            <span>สร้างกลุ่มใหม่</span>
           </button>
         </div>
       </div>
@@ -384,40 +332,26 @@ export default function ChatRoutingTab() {
           <p style={{ margin: 0, fontSize: '0.85rem' }}>กำลังโหลดข้อมูลกลุ่ม...</p>
         </div>
       ) : groups.length === 0 ? (
-        <div
-          style={{
-            padding: '48px 20px',
-            background: 'var(--surface)',
-            borderRadius: '14px',
-            border: '1px dashed var(--border)',
-            textAlign: 'center',
-          }}
-        >
-          <Users size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
-          <h3 style={{ margin: '0 0 4px', fontSize: '1rem', color: 'var(--text-primary)' }}>
-            ยังไม่มีกลุ่มดูแลลูกค้า
-          </h3>
-          <p style={{ margin: '0 0 16px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            สร้างกลุ่มแรก เช่น "ทีมขาย Wallcraft" แล้วเลือกแอดมินที่ต้องการให้ระบบสุ่มจ่ายลูกค้าให้
+        <div className="py-16 px-4 text-center bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-2xl shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-3">
+            <Users size={22} />
+          </div>
+          <h4 className="text-sm font-bold text-slate-800 dark:text-zinc-200">
+            ยังไม่มีกลุ่มแอดมินดูแลลูกค้า
+          </h4>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            สร้างกลุ่มแรก เช่น "ทีมดูแลลูกค้า Wallcraft" และเลือกแอดมินที่จะให้ระบบสุ่มจ่ายลูกค้าให้
           </p>
           <button
             onClick={handleOpenCreate}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'var(--blue)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-            }}
+            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
-            + สร้างกลุ่มแรก
+            <Plus size={14} />
+            <span>สร้างกลุ่มแรก</span>
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {groups.map((grp) => {
             const brandLabel =
               BRAND_OPTIONS.find((b) => b.slug === grp.brand)?.label || grp.brand;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Shield,
   Trash2,
@@ -8,6 +8,7 @@ import {
   UserPlus,
   UserCheck,
   Lock,
+  Search,
 } from 'lucide-react';
 import { fetchUsers } from '../../services/adminApi';
 import {
@@ -17,7 +18,7 @@ import {
 import type { ChatAccessUser, User } from '../../types';
 import { avatarUrl } from '../tasks/taskUtils';
 
-function AvatarImg({ url, name, size = 32 }: { url?: string | null; name: string; size?: number }) {
+function AvatarImg({ url, name, size = 36 }: { url?: string | null; name: string; size?: number }) {
   const [error, setError] = useState(false);
   const src = avatarUrl(url);
 
@@ -38,14 +39,15 @@ function AvatarImg({ url, name, size = 32 }: { url?: string | null; name: string
         width: `${size}px`,
         height: `${size}px`,
         borderRadius: '50%',
-        background: '#3B82F6',
+        background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontWeight: 800,
-        fontSize: size <= 22 ? '0.65rem' : size <= 28 ? '0.75rem' : '0.85rem',
+        fontSize: size <= 24 ? '0.7rem' : size <= 32 ? '0.8rem' : '0.9rem',
         flexShrink: 0,
+        boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)',
       }}
     >
       {(name || 'U').charAt(0).toUpperCase()}
@@ -58,7 +60,8 @@ export default function ChatAccessTab() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [tableSearch, setTableSearch] = useState('');
+  const [modalSearch, setModalSearch] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -85,10 +88,10 @@ export default function ChatAccessTab() {
 
   const showNotification = (msg: string) => {
     setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 3500);
+    setTimeout(() => setSuccessToast(null), 3000);
   };
 
-  // Toggle user permission enable/disable
+  // Toggle enable/disable
   const handleToggleEnable = async (userId: string) => {
     const updated = accessUsers.map((u) =>
       u.user_id === userId ? { ...u, is_enabled: !u.is_enabled } : u
@@ -96,40 +99,43 @@ export default function ChatAccessTab() {
     const ok = await saveChatAccessUsers(updated);
     if (ok) {
       setAccessUsers(updated);
-      const targetUser = users.find((u) => u.id === userId);
-      const name = targetUser ? targetUser.nickname || targetUser.first_name : '';
-      showNotification(`อัปเดตสิทธิ์ของ ${name} เรียบร้อยแล้ว`);
+      showNotification('อัปเดตสถานะสิทธิ์เรียบร้อย');
     }
   };
 
-  // Delete / Revoke user permission
+  // Revoke permission
   const handleRevoke = async (userId: string) => {
-    const targetUser = users.find((u) => u.id === userId);
-    const name = targetUser ? targetUser.nickname || targetUser.first_name : 'ผู้ใช้นี้';
-    if (!window.confirm(`คุณต้องการยกเลิกสิทธิ์เข้าใช้งานหน้ารวมแชทของ ${name} ใช่หรือไม่?`)) {
-      return;
-    }
+    const user = users.find((u) => u.id === userId);
+    const name = user ? `${user.first_name} ${user.last_name}` : 'พนักงาน';
+    if (!window.confirm(`ยืนยันการลบสิทธิ์เข้าใช้งานหน้ารวมแชทของ "${name}" ใช่หรือไม่?`)) return;
 
     const updated = accessUsers.filter((u) => u.user_id !== userId);
     const ok = await saveChatAccessUsers(updated);
     if (ok) {
       setAccessUsers(updated);
-      showNotification(`ยกเลิกสิทธิ์ของ ${name} เรียบร้อยแล้ว`);
+      showNotification(`ลบสิทธิ์ของ ${name} เรียบร้อยแล้ว`);
     }
   };
 
   // Open Add Modal
   const handleOpenAddModal = () => {
     setSelectedUserIds([]);
-    setSearchQuery('');
+    setModalSearch('');
     setShowAddModal(true);
   };
 
-  // Toggle select in add modal
   const toggleSelectUser = (id: string) => {
     setSelectedUserIds((prev) =>
       prev.includes(id) ? prev.filter((uId) => uId !== id) : [...prev, id]
     );
+  };
+
+  const selectAllAvailable = () => {
+    if (selectedUserIds.length === availableToAdd.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(availableToAdd.map((u) => u.id));
+    }
   };
 
   // Save Added Users
@@ -159,199 +165,186 @@ export default function ChatAccessTab() {
   };
 
   // Available users not yet in whitelist
-  const alreadyAddedIds = new Set(accessUsers.map((u) => u.user_id));
-  const availableToAdd = users.filter((u) => {
-    if (alreadyAddedIds.has(u.id)) return false;
-    if (u.role === 'admin') return false; // Admins already have automatic permission
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return true;
-    const name = `${u.first_name} ${u.last_name} ${u.nickname || ''}`.toLowerCase();
-    const email = (u.email || '').toLowerCase();
-    const dept = (u.department || '').toLowerCase();
-    return name.includes(query) || email.includes(query) || dept.includes(query);
-  });
+  const alreadyAddedIds = useMemo(() => new Set(accessUsers.map((u) => u.user_id)), [accessUsers]);
+  const availableToAdd = useMemo(() => {
+    return users.filter((u) => {
+      if (alreadyAddedIds.has(u.id)) return false;
+      if (u.role === 'admin') return false; // Admins already have automatic permission
+      const query = modalSearch.toLowerCase().trim();
+      if (!query) return true;
+      const name = `${u.first_name} ${u.last_name} ${u.nickname || ''}`.toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const dept = (u.department || '').toLowerCase();
+      return name.includes(query) || email.includes(query) || dept.includes(query);
+    });
+  }, [users, alreadyAddedIds, modalSearch]);
 
-  const superAdmins = users.filter((u) => u.role === 'admin');
+  // Filtered Whitelisted Users in table
+  const filteredAccessUsers = useMemo(() => {
+    return accessUsers.filter((item) => {
+      if (!tableSearch.trim()) return true;
+      const u = users.find((usr) => usr.id === item.user_id);
+      if (!u) return false;
+      const q = tableSearch.toLowerCase().trim();
+      const name = `${u.first_name} ${u.last_name} ${u.nickname || ''}`.toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const dept = (u.department || '').toLowerCase();
+      const pos = (u.position || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || dept.includes(q) || pos.includes(q);
+    });
+  }, [accessUsers, users, tableSearch]);
+
+  const superAdmins = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
 
   return (
-    <div>
+    <div className="space-y-5">
       {/* Toast Notification */}
       {successToast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            zIndex: 9999,
-            background: '#059669',
-            color: '#fff',
-            padding: '10px 18px',
-            borderRadius: '10px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            animation: 'fadeIn 0.2s ease',
-          }}
-        >
+        <div className="fixed top-5 right-5 z-[9999] bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-bold animate-fadeIn">
           <Check size={16} />
           <span>{successToast}</span>
         </div>
       )}
 
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          marginBottom: '20px',
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            สิทธิ์การเข้าใช้งานหน้ารวมแชท (Chat Inbox Permissions)
-          </h2>
-          <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            กำหนดว่าพนักงานคนไหนสามารถมองเห็นเมนูและเข้าใช้งานหน้ารวมแชท LINE, FB, IG ได้บ้าง
-          </p>
+      {/* Top Utility & Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="ค้นหาชื่อพนักงาน, อีเมล, ตำแหน่ง..."
+            value={tableSearch}
+            onChange={(e) => setTableSearch(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-xl text-xs text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs transition-all"
+          />
+          {tableSearch && (
+            <button
+              onClick={() => setTableSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
+        {/* Action Button */}
         <button
           onClick={handleOpenAddModal}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '8px',
-            border: 'none',
-            background: 'var(--blue)',
-            color: '#fff',
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all shrink-0 cursor-pointer"
         >
-          <UserPlus size={16} />
-          <span>+ เพิ่มผู้มีสิทธิ์เข้าใช้งาน</span>
+          <UserPlus size={15} />
+          <span>เพิ่มผู้มีสิทธิ์เข้าใช้งาน</span>
         </button>
       </div>
 
       {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          <RefreshCw size={22} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
-          <p style={{ margin: 0, fontSize: '0.85rem' }}>กำลังโหลดรายชื่อผู้มีสิทธิ์...</p>
+        <div className="py-16 text-center text-slate-400">
+          <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-blue-500" />
+          <p className="text-xs">กำลังโหลดรายชื่อผู้มีสิทธิ์...</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Whitelisted Users Table */}
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: '14px',
-              overflow: 'hidden',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            }}
-          >
-            <div
-              style={{
-                padding: '14px 18px',
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--surface-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Shield size={16} style={{ color: 'var(--blue)' }} />
-                <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  พนักงานที่ได้รับสิทธิ์เฉพาะ ({accessUsers.length} คน)
+        <div className="space-y-4">
+          {/* Whitelisted Users Card */}
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
+            {/* Table Header Bar */}
+            <div className="px-5 py-3.5 bg-slate-50/70 dark:bg-zinc-850/50 border-b border-slate-200/80 dark:border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield size={16} className="text-blue-600" />
+                <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-100">
+                  รายชื่อผู้ได้รับสิทธิ์ ({accessUsers.length} คน)
                 </span>
+                {tableSearch && (
+                  <span className="text-[11px] text-slate-400">
+                    · พบ {filteredAccessUsers.length} คนจากการค้นหา
+                  </span>
+                )}
               </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                พนักงานที่แอดมินกดเพิ่มสิทธิ์ให้ด้วยตัวเอง
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                คลิกที่สถานะเพื่อเปิด/ปิดสิทธิ์ได้ทันที
               </span>
             </div>
 
-            {accessUsers.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                <Lock size={32} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
-                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>ยังไม่มีการเพิ่มพนักงานในรายการสิทธิ์เฉพาะ</p>
-                <p style={{ margin: '4px 0 14px', fontSize: '0.78rem' }}>
-                  กดปุ่ม "+ เพิ่มผู้มีสิทธิ์เข้าใช้งาน" เพื่ออนุญาตให้เซลล์หรือแอดมินเข้าถึงหน้ารวมแชท
+            {filteredAccessUsers.length === 0 ? (
+              <div className="py-16 px-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                  <Lock size={22} />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800 dark:text-zinc-200">
+                  {tableSearch ? 'ไม่พบพนักงานตามคำค้นหา' : 'ยังไม่มีพนักงานในรายการสิทธิ์เฉพาะ'}
+                </h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  {tableSearch
+                    ? 'ลองพิมพ์ค้นหาด้วยคำอื่น หรือคลิกปุ่มเพื่อล้างการค้นหา'
+                    : 'คลิกปุ่ม "เพิ่มผู้มีสิทธิ์เข้าใช้งาน" ด้านบนเพื่อเลือกพนักงานที่ต้องการให้อนุญาตเข้าดูแชท'}
                 </p>
-                <button
-                  onClick={handleOpenAddModal}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: 'var(--blue)',
-                    color: '#fff',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  + เพิ่มพนักงานคนแรก
-                </button>
+                {!tableSearch && (
+                  <button
+                    onClick={handleOpenAddModal}
+                    className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <UserPlus size={14} />
+                    <span>เพิ่มพนักงานคนแรก</span>
+                  </button>
+                )}
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', background: 'var(--surface)' }}>
-                      <th style={{ padding: '10px 18px', fontWeight: 700 }}>พนักงาน</th>
-                      <th style={{ padding: '10px 18px', fontWeight: 700 }}>แผนก / ตำแหน่ง</th>
-                      <th style={{ padding: '10px 18px', fontWeight: 700 }}>วันที่เพิ่มสิทธิ์</th>
-                      <th style={{ padding: '10px 18px', fontWeight: 700 }}>สถานะสิทธิ์</th>
-                      <th style={{ padding: '10px 18px', fontWeight: 700, textAlign: 'right' }}>การจัดการ</th>
+                    <tr className="border-b border-slate-100 dark:border-zinc-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/40 dark:bg-zinc-850/20">
+                      <th className="py-3 px-5">พนักงาน</th>
+                      <th className="py-3 px-5">แผนก / ตำแหน่ง</th>
+                      <th className="py-3 px-5">วันที่เพิ่ม</th>
+                      <th className="py-3 px-5">สถานะการเข้าใช้งาน</th>
+                      <th className="py-3 px-5 text-right">การจัดการ</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {accessUsers.map((item) => {
+                  <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
+                    {filteredAccessUsers.map((item) => {
                       const userObj = users.find((u) => u.id === item.user_id);
                       if (!userObj) return null;
 
                       return (
                         <tr
                           key={item.user_id}
-                          style={{
-                            borderBottom: '1px solid var(--border)',
-                            transition: 'background 0.1s ease',
-                          }}
+                          className="hover:bg-slate-50/60 dark:hover:bg-zinc-850/40 transition-colors"
                         >
-                          <td style={{ padding: '12px 18px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {/* User Info */}
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
                               <AvatarImg
                                 url={userObj.avatar_url}
                                 name={userObj.nickname || userObj.first_name}
-                                size={32}
+                                size={36}
                               />
                               <div>
-                                <span style={{ fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
-                                  {userObj.first_name} {userObj.last_name} {userObj.nickname ? `(${userObj.nickname})` : ''}
-                                </span>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                                    {userObj.first_name} {userObj.last_name}
+                                  </span>
+                                  {userObj.nickname && (
+                                    <span className="px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-[10px] font-bold">
+                                      {userObj.nickname}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-400 block mt-0.5">
                                   {userObj.email}
                                 </span>
                               </div>
                             </div>
                           </td>
 
-                          <td style={{ padding: '12px 18px', color: 'var(--text-secondary)' }}>
-                            <span style={{ fontWeight: 600 }}>{userObj.position || '-'}</span>
-                            <span style={{ fontSize: '0.72rem', display: 'block', opacity: 0.8 }}>{userObj.department || ''}</span>
+                          {/* Position / Department */}
+                          <td className="py-3.5 px-5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+                              {userObj.position || userObj.department || 'พนักงาน'}
+                            </span>
                           </td>
 
-                          <td style={{ padding: '12px 18px', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                          {/* Date Added */}
+                          <td className="py-3.5 px-5 text-xs text-slate-400">
                             {new Date(item.added_at).toLocaleDateString('th-TH', {
                               day: 'numeric',
                               month: 'short',
@@ -359,52 +352,32 @@ export default function ChatAccessTab() {
                             })}
                           </td>
 
-                          <td style={{ padding: '12px 18px' }}>
+                          {/* Status Toggle Switch */}
+                          <td className="py-3.5 px-5">
                             <button
-                              onClick={() => handleToggleEnable(item.user_id)}
-                              style={{
-                                border: 'none',
-                                background: item.is_enabled ? '#DEF7EC' : 'var(--surface-muted)',
-                                color: item.is_enabled ? '#03543F' : 'var(--text-secondary)',
-                                padding: '3px 10px',
-                                borderRadius: '12px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
+                              onClick={() => void handleToggleEnable(item.user_id)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                                item.is_enabled
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100'
+                                  : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-slate-200'
+                              }`}
+                              title="คลิกเพื่อสลับสถานะ"
                             >
                               <span
-                                style={{
-                                  width: '6px',
-                                  height: '6px',
-                                  borderRadius: '50%',
-                                  background: item.is_enabled ? '#059669' : '#9CA3AF',
-                                }}
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  item.is_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                }`}
                               />
                               <span>{item.is_enabled ? 'อนุญาตให้เข้าใช้งาน' : 'ระงับสิทธิ์ชั่วคราว'}</span>
                             </button>
                           </td>
 
-                          <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                          {/* Actions */}
+                          <td className="py-3.5 px-5 text-right">
                             <button
-                              onClick={() => handleRevoke(item.user_id)}
-                              style={{
-                                padding: '5px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                background: 'rgba(239, 68, 68, 0.08)',
-                                color: '#EF4444',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                              title="ยกเลิกสิทธิ์"
+                              onClick={() => void handleRevoke(item.user_id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold transition-all cursor-pointer"
+                              title="ลบสิทธิ์"
                             >
                               <Trash2 size={13} />
                               <span>ลบสิทธิ์</span>
@@ -419,24 +392,14 @@ export default function ChatAccessTab() {
             )}
           </div>
 
-          {/* Super Admins Note Box */}
-          <div
-            style={{
-              padding: '14px 18px',
-              borderRadius: '12px',
-              background: 'var(--surface-muted)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}
-          >
-            <UserCheck size={20} style={{ color: '#059669', flexShrink: 0 }} />
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>ผู้ดูแลระบบระดับสูง (Super Admin):</strong>{' '}
+          {/* Super Admin Subtle Notice */}
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-50 dark:bg-zinc-850/50 border border-slate-200/80 dark:border-zinc-800 text-xs text-slate-500 dark:text-zinc-400">
+            <UserCheck size={16} className="text-emerald-600 shrink-0" />
+            <span>
+              <strong className="text-slate-700 dark:text-zinc-200">สิทธิ์ Super Admin:</strong>{' '}
               ผู้ที่มี Role Admin ({superAdmins.map((a) => a.nickname || a.first_name).join(', ') || 'Admin'})
-              จะได้รับสิทธิ์เข้าใช้งานหน้ารวมแชทและหน้าตั้งค่านี้โดยอัตโนมัติตลอดเวลา ไม่จำเป็นต้องกดเพิ่มในตารางครับ
-            </div>
+              จะมีสิทธิ์เข้าใช้งานหน้ารวมแชทและหน้าตั้งค่านี้ได้โดยอัตโนมัติอยู่แล้ว
+            </span>
           </div>
         </div>
       )}
@@ -444,83 +407,67 @@ export default function ChatAccessTab() {
       {/* ================= MODAL: ADD ACCESS USERS ================= */}
       {showAddModal && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-          }}
+          className="fixed inset-0 z-[9999] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowAddModal(false);
           }}
         >
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '520px',
-              maxHeight: '85vh',
-              overflowY: 'auto',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-              padding: '22px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UserPlus size={20} style={{ color: 'var(--blue)' }} />
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  เลือกพนักงานที่ต้องการให้สิทธิ์เข้าหน้ารวมแชท
-                </h3>
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                  <UserPlus size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                    เลือกพนักงานเพื่อมอบสิทธิ์
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    พนักงานที่เลือกจะสามารถมองเห็นเมนูและเข้าใช้งานหน้ารวมแชทได้
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <input
-              type="text"
-              placeholder="🔍 ค้นหาชื่อ, อีเมล, แผนก..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface-muted)',
-                color: 'var(--text-primary)',
-                fontSize: '0.82rem',
-                marginBottom: '12px',
-                boxSizing: 'border-box',
-              }}
-            />
+            {/* Modal Search Bar */}
+            <div className="p-4 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-850/30">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อ, อีเมล, แผนก..."
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-750 rounded-xl text-xs text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
 
-            <div
-              style={{
-                maxHeight: '320px',
-                overflowY: 'auto',
-                border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '6px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                background: 'var(--surface)',
-              }}
-            >
+              {availableToAdd.length > 0 && (
+                <div className="flex items-center justify-between mt-2 pt-2 text-[11px] text-slate-500">
+                  <span>พบพนักงาน {availableToAdd.length} คนที่ยังไม่ได้รับสิทธิ์</span>
+                  <button
+                    onClick={selectAllAvailable}
+                    className="text-blue-600 font-bold hover:underline cursor-pointer"
+                  >
+                    {selectedUserIds.length === availableToAdd.length ? 'ยกเลิกการเลือกทั้งหมด' : 'เลือกทั้งหมด'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Users List */}
+            <div className="p-3 overflow-y-auto flex-1 space-y-1.5 divide-y divide-slate-100/60 dark:divide-zinc-800/60">
               {availableToAdd.length === 0 ? (
-                <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-                  {searchQuery ? 'ไม่พบพนักงานตามคำค้นหา' : 'พนักงานทุกคนได้รับสิทธิ์แล้ว'}
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  {modalSearch ? 'ไม่พบพนักงานตามคำค้นหา' : 'พนักงานทุกคนได้รับสิทธิ์แล้ว'}
                 </div>
               ) : (
                 availableToAdd.map((u) => {
@@ -529,48 +476,43 @@ export default function ChatAccessTab() {
                     <div
                       key={u.id}
                       onClick={() => toggleSelectUser(u.id)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                        border: isSelected ? '1px solid #3B82F6' : '1px solid transparent',
-                        transition: 'all 0.1s ease',
-                      }}
+                      className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                          : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50 border border-transparent'
+                      }`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <AvatarImg
                           url={u.avatar_url}
                           name={u.nickname || u.first_name}
-                          size={28}
+                          size={32}
                         />
-                        <div>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
-                            {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
-                          </span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
+                              {u.first_name} {u.last_name}
+                            </span>
+                            {u.nickname && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                                {u.nickname}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-400 block truncate">
                             {u.position || u.department || u.email}
                           </span>
                         </div>
                       </div>
 
                       <div
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '5px',
-                          border: isSelected ? '1px solid #3B82F6' : '1px solid var(--border)',
-                          background: isSelected ? '#3B82F6' : 'transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#fff',
-                        }}
+                        className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800'
+                        }`}
                       >
-                        {isSelected && <Check size={14} />}
+                        {isSelected && <Check size={13} />}
                       </div>
                     </div>
                   );
@@ -578,41 +520,23 @@ export default function ChatAccessTab() {
               )}
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                เลือกแล้ว: <strong style={{ color: 'var(--text-primary)' }}>{selectedUserIds.length}</strong> คน
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50/80 dark:bg-zinc-850/50 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                เลือกแล้ว <strong className="text-blue-600 font-extrabold">{selectedUserIds.length}</strong> คน
               </span>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowAddModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.82rem',
-                  }}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={handleSaveAddUsers}
                   disabled={saving || selectedUserIds.length === 0}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--blue)',
-                    color: '#fff',
-                    fontWeight: 700,
-                    cursor: saving || selectedUserIds.length === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '0.82rem',
-                    opacity: selectedUserIds.length === 0 ? 0.6 : 1,
-                  }}
+                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
                 >
                   {saving ? 'กำลังเพิ่ม...' : `เพิ่มผู้มีสิทธิ์ (${selectedUserIds.length})`}
                 </button>

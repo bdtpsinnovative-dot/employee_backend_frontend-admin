@@ -293,149 +293,83 @@ export default function ChatSettings() {
   };
 
   return (
-    <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px 20px 60px' }}>
+    <div className="max-w-6xl mx-auto px-4 py-8 md:px-8 space-y-6">
       {/* ================= ULTRA CLEAN TOP BAR ================= */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          marginBottom: '24px',
-          paddingBottom: '16px',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-zinc-800">
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            ตั้งค่าช่องทางแชท (Omnichannel Settings)
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/40">
+              Omnichannel Chat System
+            </span>
+          </div>
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-zinc-100 tracking-tight">
+            ตั้งค่าระบบแชท & สิทธิ์การใช้งาน
           </h1>
-          <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            คลิกที่ไอคอนแบรนด์ด้านล่างเพื่อเปิดตั้งค่า Webhook, Token หรือจัดการการเชื่อมต่อ
+          <p className="text-xs md:text-sm text-slate-500 dark:text-zinc-400 mt-1">
+            จัดการช่องทาง LINE, FB, IG, ระบบสุ่มคนดูแลลูกค้า และสิทธิ์การเข้าใช้งาน
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="flex items-center gap-2.5 shrink-0">
           <Link
             to="/chat-inbox"
-            style={{
-              padding: '7px 14px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text-primary)',
-              textDecoration: 'none',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700 bg-white dark:bg-zinc-850 text-xs font-bold text-slate-700 dark:text-zinc-200 hover:border-blue-500 hover:text-blue-600 shadow-2xs transition-all"
           >
             <MessageSquare size={15} />
-            <span>ไปที่ห้องแชท</span>
+            <span>ไปที่หน้ารวมแชท ↗</span>
           </Link>
 
           {activeTab === 'channels' && (
             <button
               onClick={handleOpenNewBrand}
-              style={{
-                padding: '7px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'var(--blue)',
-                color: '#fff',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
             >
-              <Plus size={16} />
-              <span>+ เพิ่มแบรนด์ใหม่</span>
+              <Plus size={15} />
+              <span>เพิ่มแบรนด์ใหม่</span>
             </button>
           )}
         </div>
       </div>
 
       {/* ================= TAB NAVIGATION ================= */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '24px',
-          borderBottom: '1px solid var(--border)',
-          paddingBottom: '12px',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-zinc-850/90 rounded-2xl border border-slate-200/80 dark:border-zinc-800 w-fit">
         <button
           onClick={() => setActiveTab('channels')}
-          style={{
-            padding: '8px 18px',
-            borderRadius: '10px',
-            border: 'none',
-            background: activeTab === 'channels' ? 'var(--blue)' : 'var(--surface)',
-            color: activeTab === 'channels' ? '#fff' : 'var(--text-primary)',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'channels' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'channels'
+              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
         >
-          <Radio size={16} />
-          <span>📱 ช่องทางแชท (LINE / FB / IG)</span>
+          <Radio size={14} className={activeTab === 'channels' ? 'text-blue-600' : ''} />
+          <span>ช่องทางแชท (LINE / FB / IG)</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/70 dark:bg-zinc-700 font-bold">
+            {brandGroups.length}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('routing')}
-          style={{
-            padding: '8px 18px',
-            borderRadius: '10px',
-            border: 'none',
-            background: activeTab === 'routing' ? 'var(--blue)' : 'var(--surface)',
-            color: activeTab === 'routing' ? '#fff' : 'var(--text-primary)',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'routing' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'routing'
+              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
         >
-          <Users size={16} />
-          <span>👥 จัดกลุ่มแอดมิน & สุ่มคนดูแลลูกค้า</span>
+          <Users size={14} className={activeTab === 'routing' ? 'text-blue-600' : ''} />
+          <span>จัดกลุ่มแอดมิน & สุ่มคนดูแล</span>
         </button>
 
         <button
           onClick={() => setActiveTab('access')}
-          style={{
-            padding: '8px 18px',
-            borderRadius: '10px',
-            border: 'none',
-            background: activeTab === 'access' ? 'var(--blue)' : 'var(--surface)',
-            color: activeTab === 'access' ? '#fff' : 'var(--text-primary)',
-            fontSize: '0.85rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'access' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'access'
+              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
+              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
         >
-          <Shield size={16} />
-          <span>🔒 สิทธิ์เข้าใช้งานหน้ารวมแชท</span>
+          <Shield size={14} className={activeTab === 'access' ? 'text-blue-600' : ''} />
+          <span>สิทธิ์เข้าใช้งานหน้ารวมแชท</span>
         </button>
       </div>
 
