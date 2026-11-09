@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/Nattamon123/employee/backend/internal/domain"
 	"github.com/Nattamon123/employee/backend/internal/repository"
@@ -94,4 +95,15 @@ func (s *NotificationService) MarkRead(ctx context.Context, id uuid.UUID, userID
 // MarkAllRead mark ทุก notification ของ user ว่าอ่านแล้ว
 func (s *NotificationService) MarkAllRead(ctx context.Context, userID uuid.UUID) error {
 	return s.repo.MarkAllRead(ctx, userID)
+}
+
+// DeleteOldAttendance ลบแจ้งเตือนเข้างานที่เก่ากว่าเวลาที่กำหนด (เช่น ของเมื่อวาน)
+func (s *NotificationService) DeleteOldAttendance(ctx context.Context, before time.Time) error {
+	_, err := s.repo.DeleteOldAttendance(ctx, before)
+	return err
+}
+
+// DeleteTodayAttendanceForUser ลบแจ้งเตือนเข้างานของวันปัจจุบันของ user เพื่อเหลือเฉพาะอันล่าสุด 1 รายการ
+func (s *NotificationService) DeleteTodayAttendanceForUser(ctx context.Context, userID uuid.UUID, todayStart time.Time) error {
+	return s.repo.DeleteTodayAttendanceForUser(ctx, userID, todayStart)
 }

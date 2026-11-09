@@ -86,6 +86,11 @@ func (s *AttendanceReminderService) CheckAndSendReminders(ctx context.Context) (
 
 	todayDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, bkkLoc)
 
+	// ลบแจ้งเตือนเข้างาน (attendance) ของเมื่อวานและวันก่อนหน้าออกให้หมดอัตโนมัติ เพื่อไม่ให้รกกระดิ่ง
+	if s.notificationSvc != nil {
+		_ = s.notificationSvc.DeleteOldAttendance(ctx, todayDate)
+	}
+
 	// 3. ตรวจสอบวันหยุดนักขัตฤกษ์ / วันหยุดบริษัท
 	if s.holidayRepo != nil {
 		isHoliday, err := s.holidayRepo.IsHoliday(ctx, todayDate)
@@ -230,6 +235,8 @@ func (s *AttendanceReminderService) CheckAndSendReminders(ctx context.Context) (
 
 		// 11. บันทึกลงในกระดิ่งแจ้งเตือนภายในแอป (In-App Notification)
 		if s.notificationSvc != nil {
+			// ลบแจ้งเตือนเตือนเข้างานเดิมของวันนี้ออกก่อน เพื่อให้อัปเดตเป็นรายการล่าสุดอันเดียว ไม่รกกระดิ่ง
+			_ = s.notificationSvc.DeleteTodayAttendanceForUser(ctx, user.ID, todayDate)
 			s.notificationSvc.NotifyInApp(ctx, user.ID, title, body, "attendance", dataPayload)
 		}
 	}

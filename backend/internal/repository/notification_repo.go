@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -26,12 +27,14 @@ func (r *NotificationRepo) Create(ctx context.Context, n *domain.Notification) e
 }
 
 // ListByUserID ดึง notifications ทั้งหมดของ user เรียงจากใหม่สุด (max 100)
+// กรองไม่ให้การแจ้งเตือนเข้างาน (attendance) ของวันก่อนหน้าติดมา เพื่อไม่ให้รกกระดิ่ง
 func (r *NotificationRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Notification, error) {
 	var notifications []domain.Notification
 	err := r.db.SelectContext(ctx, &notifications, `
 		SELECT id, user_id, title, body, type, is_read, metadata, created_at
 		FROM notifications
 		WHERE user_id = $1
+		  AND (type != 'attendance' OR created_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Bangkok')::date)
 		ORDER BY created_at DESC
 		LIMIT 100
 	`, userID)
@@ -39,6 +42,27 @@ func (r *NotificationRepo) ListByUserID(ctx context.Context, userID uuid.UUID) (
 		return nil, err
 	}
 	return notifications, nil
+}
+
+// DeleteOldAttendance ลบแจ้งเตือนประเภท attendance ที่เก่ากว่าเวลาที่กำหนด (เช่น เก่ากว่าเริ่มวันของวันนี้)
+func (r *NotificationRepo) DeleteOldAttendance(ctx context.Context, before time.Time) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `
+		DELETE FROM notifications
+		WHERE type = 'attendance' AND created_at < $1
+	`, before)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteTodayAttendanceForUser ลบแจ้งเตือนเข้างานของวันปัจจุบันของ user เพื่อให้อัปเดตเหลือเฉพาะอันล่าสุดอันเดียว
+func (r *NotificationRepo) DeleteTodayAttendanceForUser(ctx context.Context, userID uuid.UUID, todayStart time.Time) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM notifications
+		WHERE user_id = $1 AND type = 'attendance' AND created_at >= $2
+	`, userID, todayStart)
+	return err
 }
 
 // MarkRead mark notification เดียวว่าอ่านแล้ว (ตรวจ user_id เพื่อป้องกัน IDOR)

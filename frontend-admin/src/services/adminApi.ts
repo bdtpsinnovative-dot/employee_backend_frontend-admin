@@ -780,7 +780,29 @@ export interface AppNotification {
 
 export async function fetchNotifications(): Promise<AppNotification[]> {
   const { data } = await api.get<ApiResponse<AppNotification[]>>('/api/notifications');
-  return data.data ?? [];
+  const items = data.data ?? [];
+
+  // กรองการแจ้งเตือนเวลาเข้างาน (attendance):
+  // 1. ซ่อนรายการของเมื่อวานหรือวันที่ผ่านมาแล้ว (แสดงเฉพาะของวันนี้)
+  // 2. สำหรับของวันนี้ หากมีหลายแจ้งเตือน (เช่น 5 นาที, 4 นาที, 2 นาที) ให้เก็บเฉพาะอันล่าสุด 1 รายการเพื่อไม่ให้รกกระดิ่ง
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  let hasSeenTodayAttendance = false;
+  return items.filter((n) => {
+    if (n.type !== 'attendance') return true;
+
+    const notifTime = new Date(n.created_at).getTime();
+    if (notifTime < startOfToday) {
+      return false;
+    }
+
+    if (hasSeenTodayAttendance) {
+      return false;
+    }
+    hasSeenTodayAttendance = true;
+    return true;
+  });
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
