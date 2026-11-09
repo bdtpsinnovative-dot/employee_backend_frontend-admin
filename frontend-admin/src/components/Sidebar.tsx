@@ -38,7 +38,34 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
   const [pendingCount, setPendingCount] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const isAdmin = currentUser?.role === 'admin';
-  const canAccessChatInbox = isAdmin || isLocalhost;
+  const [hasChatWhitelist, setHasChatWhitelist] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isAdmin || isLocalhost) {
+      setHasChatWhitelist(true);
+      return;
+    }
+    async function checkWhitelist() {
+      try {
+        const { data } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'chat_access_users')
+          .maybeSingle();
+        if (data?.value) {
+          const list = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+          if (Array.isArray(list)) {
+            const allowed = list.some((u: any) => u.user_id === currentUser?.id && u.is_enabled);
+            setHasChatWhitelist(allowed);
+          }
+        }
+      } catch {}
+    }
+    void checkWhitelist();
+  }, [currentUser, isAdmin]);
+
+  const canAccessChatInbox = isAdmin || isLocalhost || hasChatWhitelist;
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser
@@ -160,7 +187,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       to: '/chat-inbox',
       icon: MessagesSquare,
       label: 'รวมแชท LINE FB IG',
-      adminOnly: !isLocalhost,
+      visible: canAccessChatInbox,
       badge: unreadChatCount,
     },
     {
@@ -283,7 +310,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       {/* 2. Nav Icons (Centered on exact same axis at 34px, labels expand on hover) */}
       <nav className="flex-1 flex flex-col gap-1.5 w-full px-3 overflow-y-auto no-scrollbar">
         {navItems
-          .filter((item) => !item.adminOnly || isAdmin)
+          .filter((item: any) => (item.visible !== undefined ? item.visible : (!item.adminOnly || isAdmin)))
           .map((item) => {
             const Icon = item.icon;
             return (

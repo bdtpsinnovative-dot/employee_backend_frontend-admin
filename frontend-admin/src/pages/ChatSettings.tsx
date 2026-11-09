@@ -9,7 +9,11 @@ import {
   RefreshCw,
   Radio,
   X,
+  Users,
+  Shield,
 } from 'lucide-react';
+import ChatRoutingTab from '../components/chat/ChatRoutingTab';
+import ChatAccessTab from '../components/chat/ChatAccessTab';
 import { supabase } from '../lib/supabase';
 import type { ChatChannel } from '../types';
 
@@ -77,6 +81,7 @@ export default function ChatSettings() {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'channels' | 'routing' | 'access'>('channels');
 
   // Modal State
   const [showChannelModal, setShowChannelModal] = useState(false);
@@ -332,30 +337,111 @@ export default function ChatSettings() {
             <span>ไปที่ห้องแชท</span>
           </Link>
 
-          <button
-            onClick={handleOpenNewBrand}
-            style={{
-              padding: '7px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'var(--blue)',
-              color: '#fff',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            <Plus size={16} />
-            <span>+ เพิ่มแบรนด์ใหม่</span>
-          </button>
+          {activeTab === 'channels' && (
+            <button
+              onClick={handleOpenNewBrand}
+              style={{
+                padding: '7px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--blue)',
+                color: '#fff',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <Plus size={16} />
+              <span>+ เพิ่มแบรนด์ใหม่</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ================= MINIMAL BRAND LIST ================= */}
-      {loading ? (
+      {/* ================= TAB NAVIGATION ================= */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: '24px',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '12px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('channels')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '10px',
+            border: 'none',
+            background: activeTab === 'channels' ? 'var(--blue)' : 'var(--surface)',
+            color: activeTab === 'channels' ? '#fff' : 'var(--text-primary)',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: activeTab === 'channels' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Radio size={16} />
+          <span>📱 ช่องทางแชท (LINE / FB / IG)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('routing')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '10px',
+            border: 'none',
+            background: activeTab === 'routing' ? 'var(--blue)' : 'var(--surface)',
+            color: activeTab === 'routing' ? '#fff' : 'var(--text-primary)',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: activeTab === 'routing' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Users size={16} />
+          <span>👥 จัดกลุ่มแอดมิน & สุ่มคนดูแลลูกค้า</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('access')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: '10px',
+            border: 'none',
+            background: activeTab === 'access' ? 'var(--blue)' : 'var(--surface)',
+            color: activeTab === 'access' ? '#fff' : 'var(--text-primary)',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: activeTab === 'access' ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Shield size={16} />
+          <span>🔒 สิทธิ์เข้าใช้งานหน้ารวมแชท</span>
+        </button>
+      </div>
+
+      {/* ================= TAB 1: CHANNELS ================= */}
+      {activeTab === 'channels' && (
+        loading ? (
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-secondary)' }}>
           <RefreshCw size={22} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
           <p style={{ margin: 0, fontSize: '0.85rem' }}>กำลังโหลดข้อมูล...</p>
@@ -593,7 +679,13 @@ export default function ChatSettings() {
             );
           })}
         </div>
-      )}
+      ))}
+
+      {/* ================= TAB 2: ROUTING & RANDOM ASSIGNMENT ================= */}
+      {activeTab === 'routing' && <ChatRoutingTab />}
+
+      {/* ================= TAB 3: ACCESS PERMISSIONS ================= */}
+      {activeTab === 'access' && <ChatAccessTab />}
 
       {/* ================= MODAL: CHANNEL DETAILS & SETTINGS ================= */}
       {showChannelModal && (

@@ -418,4 +418,19 @@ export interface ChatChannel {
   updated_at: string;
 }
 
+export interface ChatRoutingGroup {
+  id: string;
+  name: string;
+  brand: string;
+  agent_ids: string[];
+  mode: 'random' | 'round_robin';
+  last_assigned_index?: number;
+  is_active: boolean;
+  created_at?: string;
+}
 
+export interface ChatAccessUser {
+  user_id: string;
+  added_at: string;
+  is_enabled: boolean;
+}

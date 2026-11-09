@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Send,
@@ -17,9 +18,23 @@ import {
   Edit2,
   FileText,
   ExternalLink,
+  Shuffle,
+  ShieldAlert,
+  ChevronDown,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { ChatConversation, ChatMessage, ChatChannel } from '../types';
+import type { ChatConversation, ChatMessage, ChatChannel, User, ChatRoutingGroup, ChatAccessUser } from '../types';
+import { fetchUsers, fetchMe } from '../services/adminApi';
+import { avatarUrl } from '../components/tasks/taskUtils';
+import {
+  fetchChatRoutingGroups,
+  fetchChatAccessUsers,
+  hasChatAccess,
+  assignConversation,
+  pickAgentFromGroup,
+  saveChatRoutingGroups,
+} from '../services/chatRoutingService';
 import { LineIcon, FacebookIcon, InstagramIcon } from './ChatSettings';
 
 const QUICK_REPLIES = [
@@ -53,6 +68,18 @@ function getBrandDisplay(brandSlug?: string, channelsList?: ChatChannel[]) {
 }
 
 export default function ChatInbox() {
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [routingGroups, setRoutingGroups] = useState<ChatRoutingGroup[]>([]);
+  const [, setAccessUsers] = useState<ChatAccessUser[]>([]);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(true);
+
+  const [assignFilter, setAssignFilter] = useState<'all' | 'mine' | 'unassigned'>('all');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -195,6 +222,36 @@ export default function ChatInbox() {
     } catch (err) {
       console.error('Failed to load channels:', err);
     }
+  }, []);
+
+  // Load initial system data (current user, all users, routing groups, whitelist)
+  useEffect(() => {
+    let isMounted = true;
+    async function initSystemData() {
+      try {
+        const [meRes, usersRes, groupsRes, accessRes] = await Promise.all([
+          fetchMe().catch(() => null),
+          fetchUsers().catch(() => []),
+          fetchChatRoutingGroups().catch(() => []),
+          fetchChatAccessUsers().catch(() => []),
+        ]);
+
+        if (!isMounted) return;
+        if (meRes) setCurrentUser(meRes);
+        if (usersRes) setUsers(usersRes);
+        if (groupsRes) setRoutingGroups(groupsRes);
+        if (accessRes) setAccessUsers(accessRes);
+
+        const allowed = hasChatAccess(meRes, accessRes || []);
+        setIsAllowed(allowed);
+        setAccessChecked(true);
+      } catch (e) {
+        console.error('Failed to init system data for chat:', e);
+        if (isMounted) setAccessChecked(true);
+      }
+    }
+    void initSystemData();
+    return () => { isMounted = false; };
   }, []);
 
   // Load conversations and channels on mount
@@ -423,6 +480,95 @@ export default function ChatInbox() {
     }
   };
 
+  // Random assign handler
+  const handleRandomAssign = async () => {
+    if (!selectedConv) return;
+    setIsAssigning(true);
+    try {
+      const convBrand = (selectedConv.brand || '').toLowerCase().trim();
+      let group = routingGroups.find(
+        (g) => g.is_active && g.brand.toLowerCase() === convBrand && g.agent_ids.length > 0
+      );
+      if (!group) {
+        group = routingGroups.find((g) => g.is_active && g.brand === 'all' && g.agent_ids.length > 0);
+      }
+
+      if (!group) {
+        alert(
+          `ยังไม่ได้ตั้งกลุ่มแอดมินสำหรับแบรนด์ "${selectedConv.brand || 'ทั่วไป'}"\nกรุณาไปที่เมนู "ตั้งค่าช่องทางแชท" เพื่อสร้างกลุ่มและเลือกสมาชิกครับ`
+        );
+        return;
+      }
+
+      const pick = pickAgentFromGroup(group, users);
+      if (!pick) {
+        alert('ไม่พบรายชื่อแอดมินที่พร้อมทำงานในกลุ่มนี้ กรุณาตรวจสอบรายชื่อสมาชิก');
+        return;
+      }
+
+      const assignedUser = users.find((u) => u.id === pick.agentId);
+      const agentName = assignedUser ? (assignedUser.nickname || assignedUser.first_name) : 'แอดมิน';
+
+      const ok = await assignConversation(selectedConv.id, {
+        id: pick.agentId,
+        name: agentName,
+        avatar: assignedUser?.avatar_url,
+      });
+
+      if (ok) {
+        const updated = {
+          ...selectedConv,
+          assigned_to: pick.agentId,
+          assigned_name: agentName,
+        };
+        setSelectedConv(updated);
+        setConversations((prev) => prev.map((c) => (c.id === selectedConv.id ? updated : c)));
+
+        // Save round-robin index pointer if updated
+        if (pick.updatedGroup.last_assigned_index !== group.last_assigned_index) {
+          const updatedGroups = routingGroups.map((g) =>
+            g.id === pick.updatedGroup.id ? pick.updatedGroup : g
+          );
+          setRoutingGroups(updatedGroups);
+          void saveChatRoutingGroups(updatedGroups);
+        }
+      } else {
+        alert('มอบหมายงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการสุ่มผู้ดูแล: ' + err.message);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Manual assign handler
+  const handleManualAssign = async (targetUser: User | null) => {
+    if (!selectedConv) return;
+    setShowAssignDropdown(false);
+    try {
+      const agentName = targetUser ? (targetUser.nickname || targetUser.first_name) : null;
+      const ok = await assignConversation(selectedConv.id, {
+        id: targetUser ? targetUser.id : null,
+        name: agentName || undefined,
+        avatar: targetUser?.avatar_url,
+      });
+      if (ok) {
+        const updated = {
+          ...selectedConv,
+          assigned_to: targetUser ? targetUser.id : null,
+          assigned_name: agentName,
+        };
+        setSelectedConv(updated);
+        setConversations((prev) => prev.map((c) => (c.id === selectedConv.id ? updated : c)));
+      } else {
+        alert('อัปเดตผู้ดูแลไม่สำเร็จ');
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+    }
+  };
+
   // Toggle resolve / active status
   const handleToggleStatus = async () => {
     if (!selectedConv) return;
@@ -467,10 +613,85 @@ export default function ChatInbox() {
       brandFilter === 'all' ||
       (c.brand || 'terrahome').toLowerCase() === brandFilter.toLowerCase();
 
-    return matchesSearch && matchesPlatform && matchesStatus && matchesBrand;
+    const matchesAssign =
+      assignFilter === 'all'
+        ? true
+        : assignFilter === 'mine'
+        ? c.assigned_to === currentUser?.id
+        : !c.assigned_to;
+
+    return matchesSearch && matchesPlatform && matchesStatus && matchesBrand && matchesAssign;
   });
 
   const activeUnreadTotal = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+  const myChatsCount = conversations.filter((c) => c.assigned_to === currentUser?.id).length;
+  const unassignedChatsCount = conversations.filter((c) => !c.assigned_to).length;
+
+  if (accessChecked && !isAllowed) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '70vh',
+          padding: '24px',
+        }}
+      >
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '16px',
+            padding: '36px 32px',
+            maxWidth: '460px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+          }}
+        >
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 18px',
+            }}
+          >
+            <ShieldAlert size={34} />
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 10px', color: 'var(--text-primary)' }}>
+            ไม่มีสิทธิ์เข้าถึงหน้ารวมแชท
+          </h2>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 24px' }}>
+            หน้ารวมแชทนี้จำกัดสิทธิ์เฉพาะแอดมินหรือพนักงานที่ได้รับอนุญาตเท่านั้น หากท่านต้องการเข้าใช้งาน กรุณาแจ้งผู้ดูแลระบบเพื่อเปิดสิทธิ์ในหน้า <b>ตั้งค่าช่องทางแชท &gt; สิทธิ์เข้าใช้งาน</b>
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              padding: '10px 24px',
+              borderRadius: '8px',
+              background: 'var(--blue)',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
+            }}
+          >
+            กลับสู่หน้าภาพรวมระบบ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ height: 'calc(100vh - 30px)', display: 'flex', flexDirection: 'column' }}>
@@ -528,6 +749,30 @@ export default function ChatInbox() {
                   }}
                 />
               </div>
+
+              {/* Settings Shortcut for Admin */}
+              {currentUser?.role === 'admin' && (
+                <button
+                  onClick={() => navigate('/chat-settings')}
+                  title="ตั้งค่าระบบแชท, จัดกลุ่มสุ่มแอดมิน & สิทธิ์เข้าใช้งาน"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <SettingsIcon size={16} />
+                </button>
+              )}
 
               {/* Sound Toggle Icon Button */}
               <button
@@ -679,6 +924,55 @@ export default function ChatInbox() {
                 );
               })}
             </div>
+
+            {/* Assignment Filter Tabs */}
+            <div style={{ display: 'flex', gap: '4px', paddingTop: '4px', borderTop: '1px dashed var(--border)' }}>
+              {[
+                { key: 'all', label: 'ทั้งหมด' },
+                { key: 'mine', label: '👤 ของฉัน', count: myChatsCount },
+                { key: 'unassigned', label: '⚠️ ยังไม่มีผู้ดูแล', count: unassignedChatsCount },
+              ].map((af) => {
+                const isActive = assignFilter === af.key;
+                return (
+                  <button
+                    key={af.key}
+                    onClick={() => setAssignFilter(af.key as any)}
+                    style={{
+                      flex: 1,
+                      padding: '4px 2px',
+                      fontSize: '0.68rem',
+                      fontWeight: 600,
+                      borderRadius: '5px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: isActive ? 'var(--blue)' : 'var(--surface)',
+                      color: isActive ? '#fff' : 'var(--text-secondary)',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span>{af.label}</span>
+                    {af.count !== undefined && af.count > 0 && (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          padding: '0 4px',
+                          borderRadius: '8px',
+                          background: isActive ? 'rgba(255,255,255,0.25)' : 'var(--surface-muted)',
+                          color: isActive ? '#fff' : 'var(--text-primary)',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {af.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* List Items */}
@@ -825,6 +1119,48 @@ export default function ChatInbox() {
                               </span>
                             );
                           })()}
+
+                          {/* Assigned Agent Badge */}
+                          {conv.assigned_to ? (() => {
+                            const ag = users.find((u) => u.id === conv.assigned_to);
+                            const isMe = conv.assigned_to === currentUser?.id;
+                            const agName = ag ? (ag.nickname || ag.first_name) : (conv.assigned_name || 'มีผู้ดูแล');
+                            return (
+                              <span
+                                style={{
+                                  fontSize: '9px',
+                                  fontWeight: 600,
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  background: isMe ? '#DBEAFE' : 'var(--surface)',
+                                  color: isMe ? '#1D4ED8' : 'var(--text-secondary)',
+                                  border: '1px solid var(--border)',
+                                  flexShrink: 0,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                }}
+                                title={`ผู้ดูแล: ${ag?.first_name || ''} ${ag?.last_name || ''}`}
+                              >
+                                👤 {agName}
+                              </span>
+                            );
+                          })() : (
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                fontWeight: 600,
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                                background: '#FEF3C7',
+                                color: '#B45309',
+                                border: '1px solid #FDE68A',
+                                flexShrink: 0,
+                              }}
+                            >
+                              ว่าง
+                            </span>
+                          )}
                         </div>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                           {conv.last_message_at
@@ -1063,6 +1399,215 @@ export default function ChatInbox() {
 
               {/* Status / Actions */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Agent Assignment Widget */}
+                {(() => {
+                  const assignedAgent = users.find((u) => u.id === selectedConv.assigned_to);
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* Assigned Agent Badge & Dropdown Trigger */}
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            border: '1px solid var(--border)',
+                            cursor: 'pointer',
+                            background: assignedAgent ? 'var(--surface-muted)' : '#FEF3C7',
+                            color: assignedAgent ? 'var(--text-primary)' : '#92400E',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                          title="คลิกเพื่อเลือกหรือเปลี่ยนผู้ดูแลลูกค้าคนนี้"
+                        >
+                          {assignedAgent ? (
+                            <>
+                              {assignedAgent.avatar_url ? (
+                                <img
+                                  src={avatarUrl(assignedAgent.avatar_url) || ''}
+                                  alt=""
+                                  style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: '18px',
+                                    height: '18px',
+                                    borderRadius: '50%',
+                                    background: '#3B82F6',
+                                    color: '#fff',
+                                    fontSize: '10px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  {(assignedAgent.nickname || assignedAgent.first_name).charAt(0)}
+                                </div>
+                              )}
+                              <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                👤 {assignedAgent.nickname || assignedAgent.first_name}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ fontSize: '13px' }}>⚠️</span>
+                              <span>ยังไม่มีผู้ดูแล</span>
+                            </>
+                          )}
+                          <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {showAssignDropdown && (
+                          <>
+                            <div
+                              style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                              onClick={() => setShowAssignDropdown(false)}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '4px',
+                                width: '250px',
+                                maxHeight: '300px',
+                                overflowY: 'auto',
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '10px',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.18)',
+                                zIndex: 999,
+                                padding: '4px',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  padding: '6px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: 'var(--text-secondary)',
+                                  borderBottom: '1px solid var(--border)',
+                                }}
+                              >
+                                มอบหมายผู้ดูแลลูกค้า
+                              </div>
+
+                              {/* Clear assignment option */}
+                              <div
+                                onClick={() => void handleManualAssign(null)}
+                                style={{
+                                  padding: '7px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  color: '#DC2626',
+                                  background: !selectedConv.assigned_to ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                                }}
+                              >
+                                <span>✕ ยกเลิกผู้ดูแล (ไม่มีผู้ดูแล)</span>
+                                {!selectedConv.assigned_to && <Check size={14} />}
+                              </div>
+
+                              {/* Users list */}
+                              {users.map((u) => {
+                                const isSelected = selectedConv.assigned_to === u.id;
+                                return (
+                                  <div
+                                    key={u.id}
+                                    onClick={() => void handleManualAssign(u)}
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                                      color: 'var(--text-primary)',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                      <div
+                                        style={{
+                                          width: '24px',
+                                          height: '24px',
+                                          borderRadius: '50%',
+                                          background: '#64748B',
+                                          color: '#fff',
+                                          fontSize: '10px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          flexShrink: 0,
+                                          overflow: 'hidden',
+                                        }}
+                                      >
+                                        {u.avatar_url ? (
+                                          <img
+                                            src={avatarUrl(u.avatar_url) || ''}
+                                            alt=""
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          />
+                                        ) : (
+                                          (u.nickname || u.first_name).charAt(0)
+                                        )}
+                                      </div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
+                                        </div>
+                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                                          {u.position || u.role}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {isSelected && <Check size={14} style={{ color: 'var(--blue)', flexShrink: 0 }} />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Button: 🎲 สุ่มคนดูแล */}
+                      <button
+                        onClick={() => void handleRandomAssign()}
+                        disabled={isAssigning}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
+                          color: '#fff',
+                          cursor: isAssigning ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                          opacity: isAssigning ? 0.7 : 1,
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="สุ่มผู้ดูแลตามกลุ่มแอดมินที่ตั้งค่าไว้"
+                      >
+                        <Shuffle size={13} />
+                        <span>{isAssigning ? 'กำลังสุ่ม...' : '🎲 สุ่มคนดูแล'}</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 <button
                   onClick={handleToggleStatus}
                   style={{
