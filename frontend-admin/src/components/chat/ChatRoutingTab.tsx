@@ -21,6 +21,43 @@ import {
   BRAND_OPTIONS,
 } from '../../services/chatRoutingService';
 import type { ChatRoutingGroup, User, ChatConversation } from '../../types';
+import { avatarUrl } from '../tasks/taskUtils';
+
+function AvatarImg({ url, name, size = 20 }: { url?: string | null; name: string; size?: number }) {
+  const [error, setError] = useState(false);
+  const src = avatarUrl(url);
+
+  if (src && !error) {
+    return (
+      <img
+        src={src}
+        alt=""
+        onError={() => setError(true)}
+        style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: '50%',
+        background: '#3B82F6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 800,
+        fontSize: size <= 20 ? '0.65rem' : '0.75rem',
+        flexShrink: 0,
+      }}
+    >
+      {(name || 'U').charAt(0).toUpperCase()}
+    </div>
+  );
+}
 
 export default function ChatRoutingTab() {
   const [groups, setGroups] = useState<ChatRoutingGroup[]>([]);
@@ -523,30 +560,11 @@ export default function ChatRoutingTab() {
                             color: 'var(--text-primary)',
                           }}
                         >
-                          {m.avatar_url ? (
-                            <img
-                              src={m.avatar_url}
-                              alt=""
-                              style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: '18px',
-                                height: '18px',
-                                borderRadius: '50%',
-                                background: '#3B82F6',
-                                color: '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.65rem',
-                                fontWeight: 800,
-                              }}
-                            >
-                              {(m.nickname || m.first_name).charAt(0)}
-                            </div>
-                          )}
+                          <AvatarImg
+                            url={m.avatar_url}
+                            name={m.nickname || m.first_name}
+                            size={18}
+                          />
                           <span>{m.nickname || m.first_name}</span>
                         </div>
                       ))
@@ -809,30 +827,11 @@ export default function ChatRoutingTab() {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {u.avatar_url ? (
-                              <img
-                                src={u.avatar_url}
-                                alt=""
-                                style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
-                              />
-                            ) : (
-                              <div
-                                style={{
-                                  width: '22px',
-                                  height: '22px',
-                                  borderRadius: '50%',
-                                  background: '#3B82F6',
-                                  color: '#fff',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 800,
-                                }}
-                              >
-                                {(u.nickname || u.first_name).charAt(0)}
-                              </div>
-                            )}
+                            <AvatarImg
+                              url={u.avatar_url}
+                              name={u.nickname || u.first_name}
+                              size={22}
+                            />
                             <div>
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}

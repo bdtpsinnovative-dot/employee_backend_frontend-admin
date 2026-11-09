@@ -15,6 +15,43 @@ import {
   saveChatAccessUsers,
 } from '../../services/chatRoutingService';
 import type { ChatAccessUser, User } from '../../types';
+import { avatarUrl } from '../tasks/taskUtils';
+
+function AvatarImg({ url, name, size = 32 }: { url?: string | null; name: string; size?: number }) {
+  const [error, setError] = useState(false);
+  const src = avatarUrl(url);
+
+  if (src && !error) {
+    return (
+      <img
+        src={src}
+        alt=""
+        onError={() => setError(true)}
+        style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: '50%',
+        background: '#3B82F6',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 800,
+        fontSize: size <= 22 ? '0.65rem' : size <= 28 ? '0.75rem' : '0.85rem',
+        flexShrink: 0,
+      }}
+    >
+      {(name || 'U').charAt(0).toUpperCase()}
+    </div>
+  );
+}
 
 export default function ChatAccessTab() {
   const [accessUsers, setAccessUsers] = useState<ChatAccessUser[]>([]);
@@ -293,30 +330,11 @@ export default function ChatAccessTab() {
                         >
                           <td style={{ padding: '12px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              {userObj.avatar_url ? (
-                                <img
-                                  src={userObj.avatar_url}
-                                  alt=""
-                                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                                />
-                              ) : (
-                                <div
-                                  style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '50%',
-                                    background: '#3B82F6',
-                                    color: '#fff',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 800,
-                                    fontSize: '0.85rem',
-                                  }}
-                                >
-                                  {(userObj.nickname || userObj.first_name).charAt(0)}
-                                </div>
-                              )}
+                              <AvatarImg
+                                url={userObj.avatar_url}
+                                name={userObj.nickname || userObj.first_name}
+                                size={32}
+                              />
                               <div>
                                 <span style={{ fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
                                   {userObj.first_name} {userObj.last_name} {userObj.nickname ? `(${userObj.nickname})` : ''}
@@ -524,30 +542,11 @@ export default function ChatAccessTab() {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {u.avatar_url ? (
-                          <img
-                            src={u.avatar_url}
-                            alt=""
-                            style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '50%',
-                              background: '#3B82F6',
-                              color: '#fff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '0.75rem',
-                            }}
-                          >
-                            {(u.nickname || u.first_name).charAt(0)}
-                          </div>
-                        )}
+                        <AvatarImg
+                          url={u.avatar_url}
+                          name={u.nickname || u.first_name}
+                          size={28}
+                        />
                         <div>
                           <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
                             {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
