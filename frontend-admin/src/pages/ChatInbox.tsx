@@ -14,6 +14,9 @@ import {
   Radio,
   Copy,
   Check,
+  Edit2,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { ChatConversation, ChatMessage, ChatChannel } from '../types';
@@ -89,6 +92,8 @@ export default function ChatInbox() {
   const [tempWebhookUrl, setTempWebhookUrl] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentConvIdRef = useRef<string | null>(null);
@@ -394,6 +399,27 @@ export default function ChatInbox() {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSaveCustomerName = async () => {
+    if (!selectedConv || !editNameValue.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+    const newName = editNameValue.trim();
+    setIsEditingName(false);
+    setSelectedConv((prev) => (prev ? { ...prev, customer_name: newName } : null));
+    setConversations((prev) =>
+      prev.map((c) => (c.id === selectedConv.id ? { ...c, customer_name: newName } : c))
+    );
+    try {
+      await supabase
+        .from('chat_conversations')
+        .update({ customer_name: newName })
+        .eq('id', selectedConv.id);
+    } catch (e) {
+      console.error('Failed to update customer name:', e);
     }
   };
 
@@ -718,6 +744,7 @@ export default function ChatInbox() {
                           <img
                             src={conv.customer_avatar}
                             alt=""
+                            referrerPolicy="no-referrer"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         ) : (
@@ -880,6 +907,7 @@ export default function ChatInbox() {
                     <img
                       src={selectedConv.customer_avatar}
                       alt=""
+                      referrerPolicy="no-referrer"
                       style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -888,9 +916,82 @@ export default function ChatInbox() {
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                      {selectedConv.customer_name}
-                    </span>
+                    {isEditingName ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input
+                          type="text"
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') await handleSaveCustomerName();
+                            if (e.key === 'Escape') setIsEditingName(false);
+                          }}
+                          autoFocus
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--blue)',
+                            background: 'var(--surface)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.88rem',
+                            fontWeight: 600,
+                          }}
+                        />
+                        <button
+                          onClick={handleSaveCustomerName}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'var(--blue)',
+                            color: '#fff',
+                            border: 'none',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          บันทึก
+                        </button>
+                        <button
+                          onClick={() => setIsEditingName(false)}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'transparent',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border)',
+                            fontSize: '0.72rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ยกเลิก
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                          {selectedConv.customer_name}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setIsEditingName(true);
+                            setEditNameValue(selectedConv.customer_name);
+                          }}
+                          title="แก้ไขชื่อลูกค้า"
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                            padding: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </>
+                    )}
                     <span
                       style={{
                         padding: '2px 8px',
@@ -1068,6 +1169,7 @@ export default function ChatInbox() {
                                 src={msg.media_url}
                                 alt="รูปภาพจากแชท"
                                 loading="lazy"
+                                referrerPolicy="no-referrer"
                                 style={{
                                   maxWidth: '260px',
                                   maxHeight: '300px',
@@ -1082,6 +1184,47 @@ export default function ChatInbox() {
                                 onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                               />
                             </div>
+                            {msg.content && msg.content !== '📷 [รูปภาพ]' && !msg.content.startsWith('📷') && (
+                              <div
+                                style={{
+                                  marginTop: '6px',
+                                  padding: '8px 12px',
+                                  borderRadius: '10px',
+                                  background: isAgent ? 'var(--blue)' : 'var(--surface)',
+                                  color: isAgent ? '#ffffff' : 'var(--text-primary)',
+                                  fontSize: '0.88rem',
+                                  lineHeight: 1.4,
+                                  border: isAgent ? 'none' : '1px solid var(--border)',
+                                }}
+                              >
+                                {msg.content}
+                              </div>
+                            )}
+                          </div>
+                        ) : msg.message_type === 'file' && msg.media_url ? (
+                          <div style={{ padding: '4px' }}>
+                            <a
+                              href={msg.media_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 14px',
+                                borderRadius: '12px',
+                                background: isAgent ? 'var(--blue)' : 'var(--surface)',
+                                color: isAgent ? '#fff' : 'var(--blue)',
+                                border: isAgent ? 'none' : '1px solid var(--border)',
+                                textDecoration: 'none',
+                                fontSize: '0.88rem',
+                                fontWeight: 500,
+                              }}
+                            >
+                              <FileText size={18} />
+                              <span>{msg.content || 'เปิดไฟล์แนบ'}</span>
+                              <ExternalLink size={14} style={{ opacity: 0.7 }} />
+                            </a>
                           </div>
                         ) : (
                           <div
@@ -1800,6 +1943,7 @@ export default function ChatInbox() {
             <img
               src={previewImage}
               alt="ภาพขยายขนาดใหญ่"
+              referrerPolicy="no-referrer"
               style={{
                 maxWidth: '100%',
                 maxHeight: '85vh',
