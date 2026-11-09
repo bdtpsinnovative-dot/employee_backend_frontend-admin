@@ -293,7 +293,7 @@ export default function ChatSettings() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 md:px-8 space-y-6">
+    <div className="w-full px-4 py-6 md:px-8 lg:px-10 space-y-6">
       {/* ================= ULTRA CLEAN TOP BAR ================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-zinc-800">
         <div>
