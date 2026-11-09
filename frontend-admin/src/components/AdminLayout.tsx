@@ -10,7 +10,15 @@ import { queryKeys } from '../lib/queryKeys';
 import { supabase } from '../lib/supabase';
 
 const SIDEBAR_STORAGE_KEY = 'hr_sidebar_open';
+const isLocalhost = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === '[::1]'
+);
+
 const ADMIN_ONLY_ROUTES = [
+  '/chat-settings',
+  ...(isLocalhost ? [] : ['/chat-inbox']),
   '/requests',
   '/employees',
   '/backups',

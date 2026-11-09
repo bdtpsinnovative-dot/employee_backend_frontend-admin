@@ -26,12 +26,19 @@ interface SidebarProps {
   tasksSearch?: string;
 }
 
+const isLocalhost = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === '[::1]'
+);
+
 export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = '' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const isAdmin = currentUser?.role === 'admin';
+  const canAccessChatInbox = isAdmin || isLocalhost;
   const isOrganizationSettings = location.pathname === '/teams' || location.pathname === '/brand-responsibilities';
   const profileAvatar = avatarUrl(currentUser?.avatar_url);
   const profileName = currentUser
@@ -44,6 +51,8 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {
+    if (!canAccessChatInbox) return;
+
     void loadUnreadChatCount();
 
     const chatChannel = supabase
@@ -60,7 +69,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
     return () => {
       supabase.removeChannel(chatChannel);
     };
-  }, []);
+  }, [canAccessChatInbox]);
 
   async function loadUnreadChatCount() {
     try {
@@ -151,7 +160,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       to: '/chat-inbox',
       icon: MessagesSquare,
       label: 'รวมแชท LINE FB IG',
-      adminOnly: false,
+      adminOnly: !isLocalhost,
       badge: unreadChatCount,
     },
     {
