@@ -591,13 +591,13 @@ export default function ChatRoutingTab() {
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: '16px',
+              borderRadius: '20px',
               width: '100%',
-              maxWidth: '560px',
-              maxHeight: '90vh',
+              maxWidth: '780px',
+              maxHeight: '92vh',
               overflowY: 'auto',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-              padding: '24px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+              padding: '24px 28px',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
@@ -635,58 +635,56 @@ export default function ChatRoutingTab() {
             )}
 
             <form onSubmit={handleSaveGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Group Name */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-primary)' }}>
-                  ชื่อกลุ่ม <span style={{ color: '#EF4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ทีมดูแลลูกค้า Wallcraft, ทีมขายพรีเมียม"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.85rem',
-                    boxSizing: 'border-box',
-                  }}
-                  required
-                />
-              </div>
+              {/* Group Name & Brand in 2-Columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '5px', color: 'var(--text-primary)' }}>
+                    ชื่อกลุ่ม <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ทีมดูแลลูกค้า Wallcraft, ทีมขายพรีเมียม"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                    }}
+                    required
+                  />
+                </div>
 
-              {/* Brand Responsible */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-primary)' }}>
-                  แบรนด์ที่รับผิดชอบ
-                </label>
-                <select
-                  value={formBrand}
-                  onChange={(e) => setFormBrand(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.85rem',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {BRAND_OPTIONS.map((opt) => (
-                    <option key={opt.slug} value={opt.slug}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                  เมื่อมีแชทลูกค้าของแบรนด์นี้เข้ามา ระบบจะส่งต่อให้แอดมินในกลุ่มนี้
-                </span>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '5px', color: 'var(--text-primary)' }}>
+                    แบรนด์ที่รับผิดชอบ
+                  </label>
+                  <select
+                    value={formBrand}
+                    onChange={(e) => setFormBrand(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {BRAND_OPTIONS.map((opt) => (
+                      <option key={opt.slug} value={opt.slug}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Distribution Mode */}
@@ -755,13 +753,40 @@ export default function ChatRoutingTab() {
 
               {/* Members Selection */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    เลือกแอดมินในกลุ่มนี้ ({formAgentIds.length} คนเลือกแล้ว) <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                    (คลิกเพื่อเลือกหรือนำออก)
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      เลือกสมาชิกแอดมินในกลุ่มนี้ <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      เลือกแล้ว {formAgentIds.length} คน
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allFilteredIds = filteredUsers.map((u) => u.id);
+                        setFormAgentIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+                      }}
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                    >
+                      + เลือกทั้งหมด ({filteredUsers.length})
+                    </button>
+                    {formAgentIds.length > 0 && (
+                      <>
+                        <span style={{ color: 'var(--border)' }}>|</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormAgentIds([])}
+                          className="text-slate-400 hover:text-red-500 font-semibold cursor-pointer"
+                        >
+                          ล้างการเลือก
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 mb-2">
@@ -836,20 +861,19 @@ export default function ChatRoutingTab() {
                 />
 
                 <div
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2"
                   style={{
-                    maxHeight: '210px',
+                    maxHeight: '380px',
+                    minHeight: '240px',
                     overflowY: 'auto',
                     border: '1px solid var(--border)',
-                    borderRadius: '10px',
-                    padding: '6px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
+                    borderRadius: '12px',
+                    padding: '8px',
                     background: 'var(--surface)',
                   }}
                 >
                   {filteredUsers.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                    <div className="col-span-full py-10 text-center text-slate-400 text-xs">
                       ไม่พบพนักงานตามเงื่อนไขที่เลือก
                     </div>
                   ) : (
