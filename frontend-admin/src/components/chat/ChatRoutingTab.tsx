@@ -84,6 +84,7 @@ export default function ChatRoutingTab() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [agentSearch, setAgentSearch] = useState('');
+  const [agentFilter, setAgentFilter] = useState<'all' | 'ready' | 'admin' | 'selected'>('all');
 
   const loadData = useCallback(async () => {
     try {
@@ -129,6 +130,8 @@ export default function ChatRoutingTab() {
     setFormIsActive(true);
     setFormError('');
     setAgentSearch('');
+    setAgentFilter('all');
+    setAgentFilter('all');
     setShowModal(true);
   };
 
@@ -305,12 +308,29 @@ export default function ChatRoutingTab() {
     }
   };
 
+  const chatReadyCount = users.filter(
+    (u) =>
+      u.role === 'admin' ||
+      accessUsers.some((a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled)
+  ).length;
+  const adminCount = users.filter((u) => u.role === 'admin').length;
+
   const filteredUsers = users.filter((u) => {
+    const isAdmin = u.role === 'admin';
+    const hasDirectAccess = accessUsers.some(
+      (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
+    );
+    const isSelected = formAgentIds.includes(u.id);
+
+    if (agentFilter === 'ready' && !hasDirectAccess && !isAdmin) return false;
+    if (agentFilter === 'admin' && !isAdmin) return false;
+    if (agentFilter === 'selected' && !isSelected) return false;
+
     const query = agentSearch.toLowerCase().trim();
     if (!query) return true;
     const name = `${u.first_name} ${u.last_name} ${u.nickname || ''}`.toLowerCase();
     const email = (u.email || '').toLowerCase();
-    const dept = (u.department || '').toLowerCase();
+    const dept = (u.department || u.position || '').toLowerCase();
     return name.includes(query) || email.includes(query) || dept.includes(query);
   });
 
@@ -535,6 +555,9 @@ export default function ChatRoutingTab() {
                             size={18}
                           />
                           <span>{m.nickname || m.first_name}</span>
+                          <span style={{ fontSize: '0.65rem' }}>
+                            {m.role === 'admin' ? '🛡️' : '💬'}
+                          </span>
                         </div>
                       ))
                     )}
@@ -741,9 +764,57 @@ export default function ChatRoutingTab() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 mb-2.5">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 mb-2">
                   <span className="font-bold shrink-0">💡 สิทธิ์อัตโนมัติ:</span>
                   <span>พนักงานทุกคนที่เลือกเข้ากลุ่ม จะได้รับสิทธิ์เข้าใช้งานหน้ารวมแชท (LINE/FB/IG) ทันที</span>
+                </div>
+
+                {/* Quick Filter Pills with Symbols */}
+                <div className="flex items-center gap-1.5 mb-2 overflow-x-auto pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAgentFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      agentFilter === 'all'
+                        ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-2xs'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    👥 ทั้งหมด ({users.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentFilter('ready')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      agentFilter === 'ready'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 hover:bg-emerald-100'
+                    }`}
+                  >
+                    💬 มีสิทธิ์แชท ({chatReadyCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentFilter('admin')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      agentFilter === 'admin'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/50 hover:bg-purple-100'
+                    }`}
+                  >
+                    🛡️ แอดมิน ({adminCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentFilter('selected')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                      agentFilter === 'selected'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/50 hover:bg-blue-100'
+                    }`}
+                  >
+                    ✓ เลือกแล้ว ({formAgentIds.length})
+                  </button>
                 </div>
 
                 <input
@@ -766,7 +837,7 @@ export default function ChatRoutingTab() {
 
                 <div
                   style={{
-                    maxHeight: '180px',
+                    maxHeight: '210px',
                     overflowY: 'auto',
                     border: '1px solid var(--border)',
                     borderRadius: '10px',
@@ -778,73 +849,104 @@ export default function ChatRoutingTab() {
                   }}
                 >
                   {filteredUsers.length === 0 ? (
-                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                      ไม่พบพนักงานตามคำค้นหา
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                      ไม่พบพนักงานตามเงื่อนไขที่เลือก
                     </div>
                   ) : (
                     filteredUsers.map((u) => {
                       const isSelected = formAgentIds.includes(u.id);
+                      const isAdmin = u.role === 'admin';
+                      const hasDirectAccess = accessUsers.some(
+                        (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
+                      );
+
                       return (
                         <div
                           key={u.id}
                           onClick={() => toggleAgent(u.id)}
                           style={{
-                            padding: '6px 10px',
-                            borderRadius: '8px',
+                            padding: '8px 10px',
+                            borderRadius: '10px',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                            background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
                             border: isSelected ? '1px solid #3B82F6' : '1px solid transparent',
                             transition: 'all 0.1s ease',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <AvatarImg
-                              url={u.avatar_url}
-                              name={u.nickname || u.first_name}
-                              size={22}
-                            />
-                            <div>
-                              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            {/* Avatar with Corner Status Emoji Badge */}
+                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                              <AvatarImg
+                                url={u.avatar_url}
+                                name={u.nickname || u.first_name}
+                                size={26}
+                              />
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '-4px',
+                                  right: '-4px',
+                                  fontSize: '11px',
+                                  lineHeight: 1,
+                                }}
+                                title={isAdmin ? 'ผู้ดูแลระบบ' : hasDirectAccess ? 'มีสิทธิ์แชทพร้อมตอบ' : isSelected ? 'จะเปิดสิทธิ์ให้อัตโนมัติ' : 'พนักงานทั่วไป'}
+                              >
+                                {isAdmin ? '🛡️' : hasDirectAccess ? '💬' : isSelected ? '⚡' : '👤'}
                               </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                  {u.position || u.department || ''}
+                            </div>
+
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                  {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
                                 </span>
-                                {u.role === 'admin' ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800">
-                                    Admin
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                  {u.position || u.department || 'พนักงาน'}
+                                </span>
+
+                                {/* Clear visual badges with symbols */}
+                                {isAdmin ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                    🛡️ Super Admin
                                   </span>
-                                ) : accessUsers.some((a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled) ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
-                                    ✓ มีสิทธิ์แชทแล้ว
+                                ) : hasDirectAccess ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    💬 มีสิทธิ์แชทแล้ว
                                   </span>
                                 ) : isSelected ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">
-                                    ✨ ได้รับสิทธิ์อัตโนมัติ
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    ⚡ จะเปิดสิทธิ์ให้อัตโนมัติ
                                   </span>
-                                ) : null}
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">
+                                    ⚪ ทั่วไป
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
 
                           <div
                             style={{
-                              width: '18px',
-                              height: '18px',
-                              borderRadius: '4px',
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '6px',
                               border: isSelected ? '1px solid #3B82F6' : '1px solid var(--border)',
                               background: isSelected ? '#3B82F6' : 'transparent',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               color: '#fff',
+                              flexShrink: 0,
                             }}
                           >
-                            {isSelected && <Check size={12} />}
+                            {isSelected && <Check size={13} />}
                           </div>
                         </div>
                       );
