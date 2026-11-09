@@ -56,7 +56,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
         if (data?.value) {
           const list = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
           if (Array.isArray(list)) {
-            const allowed = list.some((u: any) => u.user_id === currentUser?.id && u.is_enabled);
+            const allowed = list.some((u: any) => (u.user_id === currentUser?.id || (currentUser?.auth_id && u.user_id === currentUser?.auth_id)) && u.is_enabled);
             setHasChatWhitelist(allowed);
           }
         }

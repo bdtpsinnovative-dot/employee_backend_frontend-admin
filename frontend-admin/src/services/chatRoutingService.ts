@@ -83,7 +83,7 @@ export async function saveChatAccessUsers(accessUsers: ChatAccessUser[]): Promis
 export function hasChatAccess(currentUser: User | null, accessUsers: ChatAccessUser[]): boolean {
   if (!currentUser) return false;
   if (currentUser.role === 'admin') return true; // Super admins always have access
-  const entry = accessUsers.find((u) => u.user_id === currentUser.id);
+  const entry = accessUsers.find((u) => u.user_id === currentUser.id || (currentUser.auth_id && u.user_id === currentUser.auth_id));
   return Boolean(entry && entry.is_enabled);
 }
 
