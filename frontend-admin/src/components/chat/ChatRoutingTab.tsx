@@ -17,10 +17,12 @@ import { fetchUsers } from '../../services/adminApi';
 import {
   fetchChatRoutingGroups,
   saveChatRoutingGroups,
+  fetchChatAccessUsers,
+  saveChatAccessUsers,
   autoAssignConversations,
   BRAND_OPTIONS,
 } from '../../services/chatRoutingService';
-import type { ChatRoutingGroup, User, ChatConversation } from '../../types';
+import type { ChatRoutingGroup, User, ChatConversation, ChatAccessUser } from '../../types';
 import { avatarUrl } from '../tasks/taskUtils';
 
 function AvatarImg({ url, name, size = 20 }: { url?: string | null; name: string; size?: number }) {
@@ -62,6 +64,7 @@ function AvatarImg({ url, name, size = 20 }: { url?: string | null; name: string
 export default function ChatRoutingTab() {
   const [groups, setGroups] = useState<ChatRoutingGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [accessUsers, setAccessUsers] = useState<ChatAccessUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [unassignedCount, setUnassignedCount] = useState<number>(0);
   const [autoAssigning, setAutoAssigning] = useState(false);
@@ -85,18 +88,20 @@ export default function ChatRoutingTab() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [routingGroups, userList, countRes] = await Promise.all([
+      const [routingGroups, userList, countRes, accessList] = await Promise.all([
         fetchChatRoutingGroups(),
         fetchUsers().catch(() => []),
         supabase
           .from('chat_conversations')
           .select('id', { count: 'exact', head: true })
           .is('assigned_to', null),
+        fetchChatAccessUsers().catch(() => []),
       ]);
 
       setGroups(routingGroups);
       setUsers(userList);
       setUnassignedCount(countRes.count || 0);
+      setAccessUsers(accessList);
     } catch (err: any) {
       console.error('Failed to load routing data:', err);
     } finally {
@@ -193,6 +198,36 @@ export default function ChatRoutingTab() {
 
       const ok = await saveChatRoutingGroups(updatedList);
       if (!ok) throw new Error('บันทึกข้อมูลไม่สำเร็จ');
+
+      // ⚡ Auto-grant chat access whitelist for all selected agents
+      try {
+        const currentAccess = await fetchChatAccessUsers();
+        const existingMap = new Map(currentAccess.map((u) => [u.user_id, u]));
+        let accessChanged = false;
+        const updatedAccess = [...currentAccess];
+
+        for (const agentId of formAgentIds) {
+          const existing = existingMap.get(agentId);
+          if (!existing) {
+            updatedAccess.push({
+              user_id: agentId,
+              added_at: new Date().toISOString(),
+              is_enabled: true,
+            });
+            accessChanged = true;
+          } else if (!existing.is_enabled) {
+            existing.is_enabled = true;
+            accessChanged = true;
+          }
+        }
+
+        if (accessChanged) {
+          await saveChatAccessUsers(updatedAccess);
+          setAccessUsers(updatedAccess);
+        }
+      } catch (permErr) {
+        console.warn('Auto-grant chat access error:', permErr);
+      }
 
       setGroups(updatedList);
       setShowModal(false);
@@ -706,6 +741,11 @@ export default function ChatRoutingTab() {
                   </span>
                 </div>
 
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 mb-2.5">
+                  <span className="font-bold shrink-0">💡 สิทธิ์อัตโนมัติ:</span>
+                  <span>พนักงานทุกคนที่เลือกเข้ากลุ่ม จะได้รับสิทธิ์เข้าใช้งานหน้ารวมแชท (LINE/FB/IG) ทันที</span>
+                </div>
+
                 <input
                   type="text"
                   placeholder="🔍 ค้นหาชื่อพนักงาน, ตำแหน่ง..."
@@ -770,9 +810,24 @@ export default function ChatRoutingTab() {
                               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
                               </span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginLeft: '6px' }}>
-                                {u.position || u.department || ''}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                  {u.position || u.department || ''}
+                                </span>
+                                {u.role === 'admin' ? (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800">
+                                    Admin
+                                  </span>
+                                ) : accessUsers.some((a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled) ? (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
+                                    ✓ มีสิทธิ์แชทแล้ว
+                                  </span>
+                                ) : isSelected ? (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">
+                                    ✨ ได้รับสิทธิ์อัตโนมัติ
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
 

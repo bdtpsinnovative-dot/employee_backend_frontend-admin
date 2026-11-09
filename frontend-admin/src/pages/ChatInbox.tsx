@@ -242,7 +242,7 @@ export default function ChatInbox() {
         if (groupsRes) setRoutingGroups(groupsRes);
         if (accessRes) setAccessUsers(accessRes);
 
-        const allowed = hasChatAccess(meRes, accessRes || []);
+        const allowed = hasChatAccess(meRes, accessRes || [], groupsRes || []);
         setIsAllowed(allowed);
         setAccessChecked(true);
       } catch (e) {

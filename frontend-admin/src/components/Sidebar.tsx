@@ -48,6 +48,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
     }
     async function checkWhitelist() {
       try {
+        // 1. Check direct whitelist
         const { data } = await supabase
           .from('settings')
           .select('value')
@@ -57,7 +58,31 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
           const list = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
           if (Array.isArray(list)) {
             const allowed = list.some((u: any) => (u.user_id === currentUser?.id || (currentUser?.auth_id && u.user_id === currentUser?.auth_id)) && u.is_enabled);
-            setHasChatWhitelist(allowed);
+            if (allowed) {
+              setHasChatWhitelist(true);
+              return;
+            }
+          }
+        }
+
+        // 2. Check if user is in any active routing group
+        const { data: grpData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'chat_routing_groups')
+          .maybeSingle();
+        if (grpData?.value) {
+          const grpList = typeof grpData.value === 'string' ? JSON.parse(grpData.value) : grpData.value;
+          if (Array.isArray(grpList)) {
+            const inGroup = grpList.some((g: any) =>
+              g.is_active &&
+              Array.isArray(g.agent_ids) &&
+              g.agent_ids.some((id: string) => id === currentUser?.id || id === currentUser?.auth_id)
+            );
+            if (inGroup) {
+              setHasChatWhitelist(true);
+              return;
+            }
           }
         }
       } catch {}

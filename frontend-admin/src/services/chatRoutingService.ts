@@ -80,11 +80,31 @@ export async function saveChatAccessUsers(accessUsers: ChatAccessUser[]): Promis
 }
 
 // Check if a user has access to Chat Inbox
-export function hasChatAccess(currentUser: User | null, accessUsers: ChatAccessUser[]): boolean {
+export function hasChatAccess(
+  currentUser: User | null,
+  accessUsers: ChatAccessUser[],
+  routingGroups?: ChatRoutingGroup[]
+): boolean {
   if (!currentUser) return false;
   if (currentUser.role === 'admin') return true; // Super admins always have access
-  const entry = accessUsers.find((u) => u.user_id === currentUser.id || (currentUser.auth_id && u.user_id === currentUser.auth_id));
-  return Boolean(entry && entry.is_enabled);
+
+  // 1. Direct whitelist
+  const entry = accessUsers.find(
+    (u) => u.user_id === currentUser.id || (currentUser.auth_id && u.user_id === currentUser.auth_id)
+  );
+  if (entry && entry.is_enabled) return true;
+
+  // 2. Member of any active routing group (Auto-granted)
+  if (routingGroups && Array.isArray(routingGroups)) {
+    const isGroupMember = routingGroups.some(
+      (g) =>
+        g.is_active &&
+        (g.agent_ids || []).some((id) => id === currentUser.id || id === currentUser.auth_id)
+    );
+    if (isGroupMember) return true;
+  }
+
+  return false;
 }
 
 // 3. Assign a single conversation
