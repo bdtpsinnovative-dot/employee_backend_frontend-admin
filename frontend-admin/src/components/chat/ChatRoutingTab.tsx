@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
+  Search,
   Plus,
   Trash2,
   Edit2,
@@ -569,19 +570,19 @@ export default function ChatRoutingTab() {
         </div>
       )}
 
-      {/* ================= MODAL: CREATE / EDIT GROUP ================= */}
+      {/* ================= MODAL: CREATE / EDIT GROUP (WIDESCREEN 2-PANE LAYOUT) ================= */}
       {showModal && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(3px)',
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(4px)',
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
+            padding: '16px',
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowModal(false);
@@ -591,442 +592,365 @@ export default function ChatRoutingTab() {
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: '20px',
-              width: '100%',
-              maxWidth: '780px',
+              borderRadius: '24px',
+              width: '95vw',
+              maxWidth: '1180px',
               maxHeight: '92vh',
-              overflowY: 'auto',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
-              padding: '24px 28px',
+              boxShadow: '0 25px 70px rgba(0,0,0,0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Users size={20} style={{ color: 'var(--blue)' }} />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {modalMode === 'create' ? 'สร้างกลุ่มดูแลลูกค้าใหม่' : 'แก้ไขกลุ่มดูแลลูกค้า'}
-                </h3>
+            {/* Modal Top Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/80 dark:border-zinc-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-zinc-100">
+                    {modalMode === 'create' ? 'สร้างกลุ่มดูแลลูกค้าใหม่' : 'แก้ไขกลุ่มดูแลลูกค้า'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">
+                    ตั้งค่าการกระจายแชท และเลือกสมาชิกแอดมินผู้ดูแล
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer transition-all"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {formError && (
-              <div
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: '#EF4444',
-                  fontSize: '0.8rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '16px',
-                }}
-              >
-                <AlertCircle size={15} />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Group Name & Brand in 2-Columns */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '5px', color: 'var(--text-primary)' }}>
-                    ชื่อกลุ่ม <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="เช่น ทีมดูแลลูกค้า Wallcraft, ทีมขายพรีเมียม"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.85rem',
-                      boxSizing: 'border-box',
-                    }}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '5px', color: 'var(--text-primary)' }}>
-                    แบรนด์ที่รับผิดชอบ
-                  </label>
-                  <select
-                    value={formBrand}
-                    onChange={(e) => setFormBrand(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.85rem',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {BRAND_OPTIONS.map((opt) => (
-                      <option key={opt.slug} value={opt.slug}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Distribution Mode */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: 'var(--text-primary)' }}>
-                  รูปแบบการกระจายงาน (Distribution Mode)
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <label
-                    style={{
-                      border: formMode === 'random' ? '2px solid var(--blue)' : '1px solid var(--border)',
-                      borderRadius: '10px',
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      background: formMode === 'random' ? 'rgba(59, 130, 246, 0.05)' : 'var(--surface)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <input
-                        type="radio"
-                        name="routing_mode"
-                        checked={formMode === 'random'}
-                        onChange={() => setFormMode('random')}
-                      />
-                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        🎲 สุ่มอัตโนมัติ (Random)
-                      </span>
+            {/* Modal Body Form: 2-Column Split Layout */}
+            <form onSubmit={handleSaveGroup} className="flex-1 flex flex-col md:flex-row overflow-hidden">
+              {/* LEFT COLUMN: Settings & Config (Width: 340px) */}
+              <div className="w-full md:w-[340px] p-6 border-b md:border-b-0 md:border-r border-slate-200/80 dark:border-zinc-800 flex flex-col justify-between shrink-0 overflow-y-auto bg-slate-50/40 dark:bg-zinc-900/30">
+                <div className="space-y-4">
+                  {formError && (
+                    <div className="p-3 rounded-xl bg-red-50 text-red-600 border border-red-200 text-xs flex items-center gap-2">
+                      <AlertCircle size={15} className="shrink-0" />
+                      <span>{formError}</span>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', paddingLeft: '20px' }}>
-                      สุ่มเลือกระหว่างคนที่อยู่ในกลุ่ม
-                    </span>
-                  </label>
+                  )}
 
-                  <label
-                    style={{
-                      border: formMode === 'round_robin' ? '2px solid var(--blue)' : '1px solid var(--border)',
-                      borderRadius: '10px',
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      background: formMode === 'round_robin' ? 'rgba(59, 130, 246, 0.05)' : 'var(--surface)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <input
-                        type="radio"
-                        name="routing_mode"
-                        checked={formMode === 'round_robin'}
-                        onChange={() => setFormMode('round_robin')}
-                      />
-                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        🔄 วนรอบตามคิว (Round-Robin)
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', paddingLeft: '20px' }}>
-                      จ่ายวนสลับกันอย่างเท่าเทียม
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Members Selection */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      เลือกสมาชิกแอดมินในกลุ่มนี้ <span style={{ color: '#EF4444' }}>*</span>
+                  {/* Group Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1.5">
+                      ชื่อกลุ่ม <span className="text-red-500">*</span>
                     </label>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                      เลือกแล้ว {formAgentIds.length} คน
+                    <input
+                      type="text"
+                      placeholder="เช่น ทีมดูแล Wallcraft, ทีมขายพรีเมียม"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-900 dark:text-zinc-100"
+                      required
+                    />
+                  </div>
+
+                  {/* Brand */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1.5">
+                      แบรนด์ที่รับผิดชอบ
+                    </label>
+                    <select
+                      value={formBrand}
+                      onChange={(e) => setFormBrand(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-900 dark:text-zinc-100 cursor-pointer"
+                    >
+                      {BRAND_OPTIONS.map((opt) => (
+                        <option key={opt.slug} value={opt.slug}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      เมื่อมีแชทลูกค้าของแบรนด์นี้เข้ามา ระบบจะส่งต่อให้คนในกลุ่มนี้
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const allFilteredIds = filteredUsers.map((u) => u.id);
-                        setFormAgentIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
-                      }}
-                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      + เลือกทั้งหมด ({filteredUsers.length})
-                    </button>
-                    {formAgentIds.length > 0 && (
-                      <>
-                        <span style={{ color: 'var(--border)' }}>|</span>
-                        <button
-                          type="button"
-                          onClick={() => setFormAgentIds([])}
-                          className="text-slate-400 hover:text-red-500 font-semibold cursor-pointer"
-                        >
-                          ล้างการเลือก
-                        </button>
-                      </>
-                    )}
+                  {/* Distribution Mode */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1.5">
+                      รูปแบบการกระจายงาน (Mode)
+                    </label>
+                    <div className="space-y-2">
+                      <label
+                        onClick={() => setFormMode('random')}
+                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                          formMode === 'random'
+                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="routing_mode"
+                          checked={formMode === 'random'}
+                          onChange={() => setFormMode('random')}
+                          className="cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-extrabold block">🎲 สุ่มอัตโนมัติ (Random)</span>
+                          <span className="text-[10px] text-slate-400 block">สุ่มเลือกระหว่างคนที่อยู่ในกลุ่ม</span>
+                        </div>
+                      </label>
+
+                      <label
+                        onClick={() => setFormMode('round_robin')}
+                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                          formMode === 'round_robin'
+                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200'
+                            : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="routing_mode"
+                          checked={formMode === 'round_robin'}
+                          onChange={() => setFormMode('round_robin')}
+                          className="cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-extrabold block">🔄 วนรอบตามคิว (Round-Robin)</span>
+                          <span className="text-[10px] text-slate-400 block">จ่ายวนสลับกันอย่างเท่าเทียม</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Is Active Toggle */}
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formIsActive}
+                        onChange={(e) => setFormIsActive(e.target.checked)}
+                        className="w-4 h-4 rounded cursor-pointer text-blue-600"
+                      />
+                      <span className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                        เปิดใช้งานกลุ่มนี้ (Active)
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Smart Auto-grant Notice */}
+                  <div className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300">
+                    <span className="font-extrabold block mb-0.5">💡 ระบบสิทธิ์อัตโนมัติ:</span>
+                    <span>พนักงานทุกคนที่ถูกเลือกในฝั่งขวา จะได้รับสิทธิ์เข้าใช้งานหน้ารวมแชท (LINE/FB/IG) ทันที</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300 mb-2">
-                  <span className="font-bold shrink-0">💡 สิทธิ์อัตโนมัติ:</span>
-                  <span>พนักงานทุกคนที่เลือกเข้ากลุ่ม จะได้รับสิทธิ์เข้าใช้งานหน้ารวมแชท (LINE/FB/IG) ทันที</span>
-                </div>
-
-                {/* Quick Filter Pills with Symbols */}
-                <div className="flex items-center gap-1.5 mb-2 overflow-x-auto pb-0.5">
+                {/* Bottom Actions inside Left Panel */}
+                <div className="pt-4 border-t border-slate-200/80 dark:border-zinc-800 flex items-center gap-2 mt-4">
                   <button
                     type="button"
-                    onClick={() => setAgentFilter('all')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                      agentFilter === 'all'
-                        ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-2xs'
-                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
-                    }`}
+                    onClick={() => setShowModal(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-200 hover:bg-slate-50 cursor-pointer"
                   >
-                    👥 ทั้งหมด ({users.length})
+                    ยกเลิก
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setAgentFilter('ready')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                      agentFilter === 'ready'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 hover:bg-emerald-100'
-                    }`}
+                    type="submit"
+                    disabled={formSaving}
+                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    💬 มีสิทธิ์แชท ({chatReadyCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAgentFilter('admin')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                      agentFilter === 'admin'
-                        ? 'bg-purple-600 text-white shadow-2xs'
-                        : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/50 hover:bg-purple-100'
-                    }`}
-                  >
-                    🛡️ แอดมิน ({adminCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAgentFilter('selected')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                      agentFilter === 'selected'
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/50 hover:bg-blue-100'
-                    }`}
-                  >
-                    ✓ เลือกแล้ว ({formAgentIds.length})
+                    {formSaving ? 'กำลังบันทึก...' : modalMode === 'create' ? 'สร้างกลุ่ม' : 'บันทึก'}
                   </button>
                 </div>
+              </div>
 
-                <input
-                  type="text"
-                  placeholder="🔍 ค้นหาชื่อพนักงาน, ตำแหน่ง..."
-                  value={agentSearch}
-                  onChange={(e) => setAgentSearch(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-muted)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.78rem',
-                    marginBottom: '8px',
-                    boxSizing: 'border-box',
-                  }}
-                />
+              {/* RIGHT COLUMN: Huge Employee Directory (Flex-1) */}
+              <div className="flex-1 p-6 flex flex-col overflow-hidden bg-white dark:bg-zinc-900">
+                {/* Top Directory Bar */}
+                <div className="pb-3 border-b border-slate-100 dark:border-zinc-800 shrink-0">
+                  <div className="flex items-center justify-between gap-3 mb-2.5 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-extrabold text-slate-900 dark:text-zinc-100">
+                        เลือกพนักงานผู้ดูแลในกลุ่มนี้
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        เลือกแล้ว {formAgentIds.length} คน
+                      </span>
+                    </div>
 
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-                  style={{
-                    maxHeight: '380px',
-                    minHeight: '240px',
-                    overflowY: 'auto',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    padding: '8px',
-                    background: 'var(--surface)',
-                  }}
-                >
+                    <div className="flex items-center gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allFilteredIds = filteredUsers.map((u) => u.id);
+                          setFormAgentIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+                        }}
+                        className="text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer"
+                      >
+                        + เลือกทั้งหมดตามตัวกรอง ({filteredUsers.length})
+                      </button>
+                      {formAgentIds.length > 0 && (
+                        <>
+                          <span className="text-slate-300 dark:text-zinc-700">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormAgentIds([])}
+                            className="text-slate-400 hover:text-red-500 font-semibold cursor-pointer"
+                          >
+                            ล้างการเลือก
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick Filter Pills & Search in One Row */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาชื่อพนักงาน, ตำแหน่ง, แผนก..."
+                        value={agentSearch}
+                        onChange={(e) => setAgentSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-zinc-850/60 border border-slate-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800 dark:text-zinc-100"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto pb-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setAgentFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                          agentFilter === 'all'
+                            ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-2xs'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+                        }`}
+                      >
+                        👥 ทั้งหมด ({users.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAgentFilter('ready')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                          agentFilter === 'ready'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 hover:bg-emerald-100'
+                        }`}
+                      >
+                        💬 มีสิทธิ์แชท ({chatReadyCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAgentFilter('admin')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                          agentFilter === 'admin'
+                            ? 'bg-purple-600 text-white shadow-2xs'
+                            : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/50 hover:bg-purple-100'
+                        }`}
+                      >
+                        🛡️ แอดมิน ({adminCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAgentFilter('selected')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                          agentFilter === 'selected'
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/50 hover:bg-blue-100'
+                        }`}
+                      >
+                        ✓ เลือกแล้ว ({formAgentIds.length})
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* THE HUGE EMPLOYEE GRID: 2 to 3 Columns */}
+                <div className="flex-1 overflow-y-auto py-3">
                   {filteredUsers.length === 0 ? (
-                    <div className="col-span-full py-10 text-center text-slate-400 text-xs">
+                    <div className="py-20 text-center text-slate-400 text-xs">
                       ไม่พบพนักงานตามเงื่อนไขที่เลือก
                     </div>
                   ) : (
-                    filteredUsers.map((u) => {
-                      const isSelected = formAgentIds.includes(u.id);
-                      const isAdmin = u.role === 'admin';
-                      const hasDirectAccess = accessUsers.some(
-                        (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
-                      );
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {filteredUsers.map((u) => {
+                        const isSelected = formAgentIds.includes(u.id);
+                        const isAdmin = u.role === 'admin';
+                        const hasDirectAccess = accessUsers.some(
+                          (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
+                        );
 
-                      return (
-                        <div
-                          key={u.id}
-                          onClick={() => toggleAgent(u.id)}
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-                            border: isSelected ? '1px solid #3B82F6' : '1px solid transparent',
-                            transition: 'all 0.1s ease',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                            {/* Avatar with Corner Status Emoji Badge */}
-                            <div style={{ position: 'relative', flexShrink: 0 }}>
-                              <AvatarImg
-                                url={u.avatar_url}
-                                name={u.nickname || u.first_name}
-                                size={26}
-                              />
-                              <span
-                                style={{
-                                  position: 'absolute',
-                                  bottom: '-4px',
-                                  right: '-4px',
-                                  fontSize: '11px',
-                                  lineHeight: 1,
-                                }}
-                                title={isAdmin ? 'ผู้ดูแลระบบ' : hasDirectAccess ? 'มีสิทธิ์แชทพร้อมตอบ' : isSelected ? 'จะเปิดสิทธิ์ให้อัตโนมัติ' : 'พนักงานทั่วไป'}
-                              >
-                                {isAdmin ? '🛡️' : hasDirectAccess ? '💬' : isSelected ? '⚡' : '👤'}
-                              </span>
-                            </div>
-
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                  {u.position || u.department || 'พนักงาน'}
-                                </span>
-
-                                {/* Clear visual badges with symbols */}
-                                {isAdmin ? (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                    🛡️ Super Admin
-                                  </span>
-                                ) : hasDirectAccess ? (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                    💬 มีสิทธิ์แชทแล้ว
-                                  </span>
-                                ) : isSelected ? (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                    ⚡ จะเปิดสิทธิ์ให้อัตโนมัติ
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">
-                                    ⚪ ทั่วไป
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
+                        return (
                           <div
-                            style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '6px',
-                              border: isSelected ? '1px solid #3B82F6' : '1px solid var(--border)',
-                              background: isSelected ? '#3B82F6' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#fff',
-                              flexShrink: 0,
-                            }}
+                            key={u.id}
+                            onClick={() => toggleAgent(u.id)}
+                            className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-all border ${
+                              isSelected
+                                ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 dark:border-blue-600 shadow-2xs'
+                                : 'bg-white dark:bg-zinc-850 hover:bg-slate-50 dark:hover:bg-zinc-800 border-slate-200/80 dark:border-zinc-750'
+                            }`}
                           >
-                            {isSelected && <Check size={13} />}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative shrink-0">
+                                <AvatarImg
+                                  url={u.avatar_url}
+                                  name={u.nickname || u.first_name}
+                                  size={30}
+                                />
+                                <span
+                                  className="absolute -bottom-1 -right-1 text-[11px] leading-none"
+                                  title={isAdmin ? 'ผู้ดูแลระบบ' : hasDirectAccess ? 'มีสิทธิ์แชทพร้อมตอบ' : isSelected ? 'จะเปิดสิทธิ์ให้อัตโนมัติ' : 'พนักงานทั่วไป'}
+                                >
+                                  {isAdmin ? '🛡️' : hasDirectAccess ? '💬' : isSelected ? '⚡' : '👤'}
+                                </span>
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1 truncate">
+                                  <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
+                                    {u.first_name} {u.nickname ? `(${u.nickname})` : ''}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                  <span className="text-[10px] text-slate-400 truncate max-w-[75px]">
+                                    {u.position || u.department || 'พนักงาน'}
+                                  </span>
+
+                                  {isAdmin ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                                      🛡️ Admin
+                                    </span>
+                                  ) : hasDirectAccess ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                      💬 มีสิทธิ์แชท
+                                    </span>
+                                  ) : isSelected ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                                      ⚡ สิทธิ์อัตโนมัติ
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-all ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white'
+                                  : 'border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
+                              }`}
+                            >
+                              {isSelected && <Check size={11} />}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-              </div>
-
-              {/* Is Active */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  id="group_active_toggle"
-                  checked={formIsActive}
-                  onChange={(e) => setFormIsActive(e.target.checked)}
-                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                />
-                <label htmlFor="group_active_toggle" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                  เปิดใช้งานกลุ่มนี้ (Active)
-                </label>
-              </div>
-
-              {/* Action buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSaving}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--blue)',
-                    color: '#fff',
-                    fontWeight: 700,
-                    cursor: formSaving ? 'not-allowed' : 'pointer',
-                    fontSize: '0.82rem',
-                    opacity: formSaving ? 0.7 : 1,
-                  }}
-                >
-                  {formSaving ? 'กำลังบันทึก...' : modalMode === 'create' ? 'สร้างกลุ่ม' : 'บันทึกการแก้ไข'}
-                </button>
               </div>
             </form>
           </div>
