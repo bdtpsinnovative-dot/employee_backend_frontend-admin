@@ -1584,12 +1584,12 @@ export default function ChatInbox() {
                       alignItems: 'center',
                     }}
                   >
-                    {/* Avatar with Platform Badge */}
+                    {/* Avatar with Platform Badge (Bottom-Right) - โปรไฟล์กลม สะอาดตา ไม่มีริบบิ้นทับหัว */}
                     <div style={{ position: 'relative', flexShrink: 0 }}>
                       <div
                         style={{
-                          width: '42px',
-                          height: '42px',
+                          width: '46px',
+                          height: '46px',
                           borderRadius: '50%',
                           background: avatarBg,
                           color: avatarColor,
@@ -1597,8 +1597,9 @@ export default function ChatInbox() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontWeight: 700,
-                          fontSize: '0.9rem',
+                          fontSize: '0.95rem',
                           overflow: 'hidden',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                         }}
                       >
                         {conv.customer_avatar ? (
@@ -1613,7 +1614,7 @@ export default function ChatInbox() {
                         )}
                       </div>
 
-                      {/* Mini Platform Badge */}
+                      {/* Mini Platform Badge - ทแยงมุมขวาล่าง */}
                       <span
                         style={{
                           position: 'absolute',
@@ -1627,37 +1628,42 @@ export default function ChatInbox() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '2px solid var(--surface)',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
                           overflow: 'hidden',
+                          zIndex: 2,
                         }}
                         title={badgeTitle}
                       >
                         {isLine ? (
-                          <LineIcon size={14} />
+                          <LineIcon size={13} />
                         ) : isIg ? (
-                          <InstagramIcon size={14} />
+                          <InstagramIcon size={13} />
                         ) : (
-                          <FacebookIcon size={14} />
+                          <FacebookIcon size={13} />
                         )}
                       </span>
                     </div>
 
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                    {/* Info: 3 Clean Rows */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {/* Row 1: ชื่อลูกค้า + โลโก้และชื่อแบรนด์ล้วนๆ (ไม่มีกล่องครอบ ไม่ใช้ริบบิ้น เห็นครบ 100%) + เวลา */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
                           <span
                             style={{
-                              fontWeight: 600,
-                              fontSize: '0.85rem',
+                              fontWeight: conv.unread_count > 0 ? 700 : 600,
+                              fontSize: '0.86rem',
                               color: 'var(--text-primary)',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                             }}
+                            title={conv.customer_name}
                           >
                             {conv.customer_name}
                           </span>
+
+                          {/* Brand: เอาแค่โลโก้กลม + ชื่อแบรนด์ล้วนๆ ไม่ครอบกล่อง ไม่ตีกรอบ เห็นชื่อครบถ้วน */}
                           {(() => {
                             const bInfo = getBrandDisplay(conv.brand, channels);
                             return (
@@ -1669,81 +1675,36 @@ export default function ChatInbox() {
                                   flexShrink: 0,
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '3px',
+                                  gap: '3.5px',
+                                  whiteSpace: 'nowrap',
                                 }}
+                                title={`แบรนด์: ${bInfo.label}`}
                               >
-                                {bInfo.logo && (
+                                {bInfo.logo ? (
                                   <img
                                     src={bInfo.logo}
                                     alt=""
                                     style={{ width: '12px', height: '12px', borderRadius: '50%', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <span
+                                    style={{
+                                      width: '7px',
+                                      height: '7px',
+                                      borderRadius: '50%',
+                                      background: bInfo.bg,
+                                      display: 'inline-block',
+                                    }}
                                   />
                                 )}
                                 <span>{bInfo.shortLabel}</span>
                               </span>
                             );
                           })()}
-
-                          {/* Assigned Agent or Care Group Badge (Supports multiple caretakers) */}
-                          {(() => {
-                            const cellAgents = getConversationAgents(conv, users);
-                            const isMine = cellAgents.some((a) => a.id === currentUser?.id);
-                            if (cellAgents.length > 0) {
-                              return (
-                                <span
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAssignModalConv(conv);
-                                  }}
-                                  style={{
-                                    fontSize: '9px',
-                                    fontWeight: 600,
-                                    padding: '1px 5px',
-                                    borderRadius: '4px',
-                                    background: isMine ? '#DBEAFE' : 'var(--surface)',
-                                    color: isMine ? '#1D4ED8' : 'var(--text-secondary)',
-                                    border: '1px solid var(--border)',
-                                    flexShrink: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '2px',
-                                    cursor: 'pointer',
-                                  }}
-                                  title={`ผู้ดูแล (${cellAgents.length} คน): ${cellAgents.map((a) => a.nickname || a.first_name).join(', ')} (คลิกเพื่อจัดการ)`}
-                                >
-                                  {cellAgents.length > 1 ? (
-                                    <>👥 {cellAgents.map((a) => a.nickname || a.first_name).join(', ')}</>
-                                  ) : (
-                                    <>👤 {cellAgents[0].nickname || cellAgents[0].first_name}</>
-                                  )}
-                                </span>
-                              );
-                            }
-                            return (
-                              <span
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignModalConv(conv);
-                                }}
-                                style={{
-                                  fontSize: '9px',
-                                  fontWeight: 600,
-                                  padding: '1px 4px',
-                                  borderRadius: '4px',
-                                  background: '#FEF3C7',
-                                  color: '#B45309',
-                                  border: '1px solid #FDE68A',
-                                  flexShrink: 0,
-                                  cursor: 'pointer',
-                                }}
-                                title="ยังไม่มีผู้ดูแล (คลิกเพื่อเพิ่มคนดูแล)"
-                              >
-                                ว่าง
-                              </span>
-                            );
-                          })()}
                         </div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+
+                        {/* เวลา (ขวาบน) */}
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
                           {conv.last_message_at
                             ? new Date(conv.last_message_at).toLocaleTimeString('th-TH', {
                                 hour: '2-digit',
@@ -1753,211 +1714,152 @@ export default function ChatInbox() {
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                      {/* Row 2: ข้อความล่าสุด (กว้างเต็มที่ ไม่โดนบีบ) + ป้ายยังไม่อ่าน */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
                         <span
                           style={{
-                            fontSize: '0.78rem',
+                            fontSize: '0.75rem',
                             color: conv.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
                             fontWeight: conv.unread_count > 0 ? 600 : 400,
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            maxWidth: '170px',
                             flex: 1,
-                            marginRight: '6px',
                           }}
                         >
                           {conv.last_message || 'เริ่มการสนทนา'}
                         </span>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                          {conv.unread_count > 0 && (
-                            <span
-                              style={{
-                                background: '#EF4444',
-                                color: '#fff',
-                                borderRadius: '10px',
-                                padding: '1px 6px',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {conv.unread_count}
-                            </span>
-                          )}
+                        {conv.unread_count > 0 && (
+                          <span
+                            style={{
+                              background: '#EF4444',
+                              color: '#fff',
+                              borderRadius: '10px',
+                              padding: '1px 6px',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              flexShrink: 0,
+                              lineHeight: '14px',
+                              minWidth: '16px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {conv.unread_count}
+                          </span>
+                        )}
+                      </div>
 
-                          {/* วงกลมคนดูแล อยู่ใต้สุดของแต่ละเซลล์ (Bottom Right) รองรับหลายคน (Avatar Stack) */}
-                          {(() => {
-                            const cellAgents = getConversationAgents(conv, users);
-                            if (cellAgents.length === 0) {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAssignModalConv(conv);
-                                  }}
-                                  style={{
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '50%',
-                                    border: '1.5px dashed #94A3B8',
-                                    background: 'rgba(148, 163, 184, 0.08)',
-                                    color: '#64748B',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: 0,
-                                    cursor: 'pointer',
-                                    flexShrink: 0,
-                                    transition: 'all 0.15s ease',
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.borderColor = '#3B82F6';
-                                    e.currentTarget.style.color = '#2563EB';
-                                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
-                                    e.currentTarget.style.transform = 'scale(1.12)';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = '#94A3B8';
-                                    e.currentTarget.style.color = '#64748B';
-                                    e.currentTarget.style.background = 'rgba(148, 163, 184, 0.08)';
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                  }}
-                                  title="ยังไม่มีคนดูแล (คลิกเพื่อเพิ่มคนดูแลลูกค้า)"
-                                >
-                                  <Plus size={12} strokeWidth={2.4} />
-                                </button>
-                              );
-                            }
+                      {/* Row 3: รูปวงกลมคนดูแล (เอาแค่วงกลม แสดงครบทุกคน ชี้เมาส์ขึ้นชื่อ) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                        {(() => {
+                          const cellAgents = getConversationAgents(conv, users);
+                          const STACK_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EC4899'];
 
-                            if (cellAgents.length === 1) {
-                              const ag = cellAgents[0];
-                              const agName = ag.nickname || ag.first_name;
-                              const agAvatar = ag.avatar_url ? avatarUrl(ag.avatar_url) : null;
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAssignModalConv(conv);
-                                  }}
-                                  style={{
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '50%',
-                                    border: '2px solid var(--surface, #ffffff)',
-                                    outline: '1.5px solid var(--border, #E2E8F0)',
-                                    background: '#3B82F6',
-                                    color: '#ffffff',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: 0,
-                                    cursor: 'pointer',
-                                    overflow: 'hidden',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                                    flexShrink: 0,
-                                    transition: 'transform 0.15s ease',
-                                  }}
-                                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.12)')}
-                                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                                  title={`ผู้ดูแล: ${agName} (คลิกเพื่อเพิ่ม/จัดการคนดูแล)`}
-                                >
-                                  {agAvatar ? (
-                                    <img src={agAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  ) : (
-                                    <span style={{ fontSize: '10px', fontWeight: 800 }}>
-                                      {agName.charAt(0).toUpperCase()}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            }
-
-                            // Multiple caretakers: Avatar Stack
-                            const STACK_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'];
+                          if (cellAgents.length === 0) {
                             return (
-                              <div
+                              <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setAssignModalConv(conv);
                                 }}
                                 style={{
-                                  display: 'inline-flex',
+                                  width: '20px',
+                                  height: '20px',
+                                  borderRadius: '50%',
+                                  border: '1.5px dashed #CBD5E1',
+                                  background: 'rgba(0,0,0,0.02)',
+                                  color: '#94A3B8',
+                                  display: 'flex',
                                   alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: 0,
                                   cursor: 'pointer',
                                   flexShrink: 0,
-                                  padding: '1px',
-                                  borderRadius: '16px',
-                                  transition: 'transform 0.15s ease',
+                                  transition: 'all 0.15s ease',
                                 }}
-                                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
-                                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                                title={`ผู้ดูแล (${cellAgents.length} คน): ${cellAgents.map((a) => a.nickname || a.first_name).join(', ')} (คลิกเพื่อเพิ่ม/จัดการคนดูแล)`}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = '#3B82F6';
+                                  e.currentTarget.style.color = '#2563EB';
+                                  e.currentTarget.style.background = '#EFF6FF';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = '#CBD5E1';
+                                  e.currentTarget.style.color = '#94A3B8';
+                                  e.currentTarget.style.background = 'rgba(0,0,0,0.02)';
+                                }}
+                                title="ยังไม่มีผู้ดูแล (คลิกเพื่อเพิ่มคนดูแลลูกค้า)"
                               >
-                                {cellAgents.slice(0, 3).map((ag, idx) => {
-                                  const agAvatar = ag.avatar_url ? avatarUrl(ag.avatar_url) : null;
-                                  const agName = ag.nickname || ag.first_name;
-                                  return (
-                                    <div
-                                      key={ag.id}
-                                      style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '50%',
-                                        border: '2px solid var(--surface, #ffffff)',
-                                        outline: '1.5px solid var(--border, #E2E8F0)',
-                                        background: STACK_COLORS[idx % STACK_COLORS.length],
-                                        color: '#ffffff',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        overflow: 'hidden',
-                                        marginLeft: idx > 0 ? '-8px' : 0,
-                                        zIndex: 3 - idx,
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      {agAvatar ? (
-                                        <img src={agAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      ) : (
-                                        <span style={{ fontSize: '9px', fontWeight: 800 }}>
-                                          {agName.charAt(0).toUpperCase()}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                                {cellAgents.length > 3 && (
+                                <Plus size={10} strokeWidth={2.5} />
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssignModalConv(conv);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                padding: '1px 0',
+                              }}
+                              title={`ผู้ดูแล (${cellAgents.length} คน): ${cellAgents.map((a) => a.nickname || a.first_name).join(', ')} (คลิกเพื่อจัดการ)`}
+                            >
+                              {cellAgents.map((ag, idx) => {
+                                const agAvatar = ag.avatar_url ? avatarUrl(ag.avatar_url) : null;
+                                const agName = ag.nickname ? `${ag.first_name} (${ag.nickname})` : ag.first_name;
+                                return (
                                   <div
+                                    key={ag.id}
                                     style={{
-                                      width: '24px',
-                                      height: '24px',
+                                      width: '20px',
+                                      height: '20px',
                                       borderRadius: '50%',
-                                      border: '2px solid var(--surface, #ffffff)',
-                                      background: '#475569',
+                                      border: '1.5px solid var(--surface, #ffffff)',
+                                      background: STACK_COLORS[idx % STACK_COLORS.length],
                                       color: '#ffffff',
-                                      fontSize: '9px',
-                                      fontWeight: 800,
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      marginLeft: '-8px',
-                                      zIndex: 0,
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                                      overflow: 'hidden',
+                                      marginLeft: idx > 0 ? '-6px' : 0,
+                                      zIndex: cellAgents.length - idx,
+                                      boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
                                       flexShrink: 0,
+                                      transition: 'transform 0.15s ease, z-index 0.15s ease',
                                     }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1.22)';
+                                      e.currentTarget.style.zIndex = '20';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                      e.currentTarget.style.zIndex = String(cellAgents.length - idx);
+                                    }}
+                                    title={`ผู้ดูแล: ${agName}`}
                                   >
-                                    +{cellAgents.length - 3}
+                                    {agAvatar ? (
+                                      <img
+                                        src={agAvatar}
+                                        alt=""
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                    ) : (
+                                      <span style={{ fontSize: '9px', fontWeight: 800 }}>
+                                        {(ag.nickname || ag.first_name || 'U').charAt(0).toUpperCase()}
+                                      </span>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
