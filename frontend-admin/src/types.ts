@@ -393,8 +393,9 @@ export interface ChatMessage {
   id: string;
   conversation_id: string;
   sender_type: 'customer' | 'agent' | 'bot';
+  sender_id?: string | null;
   sender_name?: string;
-  sender_avatar?: string;
+  sender_avatar?: string | null;
   message_type: 'text' | 'image' | 'file' | 'sticker';
   content: string;
   media_url?: string | null;
@@ -423,7 +424,8 @@ export interface ChatRoutingGroup {
   name: string;
   brand: string;
   agent_ids: string[];
-  mode: 'random' | 'round_robin';
+  mode: 'random' | 'round_robin' | 'shared';
+  agents_per_customer?: number | 'all';
   last_assigned_index?: number;
   is_active: boolean;
   created_at?: string;
@@ -433,4 +435,21 @@ export interface ChatAccessUser {
   user_id: string;
   added_at: string;
   is_enabled: boolean;
+}
+
+export interface AgentWeightConfig {
+  weight: number; // e.g. 1 to 10 (higher = more chance)
+  max_active_chats: number; // 0 = unlimited
+  is_paused: boolean; // paused from receiving new leads
+}
+
+export interface ChatSystemConfig {
+  reply_policy: 'everyone' | 'assigned_only';
+  auto_assign_first_responder: boolean;
+  auto_routing_enabled: boolean;
+  routing_working_hours_only: boolean;
+  working_hours_start: string; // e.g. '08:30'
+  working_hours_end: string; // e.g. '18:00'
+  default_fallback_agent_id: string | null;
+  agent_weights: Record<string, AgentWeightConfig>;
 }

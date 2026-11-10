@@ -11,9 +11,11 @@ import {
   X,
   Users,
   Shield,
+  Sliders,
 } from 'lucide-react';
 import ChatRoutingTab from '../components/chat/ChatRoutingTab';
 import ChatAccessTab from '../components/chat/ChatAccessTab';
+import ChatSystemConfigTab from '../components/chat/ChatSystemConfigTab';
 import { supabase } from '../lib/supabase';
 import type { ChatChannel } from '../types';
 
@@ -81,7 +83,7 @@ export default function ChatSettings() {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'channels' | 'routing' | 'access'>('channels');
+  const [activeTab, setActiveTab] = useState<'channels' | 'routing' | 'system' | 'access'>('channels');
 
   // Modal State
   const [showChannelModal, setShowChannelModal] = useState(false);
@@ -293,84 +295,95 @@ export default function ChatSettings() {
   };
 
   return (
-    <div className="w-full px-4 py-6 md:px-8 lg:px-10 space-y-6">
-      {/* ================= ULTRA CLEAN TOP BAR ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-zinc-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/40">
-              Omnichannel Chat System
+    <div className="w-full px-3 py-3 md:px-6 space-y-3.5">
+      {/* ================= COMPACT UNIFIED TOP BAR ================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-200/80 dark:border-zinc-800">
+        {/* Left: Title + Tabs in one compact flow */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 pr-2 sm:border-r border-slate-200 dark:border-zinc-800">
+            <h1 className="text-sm sm:text-base font-black text-slate-900 dark:text-zinc-100 tracking-tight shrink-0">
+              ตั้งค่าระบบแชท
+            </h1>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.2 rounded border border-blue-100 dark:border-blue-900/40">
+              Omnichannel
             </span>
           </div>
-          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-zinc-100 tracking-tight">
-            ตั้งค่าระบบแชท & สิทธิ์การใช้งาน
-          </h1>
-          <p className="text-xs md:text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            จัดการช่องทาง LINE, FB, IG, ระบบสุ่มคนดูแลลูกค้า และสิทธิ์การเข้าใช้งาน
-          </p>
+
+          {/* Unified Compact Tabs */}
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-zinc-850 rounded-xl border border-slate-200/80 dark:border-zinc-800">
+            <button
+              onClick={() => setActiveTab('channels')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'channels'
+                  ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Radio size={13} className={activeTab === 'channels' ? 'text-blue-600' : ''} />
+              <span>ช่องทางแชท</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/70 dark:bg-zinc-700 font-bold">
+                {brandGroups.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('routing')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'routing'
+                  ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Users size={13} className={activeTab === 'routing' ? 'text-blue-600' : ''} />
+              <span>จัดกลุ่มแอดมิน & สุ่มคนดูแล</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('system')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'system'
+                  ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Sliders size={13} className={activeTab === 'system' ? 'text-blue-600' : ''} />
+              <span>ตั้งค่าระบบ & สัดส่วนการสุ่ม</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('access')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'access'
+                  ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Shield size={13} className={activeTab === 'access' ? 'text-blue-600' : ''} />
+              <span>สิทธิ์เข้าใช้งาน</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
           <Link
             to="/chat-inbox"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700 bg-white dark:bg-zinc-850 text-xs font-bold text-slate-700 dark:text-zinc-200 hover:border-blue-500 hover:text-blue-600 shadow-2xs transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200/80 dark:border-zinc-700 bg-white dark:bg-zinc-850 text-xs font-bold text-slate-700 dark:text-zinc-200 hover:border-blue-500 hover:text-blue-600 shadow-2xs transition-all"
           >
-            <MessageSquare size={15} />
-            <span>ไปที่หน้ารวมแชท ↗</span>
+            <MessageSquare size={13} />
+            <span>หน้ารวมแชท ↗</span>
           </Link>
 
           {activeTab === 'channels' && (
             <button
               onClick={handleOpenNewBrand}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
             >
-              <Plus size={15} />
+              <Plus size={14} />
               <span>เพิ่มแบรนด์ใหม่</span>
             </button>
           )}
         </div>
-      </div>
-
-      {/* ================= TAB NAVIGATION ================= */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-zinc-850/90 rounded-2xl border border-slate-200/80 dark:border-zinc-800 w-fit">
-        <button
-          onClick={() => setActiveTab('channels')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'channels'
-              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Radio size={14} className={activeTab === 'channels' ? 'text-blue-600' : ''} />
-          <span>ช่องทางแชท (LINE / FB / IG)</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/70 dark:bg-zinc-700 font-bold">
-            {brandGroups.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('routing')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'routing'
-              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Users size={14} className={activeTab === 'routing' ? 'text-blue-600' : ''} />
-          <span>จัดกลุ่มแอดมิน & สุ่มคนดูแล</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('access')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'access'
-              ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
-              : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Shield size={14} className={activeTab === 'access' ? 'text-blue-600' : ''} />
-          <span>สิทธิ์เข้าใช้งานหน้ารวมแชท</span>
-        </button>
       </div>
 
       {/* ================= TAB 1: CHANNELS ================= */}
@@ -616,9 +629,12 @@ export default function ChatSettings() {
       ))}
 
       {/* ================= TAB 2: ROUTING & RANDOM ASSIGNMENT ================= */}
-      {activeTab === 'routing' && <ChatRoutingTab />}
+      {activeTab === 'routing' && <ChatRoutingTab onNavigateToAccess={() => setActiveTab('access')} />}
 
-      {/* ================= TAB 3: ACCESS PERMISSIONS ================= */}
+      {/* ================= TAB 3: SYSTEM CONFIG & AGENT RATIOS ================= */}
+      {activeTab === 'system' && <ChatSystemConfigTab onNavigateToAccess={() => setActiveTab('access')} />}
+
+      {/* ================= TAB 4: ACCESS PERMISSIONS ================= */}
       {activeTab === 'access' && <ChatAccessTab />}
 
       {/* ================= MODAL: CHANNEL DETAILS & SETTINGS ================= */}

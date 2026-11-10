@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Shuffle,
   RotateCcw,
+  UserPlus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchUsers } from '../../services/adminApi';
@@ -25,6 +26,7 @@ import {
 } from '../../services/chatRoutingService';
 import type { ChatRoutingGroup, User, ChatConversation, ChatAccessUser } from '../../types';
 import { avatarUrl } from '../tasks/taskUtils';
+import ChatDistributionModal from './ChatDistributionModal';
 
 function AvatarImg({ url, name, size = 20 }: { url?: string | null; name: string; size?: number }) {
   const [error, setError] = useState(false);
@@ -62,13 +64,17 @@ function AvatarImg({ url, name, size = 20 }: { url?: string | null; name: string
   );
 }
 
-export default function ChatRoutingTab() {
+interface ChatRoutingTabProps {
+  onNavigateToAccess?: () => void;
+}
+
+export default function ChatRoutingTab({ onNavigateToAccess }: ChatRoutingTabProps) {
   const [groups, setGroups] = useState<ChatRoutingGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [accessUsers, setAccessUsers] = useState<ChatAccessUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [unassignedCount, setUnassignedCount] = useState<number>(0);
-  const [autoAssigning, setAutoAssigning] = useState(false);
+    const [showDistributionModal, setShowDistributionModal] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Group Modal
@@ -83,13 +89,14 @@ export default function ChatRoutingTab() {
   // Form State
   const [formName, setFormName] = useState('');
   const [formBrand, setFormBrand] = useState('all');
-  const [formMode, setFormMode] = useState<'random' | 'round_robin'>('random');
+  const [formMode, setFormMode] = useState<'shared' | 'round_robin' | 'random'>('shared');
+  const [formAgentsPerCustomer, setFormAgentsPerCustomer] = useState<'all' | number>('all');
   const [formAgentIds, setFormAgentIds] = useState<string[]>([]);
   const [formIsActive, setFormIsActive] = useState(true);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [agentSearch, setAgentSearch] = useState('');
-  const [agentFilter, setAgentFilter] = useState<'all' | 'ready' | 'admin' | 'selected'>('all');
+  const [agentFilter, setAgentFilter] = useState<'all' | 'ready' | 'selected'>('all');
 
   const loadData = useCallback(async () => {
     try {
@@ -130,13 +137,12 @@ export default function ChatRoutingTab() {
     setEditingGroupId(null);
     setFormName('');
     setFormBrand('all');
-    setFormMode('random');
+    setFormMode('shared');
+    setFormAgentsPerCustomer('all');
     setFormAgentIds([]);
     setFormIsActive(true);
     setFormError('');
     setAgentSearch('');
-    setAgentFilter('all');
-    setTestRandomResult(null);
     setAgentFilter('all');
     setTestRandomResult(null);
     setShowModal(true);
@@ -148,11 +154,14 @@ export default function ChatRoutingTab() {
     setEditingGroupId(group.id);
     setFormName(group.name);
     setFormBrand(group.brand);
-    setFormMode(group.mode);
+    setFormMode(group.mode || 'shared');
+    setFormAgentsPerCustomer(group.agents_per_customer ?? 'all');
     setFormAgentIds(group.agent_ids || []);
     setFormIsActive(group.is_active);
     setFormError('');
     setAgentSearch('');
+    setAgentFilter('all');
+    setTestRandomResult(null);
     setShowModal(true);
   };
 
@@ -163,16 +172,27 @@ export default function ChatRoutingTab() {
     );
   };
 
-  // Test / Simulate Randomizer live inside the modal
+  // Test / Simulate Care Team & Randomizer live inside the modal
   const handleTestRandom = () => {
     if (formAgentIds.length === 0) {
-      setFormError('กรุณาเลือกสมาชิกในฝั่งขวาอย่างน้อย 1 คนก่อนทดสอบสุ่มครับ');
+      setFormError('กรุณาเลือกสมาชิกในฝั่งขวาอย่างน้อย 1 คนก่อนทดสอบครับ');
       return;
     }
-    const candidateUsers = users.filter((u) => formAgentIds.includes(u.id));
+    const candidateUsers = chatStaffUsers.filter((u) => formAgentIds.includes(u.id));
     if (candidateUsers.length === 0) return;
 
     setFormError('');
+    if (formMode === 'shared') {
+      const pickCount = formAgentsPerCustomer === 'all' ? candidateUsers.length : Math.min(Number(formAgentsPerCustomer), candidateUsers.length);
+      const chosen = candidateUsers.slice(0, pickCount);
+      setTestRandomResult({
+        user: chosen[0],
+        isRolling: false,
+      });
+      showNotification(`👥 1 ลูกค้าดูแลร่วมกัน ${pickCount} คน: ${chosen.map(u => u.nickname || u.first_name).join(', ')}`);
+      return;
+    }
+
     let step = 0;
     const interval = setInterval(() => {
       step++;
@@ -233,6 +253,7 @@ export default function ChatRoutingTab() {
           name: formName.trim(),
           brand: formBrand,
           mode: formMode,
+          agents_per_customer: formAgentsPerCustomer,
           agent_ids: formAgentIds,
           is_active: formIsActive,
           created_at: new Date().toISOString(),
@@ -246,6 +267,7 @@ export default function ChatRoutingTab() {
                 name: formName.trim(),
                 brand: formBrand,
                 mode: formMode,
+                agents_per_customer: formAgentsPerCustomer,
                 agent_ids: formAgentIds,
                 is_active: formIsActive,
               }
@@ -359,61 +381,16 @@ export default function ChatRoutingTab() {
     }
   };
 
-  // Bulk Auto-assign
-  const handleBulkAutoAssign = async () => {
-    if (unassignedCount === 0) {
-      alert('ไม่มีลูกค้าที่ยังไม่มีคนดูแลครับ ทุกเคสมีผู้รับผิดชอบแล้ว');
-      return;
-    }
-    if (groups.filter((g) => g.is_active && g.agent_ids.length > 0).length === 0) {
-      alert('กรุณาสร้างและเปิดใช้งานกลุ่มดูแลลูกค้าที่มีสมาชิกก่อนครับ');
-      return;
-    }
-
-    if (!window.confirm(`ต้องการสุ่มกระจายลูกค้าที่ยังไม่มีคนดูแลจำนวน ${unassignedCount} คน ให้กับแอดมินในกลุ่มทันทีใช่หรือไม่?`)) {
-      return;
-    }
-
-    try {
-      setAutoAssigning(true);
-      const { data: convs, error } = await supabase
-        .from('chat_conversations')
-        .select('*')
-        .is('assigned_to', null);
-
-      if (error) throw error;
-      if (!convs || convs.length === 0) {
-        alert('ไม่พบเคสที่ยังไม่มีคนดูแล');
-        return;
-      }
-
-      const res = await autoAssignConversations(convs as ChatConversation[], groups, users);
-      setGroups(res.updatedGroups);
-      showNotification(`สุ่มจ่ายงานให้แอดมินเรียบร้อยแล้วทั้งหมด ${res.assignedCount} เคส!`);
-      await loadData();
-    } catch (err: any) {
-      alert('เกิดข้อผิดพลาดในการสุ่มจ่ายงาน: ' + err.message);
-    } finally {
-      setAutoAssigning(false);
-    }
-  };
-
-  const chatReadyCount = users.filter(
-    (u) =>
-      u.role === 'admin' ||
-      accessUsers.some((a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled)
-  ).length;
-  const adminCount = users.filter((u) => u.role === 'admin').length;
-
-  const filteredUsers = users.filter((u) => {
-    const isAdmin = u.role === 'admin';
-    const hasDirectAccess = accessUsers.some(
-      (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled
+  // 👥 Permitted caretakers: Admins + staff with chat access
+  const chatStaffUsers = users.filter((u) => {
+    if (u.role === 'admin') return true;
+    return accessUsers.some(
+      (a) => (a.user_id === u.id || (u.auth_id && a.user_id === u.auth_id)) && a.is_enabled !== false
     );
-    const isSelected = formAgentIds.includes(u.id);
+  });
 
-    if (agentFilter === 'ready' && !hasDirectAccess && !isAdmin) return false;
-    if (agentFilter === 'admin' && !isAdmin) return false;
+  const filteredUsers = chatStaffUsers.filter((u) => {
+    const isSelected = formAgentIds.includes(u.id);
     if (agentFilter === 'selected' && !isSelected) return false;
 
     const query = agentSearch.toLowerCase().trim();
@@ -425,7 +402,7 @@ export default function ChatRoutingTab() {
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Toast Notification */}
       {successToast && (
         <div className="fixed top-5 right-5 z-[9999] bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-bold animate-fadeIn">
@@ -435,7 +412,7 @@ export default function ChatRoutingTab() {
       )}
 
       {/* Top Utility & Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-2.5">
         <div className="flex items-center gap-2.5 text-xs text-slate-500">
           <span className="font-extrabold text-slate-800 dark:text-zinc-100">
             กลุ่มแอดมินดูแลลูกค้า ({groups.length} กลุ่ม)
@@ -449,14 +426,14 @@ export default function ChatRoutingTab() {
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={handleBulkAutoAssign}
-            disabled={autoAssigning || unassignedCount === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-bold shadow-2xs hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+            onClick={() => setShowDistributionModal(true)}
+            disabled={unassignedCount === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-bold shadow-2xs hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
             title={unassignedCount > 0 ? `สุ่มจ่ายลูกค้า ${unassignedCount} คน` : 'ไม่มีลูกค้าที่ยังไม่มีผู้ดูแล'}
           >
-            <Dices size={14} className={autoAssigning ? 'animate-spin' : ''} />
+            <Dices size={14}  />
             <span>
-              {autoAssigning ? 'กำลังสุ่ม...' : `สุ่มจ่ายลูกค้าค้างอยู่ (${unassignedCount})`}
+              `สุ่มจ่ายลูกค้าค้างอยู่ (${unassignedCount})`
             </span>
           </button>
 
@@ -549,15 +526,37 @@ export default function ChatRoutingTab() {
                           fontWeight: 700,
                           padding: '1px 6px',
                           borderRadius: '6px',
-                          background: grp.mode === 'random' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                          color: grp.mode === 'random' ? '#2563EB' : '#059669',
+                          background:
+                            grp.mode === 'shared'
+                              ? 'rgba(79, 70, 229, 0.1)'
+                              : grp.mode === 'random'
+                              ? 'rgba(59, 130, 246, 0.1)'
+                              : 'rgba(16, 185, 129, 0.1)',
+                          color:
+                            grp.mode === 'shared'
+                              ? '#4F46E5'
+                              : grp.mode === 'random'
+                              ? '#2563EB'
+                              : '#059669',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '3px',
                         }}
                       >
-                        {grp.mode === 'random' ? <Shuffle size={11} /> : <RotateCcw size={11} />}
-                        <span>{grp.mode === 'random' ? 'สุ่ม (Random)' : 'วนรอบ (Round-Robin)'}</span>
+                        {grp.mode === 'shared' ? (
+                          <Users size={11} />
+                        ) : grp.mode === 'random' ? (
+                          <Shuffle size={11} />
+                        ) : (
+                          <RotateCcw size={11} />
+                        )}
+                        <span>
+                          {grp.mode === 'shared'
+                            ? `ดูแลร่วมกัน (${grp.agents_per_customer === 'all' || !grp.agents_per_customer ? 'ทั้งกลุ่ม' : grp.agents_per_customer + ' คนต่อลูกค้า'})`
+                            : grp.mode === 'random'
+                            ? 'สุ่ม (Random)'
+                            : 'วนรอบ (Round-Robin)'}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -668,6 +667,16 @@ export default function ChatRoutingTab() {
       )}
 
       {/* ================= MODAL: CREATE / EDIT GROUP (WIDESCREEN 2-PANE LAYOUT) ================= */}
+      {showDistributionModal && (
+        <ChatDistributionModal
+          isOpen={showDistributionModal}
+          onClose={() => setShowDistributionModal(false)}
+          onSuccess={() => {
+            void loadData();
+          }}
+        />
+      )}
+
       {showModal && (
         <div
           style={{
@@ -771,38 +780,49 @@ export default function ChatRoutingTab() {
                     </span>
                   </div>
 
-                  {/* Distribution Mode */}
+                  {/* Care & Distribution Mode */}
                   <div>
                     <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1.5">
-                      รูปแบบการกระจายงาน (Mode)
+                      รูปแบบการดูแลลูกค้า (Care Mode)
                     </label>
                     <div className="space-y-2">
+                      {/* Shared Care Mode */}
                       <label
-                        onClick={() => setFormMode('random')}
-                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                          formMode === 'random'
-                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200'
+                        onClick={() => setFormMode('shared')}
+                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                          formMode === 'shared'
+                            ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 shadow-2xs'
                             : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'
                         }`}
                       >
                         <input
                           type="radio"
                           name="routing_mode"
-                          checked={formMode === 'random'}
-                          onChange={() => setFormMode('random')}
-                          className="cursor-pointer"
+                          checked={formMode === 'shared'}
+                          onChange={() => setFormMode('shared')}
+                          className="cursor-pointer mt-0.5 text-indigo-600"
                         />
                         <div>
-                          <span className="text-xs font-extrabold block">🎲 สุ่มอัตโนมัติ (Random)</span>
-                          <span className="text-[10px] text-slate-400 block">สุ่มเลือกระหว่างคนที่อยู่ในกลุ่ม</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black block text-indigo-900 dark:text-indigo-200">
+                              👥 ร่วมกันดูแลทั้งกลุ่ม (Shared Care)
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-indigo-600 text-white">
+                              แนะนำ
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400 block mt-0.5">
+                            1 ลูกค้า ให้เซลล์ในกลุ่มร่วมกันดูแลกี่คนก็ได้ สมาชิกทุกคนในกลุ่มช่วยกันตอบได้ทันที
+                          </span>
                         </div>
                       </label>
 
+                      {/* Round Robin */}
                       <label
                         onClick={() => setFormMode('round_robin')}
-                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
                           formMode === 'round_robin'
-                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200'
+                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 shadow-2xs'
                             : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'
                         }`}
                       >
@@ -811,14 +831,66 @@ export default function ChatRoutingTab() {
                           name="routing_mode"
                           checked={formMode === 'round_robin'}
                           onChange={() => setFormMode('round_robin')}
-                          className="cursor-pointer"
+                          className="cursor-pointer mt-0.5 text-blue-600"
                         />
                         <div>
-                          <span className="text-xs font-extrabold block">🔄 วนรอบตามคิว (Round-Robin)</span>
-                          <span className="text-[10px] text-slate-400 block">จ่ายวนสลับกันอย่างเท่าเทียม</span>
+                          <span className="text-xs font-black block">🔄 วนรอบตามคิว (Round-Robin)</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">จ่ายวนสลับให้เซลล์ทีละคนอย่างเท่าเทียม</span>
+                        </div>
+                      </label>
+
+                      {/* Random */}
+                      <label
+                        onClick={() => setFormMode('random')}
+                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
+                          formMode === 'random'
+                            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 shadow-2xs'
+                            : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="routing_mode"
+                          checked={formMode === 'random'}
+                          onChange={() => setFormMode('random')}
+                          className="cursor-pointer mt-0.5 text-blue-600"
+                        />
+                        <div>
+                          <span className="text-xs font-black block">🎲 สุ่มอัตโนมัติ (Random)</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">สุ่มเลือกระหว่างคนที่อยู่ในกลุ่มทีละคน</span>
                         </div>
                       </label>
                     </div>
+                  </div>
+
+                  {/* Agents Per Customer Option */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                        จำนวนเซลล์ที่ดูแลต่อ 1 ลูกค้า
+                      </label>
+                      <span className="text-[10px] font-extrabold text-indigo-600">
+                        {formAgentsPerCustomer === 'all'
+                          ? 'ทุกคนในกลุ่ม (กี่คนก็ได้)'
+                          : `${formAgentsPerCustomer} คนต่อลูกค้า`}
+                      </span>
+                    </div>
+                    <select
+                      value={formAgentsPerCustomer}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormAgentsPerCustomer(val === 'all' ? 'all' : Number(val));
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:border-indigo-500 font-medium text-slate-900 dark:text-zinc-100 cursor-pointer"
+                    >
+                      <option value="all">👥 ทุกคนในกลุ่ม (กี่คนก็ได้ ช่วยกันดูแล)</option>
+                      <option value="1">👤 1 คนต่อ 1 ลูกค้า</option>
+                      <option value="2">👥 2 คนต่อ 1 ลูกค้า (เซลล์คู่หู)</option>
+                      <option value="3">👥 3 คนต่อ 1 ลูกค้า (ทีมย่อย)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      กำหนดว่า 1 แชทลูกค้า จะมีเซลล์ในกลุ่มนี้ช่วยดูแลกี่คน
+                    </span>
                   </div>
 
                   {/* 🎲 LIVE RANDOMIZER TEST WIDGET */}
@@ -931,6 +1003,22 @@ export default function ChatRoutingTab() {
                     </div>
 
                     <div className="flex items-center gap-3 text-xs">
+                      {onNavigateToAccess && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowModal(false);
+                              onNavigateToAccess();
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer"
+                          >
+                            <UserPlus size={13} />
+                            <span>+ ไปหน้าสิทธิ์เข้าใช้งาน</span>
+                          </button>
+                          <span className="text-slate-300 dark:text-zinc-700">|</span>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -939,7 +1027,7 @@ export default function ChatRoutingTab() {
                         }}
                         className="text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer"
                       >
-                        + เลือกทั้งหมดตามตัวกรอง ({filteredUsers.length})
+                        + เลือกทั้งหมด ({filteredUsers.length})
                       </button>
                       {formAgentIds.length > 0 && (
                         <>
@@ -975,33 +1063,11 @@ export default function ChatRoutingTab() {
                         onClick={() => setAgentFilter('all')}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
                           agentFilter === 'all'
-                            ? 'bg-slate-800 text-white dark:bg-white dark:text-slate-900 shadow-2xs'
+                            ? 'bg-blue-600 text-white shadow-2xs'
                             : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
                         }`}
                       >
-                        👥 ทั้งหมด ({users.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAgentFilter('ready')}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                          agentFilter === 'ready'
-                            ? 'bg-emerald-600 text-white shadow-2xs'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 hover:bg-emerald-100'
-                        }`}
-                      >
-                        💬 มีสิทธิ์แชท ({chatReadyCount})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAgentFilter('admin')}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                          agentFilter === 'admin'
-                            ? 'bg-purple-600 text-white shadow-2xs'
-                            : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/50 hover:bg-purple-100'
-                        }`}
-                      >
-                        🛡️ แอดมิน ({adminCount})
+                        👥 พนักงานที่มีสิทธิ์แชท ({chatStaffUsers.length})
                       </button>
                       <button
                         type="button"
@@ -1018,12 +1084,52 @@ export default function ChatRoutingTab() {
                   </div>
                 </div>
 
+                {/* Super Admin Notice (Admins have full access automatically) */}
+                <div className="mt-2.5 p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/40 text-[11px] text-purple-800 dark:text-purple-300 flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🛡️</span>
+                    <span><b>Super Admin:</b> แอดมินระบบมีสิทธิ์ดูแลและตอบทุกแชทได้อยู่แล้ว จึงไม่ต้องนำมาจัดกลุ่มหรือสุ่ม เพื่อให้กระจายงานเฉพาะเซลล์/ผู้ดูแลครับ</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md bg-purple-200/60 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 text-[10px] font-extrabold shrink-0">
+                    เข้าถึงได้ทุกห้อง
+                  </span>
+                </div>
+
                 {/* THE HUGE EMPLOYEE GRID: 2 to 3 Columns */}
                 <div className="flex-1 overflow-y-auto py-3">
                   {filteredUsers.length === 0 ? (
-                    <div className="py-20 text-center text-slate-400 text-xs">
-                      ไม่พบพนักงานตามเงื่อนไขที่เลือก
-                    </div>
+                    chatStaffUsers.length === 0 ? (
+                      <div className="py-16 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 mx-auto flex items-center justify-center">
+                          <Users size={22} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                            ยังไม่มีพนักงานทั่วไปที่ได้รับสิทธิ์เข้าใช้งานแชท
+                          </h4>
+                          <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                            Super Admin สามารถดูแลได้ทุกแชทอยู่แล้ว ไม่จำเป็นต้องนำมาใส่กลุ่ม กรุณาไปเปิดสิทธิ์ให้เซลล์/พนักงานที่หน้า "สิทธิ์เข้าใช้งาน" ก่อนครับ
+                          </p>
+                        </div>
+                        {onNavigateToAccess && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowModal(false);
+                              onNavigateToAccess();
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer mx-auto"
+                          >
+                            <UserPlus size={14} />
+                            <span>+ ไปที่หน้าเพิ่มสิทธิ์พนักงาน</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-20 text-center text-slate-400 text-xs">
+                        ไม่พบพนักงานตามคำค้นหา
+                      </div>
+                    )
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                       {filteredUsers.map((u) => {

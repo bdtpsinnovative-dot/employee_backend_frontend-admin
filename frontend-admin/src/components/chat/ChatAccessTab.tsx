@@ -6,9 +6,9 @@ import {
   RefreshCw,
   X,
   UserPlus,
-  UserCheck,
   Lock,
   Search,
+  Crown,
 } from 'lucide-react';
 import { fetchUsers } from '../../services/adminApi';
 import {
@@ -55,12 +55,21 @@ function AvatarImg({ url, name, size = 36 }: { url?: string | null; name: string
   );
 }
 
+interface DisplayAccessItem {
+  id: string;
+  userObj: User;
+  isSuperAdmin: boolean;
+  addedAt?: string;
+  isEnabled: boolean;
+}
+
 export default function ChatAccessTab() {
   const [accessUsers, setAccessUsers] = useState<ChatAccessUser[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
+  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'custom'>('all');
   const [modalSearch, setModalSearch] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -179,25 +188,72 @@ export default function ChatAccessTab() {
     });
   }, [users, alreadyAddedIds, modalSearch]);
 
-  // Filtered Whitelisted Users in table
-  const filteredAccessUsers = useMemo(() => {
-    return accessUsers.filter((item) => {
-      if (!tableSearch.trim()) return true;
-      const u = users.find((usr) => usr.id === item.user_id);
-      if (!u) return false;
-      const q = tableSearch.toLowerCase().trim();
-      const name = `${u.first_name} ${u.last_name} ${u.nickname || ''}`.toLowerCase();
+  // Super Admin items
+  const superAdmins = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
+
+  const superAdminItems = useMemo<DisplayAccessItem[]>(() => {
+    return superAdmins.map((u) => ({
+      id: u.id,
+      userObj: u,
+      isSuperAdmin: true,
+      addedAt: u.created_at,
+      isEnabled: true,
+    }));
+  }, [superAdmins]);
+
+  // Custom Whitelisted Users
+  const customAccessItems = useMemo<DisplayAccessItem[]>(() => {
+    return accessUsers
+      .map((item) => {
+        const u = users.find((usr) => usr.id === item.user_id);
+        if (!u) return null;
+        if (u.role === 'admin') return null; // Avoid duplicate if admin is also in accessUsers table
+        return {
+          id: u.id,
+          userObj: u,
+          isSuperAdmin: false,
+          addedAt: item.added_at,
+          isEnabled: item.is_enabled,
+        };
+      })
+      .filter(Boolean) as DisplayAccessItem[];
+  }, [accessUsers, users]);
+
+  const totalAllowedCount = superAdminItems.length + customAccessItems.length;
+
+  // Filtered & Searched items
+  const filteredDisplayItems = useMemo(() => {
+    let list: DisplayAccessItem[] = [];
+    if (filterRole === 'all') {
+      list = [...superAdminItems, ...customAccessItems];
+    } else if (filterRole === 'admin') {
+      list = [...superAdminItems];
+    } else {
+      list = [...customAccessItems];
+    }
+
+    const q = tableSearch.toLowerCase().trim();
+    if (!q) return list;
+
+    return list.filter((item) => {
+      const u = item.userObj;
+      const name = `${u.first_name || ''} ${u.last_name || ''} ${u.nickname || ''}`.toLowerCase();
       const email = (u.email || '').toLowerCase();
       const dept = (u.department || '').toLowerCase();
       const pos = (u.position || '').toLowerCase();
-      return name.includes(q) || email.includes(q) || dept.includes(q) || pos.includes(q);
+      const roleKeyword = item.isSuperAdmin ? 'admin super admin ผู้ดูแลระบบ แอดมิน' : '';
+      return (
+        name.includes(q) ||
+        email.includes(q) ||
+        dept.includes(q) ||
+        pos.includes(q) ||
+        roleKeyword.includes(q)
+      );
     });
-  }, [accessUsers, users, tableSearch]);
-
-  const superAdmins = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
+  }, [filterRole, superAdminItems, customAccessItems, tableSearch]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Toast Notification */}
       {successToast && (
         <div className="fixed top-5 right-5 z-[9999] bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-bold animate-fadeIn">
@@ -216,7 +272,7 @@ export default function ChatAccessTab() {
             placeholder="ค้นหาชื่อพนักงาน, อีเมล, ตำแหน่ง..."
             value={tableSearch}
             onChange={(e) => setTableSearch(e.target.value)}
-            className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-xl text-xs text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs transition-all"
+            className="w-full pl-8 pr-8 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-xl text-xs text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs transition-all"
           />
           {tableSearch && (
             <button
@@ -231,7 +287,7 @@ export default function ChatAccessTab() {
         {/* Action Button */}
         <button
           onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all shrink-0 cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all shrink-0 cursor-pointer"
         >
           <UserPlus size={15} />
           <span>เพิ่มผู้มีสิทธิ์เข้าใช้งาน</span>
@@ -245,40 +301,85 @@ export default function ChatAccessTab() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Whitelisted Users Card */}
+          {/* Whitelisted & Admin Users Card */}
           <div className="bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
             {/* Table Header Bar */}
-            <div className="px-5 py-3.5 bg-slate-50/70 dark:bg-zinc-850/50 border-b border-slate-200/80 dark:border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="px-3.5 py-2 bg-slate-50/70 dark:bg-zinc-850/50 border-b border-slate-200/80 dark:border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Shield size={16} className="text-blue-600" />
                 <span className="text-xs font-extrabold text-slate-800 dark:text-zinc-100">
-                  รายชื่อผู้ได้รับสิทธิ์ ({accessUsers.length} คน)
+                  ผู้มีสิทธิ์เข้าใช้งานหน้ารวมแชท ({totalAllowedCount} คน)
                 </span>
                 {tableSearch && (
                   <span className="text-[11px] text-slate-400">
-                    · พบ {filteredAccessUsers.length} คนจากการค้นหา
+                    · พบ {filteredDisplayItems.length} คนจากการค้นหา
                   </span>
                 )}
               </div>
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
-                คลิกที่สถานะเพื่อเปิด/ปิดสิทธิ์ได้ทันที
-              </span>
+
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-zinc-800 rounded-xl text-xs shrink-0 self-start md:self-auto">
+                <button
+                  onClick={() => setFilterRole('all')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    filterRole === 'all'
+                      ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                  }`}
+                >
+                  ทั้งหมด ({totalAllowedCount})
+                </button>
+                <button
+                  onClick={() => setFilterRole('admin')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    filterRole === 'admin'
+                      ? 'bg-white dark:bg-zinc-700 text-purple-600 dark:text-purple-300 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                  }`}
+                >
+                  <Crown size={12} className="text-purple-500" />
+                  <span>Super Admin</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-[10px]">
+                    {superAdminItems.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setFilterRole('custom')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    filterRole === 'custom'
+                      ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                  }`}
+                >
+                  <Shield size={12} className="text-blue-500" />
+                  <span>สิทธิ์เฉพาะ</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px]">
+                    {customAccessItems.length}
+                  </span>
+                </button>
+              </div>
             </div>
 
-            {filteredAccessUsers.length === 0 ? (
+            {filteredDisplayItems.length === 0 ? (
               <div className="py-16 px-4 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-3">
                   <Lock size={22} />
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 dark:text-zinc-200">
-                  {tableSearch ? 'ไม่พบพนักงานตามคำค้นหา' : 'ยังไม่มีพนักงานในรายการสิทธิ์เฉพาะ'}
+                  {tableSearch
+                    ? 'ไม่พบพนักงานตามคำค้นหา'
+                    : filterRole === 'admin'
+                    ? 'ไม่พบข้อมูล Super Admin'
+                    : filterRole === 'custom'
+                    ? 'ยังไม่มีพนักงานในรายการสิทธิ์เฉพาะ'
+                    : 'ยังไม่มีรายชื่อผู้มีสิทธิ์'}
                 </h4>
                 <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                   {tableSearch
                     ? 'ลองพิมพ์ค้นหาด้วยคำอื่น หรือคลิกปุ่มเพื่อล้างการค้นหา'
                     : 'คลิกปุ่ม "เพิ่มผู้มีสิทธิ์เข้าใช้งาน" ด้านบนเพื่อเลือกพนักงานที่ต้องการให้อนุญาตเข้าดูแชท'}
                 </p>
-                {!tableSearch && (
+                {!tableSearch && filterRole !== 'admin' && (
                   <button
                     onClick={handleOpenAddModal}
                     className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all cursor-pointer"
@@ -293,39 +394,46 @@ export default function ChatAccessTab() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-zinc-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/40 dark:bg-zinc-850/20">
-                      <th className="py-3 px-5">พนักงาน</th>
-                      <th className="py-3 px-5">แผนก / ตำแหน่ง</th>
-                      <th className="py-3 px-5">วันที่เพิ่ม</th>
-                      <th className="py-3 px-5">สถานะการเข้าใช้งาน</th>
-                      <th className="py-3 px-5 text-right">การจัดการ</th>
+                      <th className="py-2 px-3.5">พนักงาน</th>
+                      <th className="py-2 px-3.5">แผนก / ตำแหน่ง</th>
+                      <th className="py-2 px-3.5">วันที่เพิ่ม</th>
+                      <th className="py-2 px-3.5">สถานะการเข้าใช้งาน</th>
+                      <th className="py-2 px-3.5 text-right">การจัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
-                    {filteredAccessUsers.map((item) => {
-                      const userObj = users.find((u) => u.id === item.user_id);
-                      if (!userObj) return null;
+                    {filteredDisplayItems.map((item) => {
+                      const userObj = item.userObj;
 
                       return (
                         <tr
-                          key={item.user_id}
-                          className="hover:bg-slate-50/60 dark:hover:bg-zinc-850/40 transition-colors"
+                          key={item.id}
+                          className={`hover:bg-slate-50/60 dark:hover:bg-zinc-850/40 transition-colors ${
+                            item.isSuperAdmin ? 'bg-purple-50/20 dark:bg-purple-950/10' : ''
+                          }`}
                         >
                           {/* User Info */}
-                          <td className="py-3.5 px-5">
+                          <td className="py-2 px-3.5">
                             <div className="flex items-center gap-3">
                               <AvatarImg
                                 url={userObj.avatar_url}
                                 name={userObj.nickname || userObj.first_name}
-                                size={36}
+                                size={30}
                               />
                               <div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
                                     {userObj.first_name} {userObj.last_name}
                                   </span>
                                   {userObj.nickname && (
                                     <span className="px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-[10px] font-bold">
                                       {userObj.nickname}
+                                    </span>
+                                  )}
+                                  {item.isSuperAdmin && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-extrabold border border-purple-200/70 dark:border-purple-800">
+                                      <Crown size={10} className="text-purple-600 dark:text-purple-400" />
+                                      <span>Super Admin</span>
                                     </span>
                                   )}
                                 </div>
@@ -337,51 +445,87 @@ export default function ChatAccessTab() {
                           </td>
 
                           {/* Position / Department */}
-                          <td className="py-3.5 px-5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
-                              {userObj.position || userObj.department || 'พนักงาน'}
-                            </span>
+                          <td className="py-2 px-3.5">
+                            <div className="flex flex-col gap-0.5 items-start">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">
+                                {userObj.position || userObj.department || (item.isSuperAdmin ? 'ผู้ดูแลระบบสูงสุด' : 'พนักงาน')}
+                              </span>
+                              {userObj.department && userObj.position && (
+                                <span className="text-[10px] text-slate-400 pl-0.5">
+                                  {userObj.department}
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Date Added */}
-                          <td className="py-3.5 px-5 text-xs text-slate-400">
-                            {new Date(item.added_at).toLocaleDateString('th-TH', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
+                          <td className="py-2 px-3.5 text-xs text-slate-400">
+                            {item.isSuperAdmin ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/50 dark:border-purple-800/40">
+                                <Crown size={11} className="text-purple-500" />
+                                <span>สิทธิ์ระบบอัตโนมัติ</span>
+                              </span>
+                            ) : item.addedAt ? (
+                              new Date(item.addedAt).toLocaleDateString('th-TH', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            ) : (
+                              '-'
+                            )}
                           </td>
 
-                          {/* Status Toggle Switch */}
-                          <td className="py-3.5 px-5">
-                            <button
-                              onClick={() => void handleToggleEnable(item.user_id)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                                item.is_enabled
-                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100'
-                                  : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-slate-200'
-                              }`}
-                              title="คลิกเพื่อสลับสถานะ"
-                            >
+                          {/* Status Toggle / Badge */}
+                          <td className="py-2 px-3.5">
+                            {item.isSuperAdmin ? (
                               <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  item.is_enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50 select-none"
+                                title="Super Admin มีสิทธิ์ใช้งานตลอดเวลาตามบทบาทระบบ"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                                <span>อนุญาตตลอดเวลา (Super Admin)</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => void handleToggleEnable(item.id)}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                                  item.isEnabled
+                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100'
+                                    : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-slate-200'
                                 }`}
-                              />
-                              <span>{item.is_enabled ? 'อนุญาตให้เข้าใช้งาน' : 'ระงับสิทธิ์ชั่วคราว'}</span>
-                            </button>
+                                title="คลิกเพื่อสลับสถานะ"
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    item.isEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                                  }`}
+                                />
+                                <span>{item.isEnabled ? 'อนุญาตให้เข้าใช้งาน' : 'ระงับสิทธิ์ชั่วคราว'}</span>
+                              </button>
+                            )}
                           </td>
 
                           {/* Actions */}
-                          <td className="py-3.5 px-5 text-right">
-                            <button
-                              onClick={() => void handleRevoke(item.user_id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold transition-all cursor-pointer"
-                              title="ลบสิทธิ์"
-                            >
-                              <Trash2 size={13} />
-                              <span>ลบสิทธิ์</span>
-                            </button>
+                          <td className="py-2 px-3.5 text-right">
+                            {item.isSuperAdmin ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 dark:text-zinc-500 bg-slate-100/80 dark:bg-zinc-800/60 text-xs font-semibold cursor-not-allowed select-none"
+                                title="Super Admin มีสิทธิ์ถาวรตามบทบาท ไม่สามารถลบสิทธิ์ได้จากหน้านี้"
+                              >
+                                <Lock size={12} className="text-slate-400" />
+                                <span>สิทธิ์ระบบ</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => void handleRevoke(item.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold transition-all cursor-pointer"
+                                title="ลบสิทธิ์"
+                              >
+                                <Trash2 size={13} />
+                                <span>ลบสิทธิ์</span>
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -392,14 +536,19 @@ export default function ChatAccessTab() {
             )}
           </div>
 
-          {/* Super Admin Subtle Notice */}
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-50 dark:bg-zinc-850/50 border border-slate-200/80 dark:border-zinc-800 text-xs text-slate-500 dark:text-zinc-400">
-            <UserCheck size={16} className="text-emerald-600 shrink-0" />
-            <span>
-              <strong className="text-slate-700 dark:text-zinc-200">สิทธิ์ Super Admin:</strong>{' '}
+          {/* Super Admin Informational Notice */}
+          <div className="flex items-start sm:items-center gap-2.5 px-3 py-2 rounded-xl bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-800/50 text-xs text-purple-900 dark:text-purple-200">
+            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
+              <Crown size={16} />
+            </div>
+            <div className="flex-1 text-[11px] sm:text-xs leading-relaxed">
+              <strong className="font-bold text-purple-950 dark:text-purple-100">
+                สิทธิ์ผู้ดูแลระบบ (Super Admin):
+              </strong>{' '}
               ผู้ที่มี Role Admin ({superAdmins.map((a) => a.nickname || a.first_name).join(', ') || 'Admin'})
-              จะมีสิทธิ์เข้าใช้งานหน้ารวมแชทและหน้าตั้งค่านี้ได้โดยอัตโนมัติอยู่แล้ว
-            </span>
+              จะมีสิทธิ์เข้าใช้งานหน้ารวมแชทและหน้าตั้งค่าระบบแชททั้งหมดโดยอัตโนมัติอยู่แล้ว
+              ระบบจึงแสดงรายชื่อในตารางด้านบนและล็อคสิทธิ์ไว้เพื่อความปลอดภัย
+            </div>
           </div>
         </div>
       )}
