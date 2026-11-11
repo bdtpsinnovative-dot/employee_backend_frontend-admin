@@ -384,6 +384,12 @@ export interface ChatConversation {
   status: 'active' | 'resolved';
   assigned_to?: string | null;
   assigned_name?: string | null;
+  deal_status?: ChatDealStatus;
+  deal_amount?: number | null;
+  deal_pi_no?: string | null;
+  deal_note?: string | null;
+  closed_by?: string | null;
+  closed_at?: string | null;
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -431,6 +437,17 @@ export interface ChatRoutingGroup {
   created_at?: string;
 }
 
+export interface ChatCareGroup {
+  id: string;
+  name: string;
+  customer_ids: string[];
+  agent_ids: string[];
+  allowed_brands?: string[]; // empty or omitted = all brands allowed
+  is_auto?: boolean; // true = auto-detected multi-agent team promoted into routing pool
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ChatAccessUser {
   user_id: string;
   added_at: string;
@@ -441,15 +458,168 @@ export interface AgentWeightConfig {
   weight: number; // e.g. 1 to 10 (higher = more chance)
   max_active_chats: number; // 0 = unlimited
   is_paused: boolean; // paused from receiving new leads
+  allowed_brands?: string[]; // empty or omitted = all brands allowed
 }
 
 export interface ChatSystemConfig {
   reply_policy: 'everyone' | 'assigned_only';
   auto_assign_first_responder: boolean;
   auto_routing_enabled: boolean;
+  routing_target_mode?: 'agents' | 'groups';
   routing_working_hours_only: boolean;
   working_hours_start: string; // e.g. '08:30'
   working_hours_end: string; // e.g. '18:00'
-  default_fallback_agent_id: string | null;
+  default_fallback_agent_id?: string | null;
+  routing_epoch_at?: string | null; // ISO timestamp for % deficit balancing window
   agent_weights: Record<string, AgentWeightConfig>;
+  group_weights?: Record<string, AgentWeightConfig>;
+}
+
+
+export type ChatDealStatus = 'open' | 'won' | 'lost';
+
+export interface ChatDealOrder {
+  id: string;
+  conversation_id: string;
+  is_repeat: boolean;
+  amount: number | null;
+  pi_no: string;
+  notes: string;
+  closed_by: string | null;
+  closed_at: string;
+}
+
+export interface ChatQAReview {
+  id: string;
+  conversation_id?: string;
+  agent_id: string;
+  reviewer_id?: string | null;
+  source: 'manual' | 'ai' | 'ai_overridden';
+  politeness_score?: number | null;
+  accuracy_score?: number | null;
+  overall_score?: number | null;
+  notes?: string | null;
+  evidence_quotes?: Array<{ quote: string; reason?: string }>;
+  updated_at?: string;
+}
+
+export interface ChatAnalyticsSummary {
+  total_conversations: number;
+  resolved_conversations: number;
+  won_conversations: number;
+  lost_conversations: number;
+  open_conversations: number;
+  total_won_orders: number;
+  new_won_orders: number;
+  repeat_won_orders: number;
+  repeat_customer_count: number;
+  new_won_amount: number;
+  repeat_won_amount: number;
+  total_won_amount: number;
+  total_agent_messages: number;
+  median_reply_minutes: number | null;
+  avg_reply_minutes: number | null;
+  sla_15m_pct: number | null;
+  qa_reviewed_count: number;
+}
+
+export interface ChatAgentAnalytics {
+  agent_id: string;
+  first_name: string;
+  last_name: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  role: string;
+  status: string;
+  msg_count: number;
+  reply_share_pct: number;
+  replied_conv_count: number;
+  assigned_conv_count: number;
+  reply_turns: number;
+  avg_reply_minutes: number | null;
+  median_reply_minutes: number | null;
+  sla_15m_pct: number | null;
+  won_count: number;
+  new_won_count: number;
+  repeat_won_count: number;
+  repeat_won_amount: number;
+  lost_count: number;
+  resolved_count: number;
+  won_amount: number;
+  win_rate_pct: number | null;
+  qa_count: number;
+  avg_politeness: number | null;
+  avg_accuracy: number | null;
+  avg_overall_qa: number | null;
+}
+
+export interface ChatConversationAnalyticsItem {
+  id: string;
+  platform: 'line' | 'facebook' | 'instagram' | 'web';
+  brand: string;
+  customer_name: string | null;
+  customer_avatar: string | null;
+  last_message: string | null;
+  last_message_at: string;
+  status: 'active' | 'resolved';
+  deal_status: ChatDealStatus;
+  deal_amount: number | null;
+  deal_pi_no: string | null;
+  deal_note: string | null;
+  assigned_to: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  team_id?: string | null;
+  team_name?: string | null;
+  won_order_count?: number;
+  repeat_won_count?: number;
+  deal_orders?: ChatDealOrder[];
+  msg_count: number;
+  responder_ids: string[];
+  median_reply_minutes: number | null;
+  qa_reviews: ChatQAReview[];
+}
+
+export interface ChatAnalyticsDailyPoint {
+  day: string;
+  conv_count: number;
+  won_count: number;
+  repeat_won_count?: number;
+  lost_count: number;
+  msg_count: number;
+}
+
+export interface ChatTeamAnalytics {
+  team_id: string;
+  team_name: string;
+  team_type: 'care_group' | 'auto_team' | 'solo' | 'unassigned';
+  member_ids: string[];
+  conv_count: number;
+  resolved_count: number;
+  won_count: number;
+  new_won_count: number;
+  repeat_won_count: number;
+  repeat_won_amount: number;
+  lost_count: number;
+  won_amount: number;
+  win_rate_pct: number | null;
+  msg_count: number;
+  replied_conv_count: number;
+  reply_share_pct: number;
+  reply_turns: number;
+  avg_reply_minutes: number | null;
+  median_reply_minutes: number | null;
+  sla_15m_pct: number | null;
+  qa_count: number;
+  avg_politeness: number | null;
+  avg_accuracy: number | null;
+  avg_overall_qa: number | null;
+}
+
+export interface ChatResponseAnalytics {
+  summary: ChatAnalyticsSummary;
+  agents: ChatAgentAnalytics[];
+  conversations: ChatConversationAnalyticsItem[];
+  daily_trend: ChatAnalyticsDailyPoint[];
+  teams: ChatTeamAnalytics[];
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Users,
@@ -27,20 +27,36 @@ import {
   UserCheck,
   AlertCircle,
   Settings as SettingsIcon,
+  BarChart3,
+  Star,
+  Trophy,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { ChatConversation, ChatMessage, ChatChannel, User, ChatRoutingGroup, ChatAccessUser, ChatSystemConfig } from '../types';
+import type { ChatConversation, ChatMessage, ChatChannel, User, ChatRoutingGroup, ChatCareGroup, ChatAccessUser, ChatSystemConfig } from '../types';
 import { fetchUsers, fetchMe } from '../services/adminApi';
 import { avatarUrl } from '../components/tasks/taskUtils';
 import ChatDistributionModal from '../components/chat/ChatDistributionModal';
+import ChatQAReviewModal from '../components/chat/ChatQAReviewModal';
+import { updateConversationDealOutcome, formatCurrencyTHB } from '../services/chatAnalyticsService';
 import {
   fetchChatRoutingGroups,
+  fetchChatCareGroups,
+  saveChatCareGroups,
+  haveSameAgentSet,
+  upsertExclusiveCareGroup,
   fetchChatAccessUsers,
   hasChatAccess,
   assignConversation,
   pickAgentFromGroup,
   saveChatRoutingGroups,
   fetchChatSystemConfig,
+  fetchRoutingWorkloadCounts,
+  pickDeficitAgent,
+  pickDeficitCareGroup,
+  getEligibleActiveAgents,
+  normalizeBrandSlug,
+  isBrandAllowed,
+  sortSalesFirst,
   DEFAULT_CHAT_SYSTEM_CONFIG,
 } from '../services/chatRoutingService';
 import { LineIcon, FacebookIcon, InstagramIcon } from './ChatSettings';
@@ -94,9 +110,12 @@ function getConversationAgents(conv?: ChatConversation | null, allUsers: User[] 
 
 export default function ChatInbox() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const deepLinkedConvRef = useRef<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [routingGroups, setRoutingGroups] = useState<ChatRoutingGroup[]>([]);
+  const [careGroups, setCareGroups] = useState<ChatCareGroup[]>([]);
   const [accessUsers, setAccessUsers] = useState<ChatAccessUser[]>([]);
   const [accessChecked, setAccessChecked] = useState(false);
   const [systemConfig, setSystemConfig] = useState<ChatSystemConfig>(DEFAULT_CHAT_SYSTEM_CONFIG);
@@ -106,8 +125,41 @@ export default function ChatInbox() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [assignModalConv, setAssignModalConv] = useState<ChatConversation | null>(null);
+  const [assignGroupNameInput, setAssignGroupNameInput] = useState('');
   const [showDistributionModal, setShowDistributionModal] = useState(false);
+  const [qaModalConfig, setQaModalConfig] = useState<{ open: boolean; focus: 'outcome' | 'qa' }>({
+    open: false,
+    focus: 'outcome',
+  });
   const [assignSearch, setAssignSearch] = useState('');
+
+  const resolveConvGroupName = useCallback(
+    (conv: ChatConversation | null): string | null => {
+      if (!conv) return null;
+      if (conv.metadata?.assigned_group_name) {
+        return String(conv.metadata.assigned_group_name);
+      }
+      const gid = conv.metadata?.assigned_group_id;
+      if (gid) {
+        const matched = careGroups.find((g) => g.id === gid);
+        if (matched?.name) return matched.name;
+      }
+      const linked = careGroups.find((g) => (g.customer_ids || []).includes(conv.id));
+      if (linked?.name && getConversationAgents(conv, users).length > 1) {
+        return linked.name;
+      }
+      return null;
+    },
+    [careGroups, users]
+  );
+
+  useEffect(() => {
+    if (assignModalConv) {
+      setAssignGroupNameInput(resolveConvGroupName(assignModalConv) || '');
+    } else {
+      setAssignGroupNameInput('');
+    }
+  }, [assignModalConv?.id, assignModalConv?.metadata?.assigned_group_name, resolveConvGroupName]);
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<ChatConversation | null>(null);
@@ -288,10 +340,11 @@ export default function ChatInbox() {
     let isMounted = true;
     async function initSystemData() {
       try {
-        const [meRes, usersRes, groupsRes, accessRes, configRes] = await Promise.all([
+        const [meRes, usersRes, groupsRes, careGroupsRes, accessRes, configRes] = await Promise.all([
           fetchMe().catch(() => null),
           fetchUsers().catch(() => []),
           fetchChatRoutingGroups().catch(() => []),
+          fetchChatCareGroups().catch(() => []),
           fetchChatAccessUsers().catch(() => []),
           fetchChatSystemConfig().catch(() => DEFAULT_CHAT_SYSTEM_CONFIG),
         ]);
@@ -309,6 +362,7 @@ export default function ChatInbox() {
         if (resolvedMe) setCurrentUser(resolvedMe);
         if (usersRes) setUsers(usersRes);
         if (groupsRes) setRoutingGroups(groupsRes);
+        if (careGroupsRes) setCareGroups(careGroupsRes);
         if (accessRes) setAccessUsers(accessRes);
         if (configRes) setSystemConfig(configRes);
 
@@ -329,6 +383,20 @@ export default function ChatInbox() {
     void fetchConversations();
     void fetchChannels();
   }, [fetchConversations, fetchChannels]);
+
+  // Support deep-linking directly into a conversation (?convId=...)
+  useEffect(() => {
+    const targetId = searchParams.get('convId');
+    if (!targetId || deepLinkedConvRef.current === targetId || conversations.length === 0) return;
+    const matched = conversations.find((c) => c.id === targetId);
+    if (!matched) return;
+    deepLinkedConvRef.current = targetId;
+    if (matched.status === 'resolved') {
+      setStatusFilter('all');
+    }
+    setSelectedConv(matched);
+    void fetchMessages(matched.id);
+  }, [conversations, searchParams, fetchMessages]);
 
   const handleCopyWebhook = (brandSlug: string) => {
     const url = `https://bddevelopment.app.n8n.cloud/webhook/line-inbound?brand=${brandSlug}`;
@@ -581,6 +649,29 @@ export default function ChatInbox() {
     }
   };
 
+  const applyUpdatedConversation = (updated: ChatConversation) => {
+    setConversations((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    if (selectedConv?.id === updated.id) {
+      setSelectedConv(updated);
+    }
+    if (assignModalConv?.id === updated.id) {
+      setAssignModalConv(updated);
+    }
+  };
+
+  const unlinkConvFromCareGroup = async (convId: string) => {
+    const affected = careGroups.some((g) => (g.customer_ids || []).includes(convId));
+    if (!affected) return;
+    const nowIso = new Date().toISOString();
+    const nextCareGroups = careGroups.map((g) => ({
+      ...g,
+      customer_ids: (g.customer_ids || []).filter((cid) => cid !== convId),
+      updated_at: nowIso,
+    }));
+    setCareGroups(nextCareGroups);
+    await saveChatCareGroups(nextCareGroups);
+  };
+
   // Toggle an agent on/off for a conversation (supports adding multiple agents)
   const handleToggleAgent = async (conv: ChatConversation, userId: string) => {
     setIsAssigning(true);
@@ -600,30 +691,48 @@ export default function ChatInbox() {
         .filter((u): u is User => !!u);
       const nextNames = nextAgents.map((u) => u.nickname || u.first_name);
 
+      const existingGroupId = conv.metadata?.assigned_group_id ?? null;
+      const existingCareGroup = existingGroupId ? careGroups.find((g) => g.id === existingGroupId) : null;
+      const existingRoutingGroup =
+        existingGroupId && !existingCareGroup ? routingGroups.find((g) => g.id === existingGroupId) : null;
+      const expectedGroupAgents = existingCareGroup?.agent_ids || existingRoutingGroup?.agent_ids || null;
+
+      // Keep named group link ONLY if this conversation still has >1 caretakers AND matches that group's exact team.
+      // If a user adds/removes a caretaker so this single customer's team diverges from the named group,
+      // auto-detach this customer cleanly into its own standalone Auto-Group without modifying other customers in the team.
+      const matchesExistingGroup = expectedGroupAgents
+        ? haveSameAgentSet(nextAgentIds, expectedGroupAgents)
+        : true;
+      const keepGroup = nextAgentIds.length > 1 && matchesExistingGroup;
+      const nextGroupId = keepGroup ? existingGroupId : null;
+      const nextGroupName = keepGroup ? (resolveConvGroupName(conv) ?? null) : null;
+      const nextDisplayName = nextGroupName || nextNames.join(', ') || null;
+
       const ok = await assignConversation(conv.id, {
         id: nextAgentIds[0] || null,
-        name: nextNames.join(', ') || null,
+        name: nextDisplayName,
+        groupId: nextGroupId,
+        groupName: nextGroupName,
         assignedAgentIds: nextAgentIds,
       });
 
       if (ok) {
+        if (!keepGroup) {
+          void unlinkConvFromCareGroup(conv.id);
+        }
         const updated: ChatConversation = {
           ...conv,
           assigned_to: nextAgentIds[0] || null,
-          assigned_name: nextNames.join(', ') || null,
+          assigned_name: nextDisplayName,
           metadata: {
             ...(conv.metadata || {}),
             assigned_agent_ids: nextAgentIds,
-            assigned_name: nextNames.join(', ') || null,
+            assigned_name: nextDisplayName,
+            assigned_group_id: nextGroupId,
+            assigned_group_name: nextGroupName,
           },
         };
-        setConversations((prev) => prev.map((c) => (c.id === conv.id ? updated : c)));
-        if (selectedConv?.id === conv.id) {
-          setSelectedConv(updated);
-        }
-        if (assignModalConv?.id === conv.id) {
-          setAssignModalConv(updated);
-        }
+        applyUpdatedConversation(updated);
         return true;
       } else {
         alert('อัปเดตคนดูแลไม่สำเร็จ');
@@ -644,9 +753,12 @@ export default function ChatInbox() {
       const ok = await assignConversation(conv.id, {
         id: null,
         name: null,
+        groupId: null,
+        groupName: null,
         assignedAgentIds: [],
       });
       if (ok) {
+        void unlinkConvFromCareGroup(conv.id);
         const updated: ChatConversation = {
           ...conv,
           assigned_to: null,
@@ -659,13 +771,7 @@ export default function ChatInbox() {
             assigned_group_name: null,
           },
         };
-        setConversations((prev) => prev.map((c) => (c.id === conv.id ? updated : c)));
-        if (selectedConv?.id === conv.id) {
-          setSelectedConv(updated);
-        }
-        if (assignModalConv?.id === conv.id) {
-          setAssignModalConv(updated);
-        }
+        applyUpdatedConversation(updated);
         return true;
       }
       return false;
@@ -686,8 +792,11 @@ export default function ChatInbox() {
         id: targetUser ? targetUser.id : null,
         name: agentName || undefined,
         avatar: targetUser?.avatar_url,
+        groupId: null,
+        groupName: null,
       });
       if (ok) {
+        void unlinkConvFromCareGroup(conv.id);
         const updated: ChatConversation = {
           ...conv,
           assigned_to: targetUser ? targetUser.id : null,
@@ -699,13 +808,7 @@ export default function ChatInbox() {
             assigned_agent_ids: targetUser ? [targetUser.id] : [],
           },
         };
-        setConversations((prev) => prev.map((c) => (c.id === conv.id ? updated : c)));
-        if (selectedConv?.id === conv.id) {
-          setSelectedConv(updated);
-        }
-        if (assignModalConv?.id === conv.id) {
-          setAssignModalConv(updated);
-        }
+        applyUpdatedConversation(updated);
         return true;
       } else {
         alert('อัปเดตผู้ดูแลไม่สำเร็จ');
@@ -719,13 +822,17 @@ export default function ChatInbox() {
     }
   };
 
-  // General random assign handler for any conversation (with fallback to authorized chat agents)
+  // General random assign handler (strictly follows active % ratios, working pool, and max capacity)
   const handleRandomAssignConversation = async (conv: ChatConversation) => {
     setIsAssigning(true);
     try {
-      const convBrand = (conv.brand || '').toLowerCase().trim();
+      const latestConfig = await fetchChatSystemConfig();
+      setSystemConfig(latestConfig);
+      const workload = await fetchRoutingWorkloadCounts(latestConfig.routing_epoch_at);
+
+      const convBrand = normalizeBrandSlug(conv.brand);
       let group = routingGroups.find(
-        (g) => g.is_active && g.brand.toLowerCase() === convBrand && g.agent_ids.length > 0
+        (g) => g.is_active && normalizeBrandSlug(g.brand) === convBrand && g.agent_ids.length > 0
       );
       if (!group) {
         group = routingGroups.find((g) => g.is_active && g.brand === 'all' && g.agent_ids.length > 0);
@@ -734,14 +841,22 @@ export default function ChatInbox() {
       let pickAgentId: string | null = null;
       let pickAgentName: string = 'แอดมิน';
       let pickAvatarUrl: string | undefined = undefined;
+      let pickCareGroupId: string | null = null;
+      let pickCareGroupName: string | null = null;
+      let nextAssignedIds: string[] = [];
       let updatedGroupToSave: ChatRoutingGroup | null = null;
 
       if (group) {
-        const pick = pickAgentFromGroup(group, users);
+        const pick = pickAgentFromGroup(group, users, latestConfig, workload);
         if (pick) {
           pickAgentId = pick.agentId;
+          nextAssignedIds = pick.assignedAgentIds;
           const assignedUser = users.find((u) => u.id === pick.agentId);
-          pickAgentName = assignedUser ? (assignedUser.nickname || assignedUser.first_name) : 'แอดมิน';
+          pickAgentName = pick.isShared
+            ? `กลุ่ม: ${group.name}`
+            : assignedUser
+            ? assignedUser.nickname || assignedUser.first_name
+            : 'แอดมิน';
           pickAvatarUrl = assignedUser?.avatar_url;
           if (pick.updatedGroup.last_assigned_index !== group.last_assigned_index) {
             updatedGroupToSave = pick.updatedGroup;
@@ -749,43 +864,90 @@ export default function ChatInbox() {
         }
       }
 
-      // If no routing group is configured yet for this brand, fallback to randomly picking from authorized users
-      if (!pickAgentId) {
-        const authorized = users.filter((u) => hasChatAccess(u, accessUsers, routingGroups));
-        if (authorized.length > 0) {
-          const randomAgent = authorized[Math.floor(Math.random() * authorized.length)];
-          pickAgentId = randomAgent.id;
-          pickAgentName = randomAgent.nickname || randomAgent.first_name;
-          pickAvatarUrl = randomAgent.avatar_url;
+      // Group or Individual Agent Pool routing by % deficit when no brand routing group overrides
+      if (!pickAgentId && !group) {
+        if (latestConfig.routing_target_mode === 'groups') {
+          const pickedCareGroup = pickDeficitCareGroup(
+            careGroups,
+            users,
+            latestConfig,
+            workload.epochGroupCounts,
+            workload.activeGroupCounts,
+            conv.brand
+          );
+          if (pickedCareGroup) {
+            const activeMembers = (pickedCareGroup.agent_ids || []).filter((id) => {
+              const u = users.find((usr) => usr.id === id);
+              return u && (!u.status || u.status === 'active');
+            });
+            if (activeMembers.length > 0) {
+              const primaryUser = users.find((u) => u.id === activeMembers[0]);
+              pickAgentId = activeMembers[0];
+              nextAssignedIds = activeMembers;
+              pickAgentName = pickedCareGroup.name;
+              pickCareGroupId = pickedCareGroup.id;
+              pickCareGroupName = pickedCareGroup.name;
+              pickAvatarUrl = primaryUser?.avatar_url;
+            }
+          }
+        } else {
+          const eligiblePool = getEligibleActiveAgents(users, accessUsers, latestConfig, routingGroups);
+          const pickedUser = pickDeficitAgent(eligiblePool, latestConfig, workload.epochCounts, workload.activeCounts, conv.brand);
+          if (pickedUser) {
+            pickAgentId = pickedUser.id;
+            nextAssignedIds = [pickedUser.id];
+            pickAgentName = pickedUser.nickname || pickedUser.first_name;
+            pickAvatarUrl = pickedUser.avatar_url;
+          }
         }
       }
 
       if (!pickAgentId) {
         alert(
-          `ยังไม่มีรายชื่อผู้ได้รับอนุญาตใช้งานระบบแชทสำหรับแบรนด์ "${conv.brand || 'ทั่วไป'}"\nกรุณาไปที่เมนู "ตั้งค่าช่องทางแชท" เพื่อกำหนดสิทธิ์หรือสร้างกลุ่มแอดมินครับ`
+          latestConfig.routing_target_mode === 'groups'
+            ? 'ไม่พบกลุ่มแชทที่พร้อมรับงาน (อาจพักรับงาน ครบโควต้า หรือยังไม่ได้สร้างกลุ่มในหน้า "กลุ่มแชท")\nกรุณาตรวจสอบในหน้าตั้งค่าระบบแชทครับ'
+            : `ไม่พบเซลล์ที่พร้อมรับงานสำหรับแบรนด์ "${conv.brand || 'ทั่วไป'}" (อาจถูกพักรับงานหรือรับแชทเต็มโควต้าทุกคน)\nกรุณาตรวจสอบสถานะที่หน้า "ตั้งค่าระบบ & สัดส่วน %" ครับ`
         );
         return false;
       }
+
+      const resolvedGroupId = pickCareGroupId || group?.id || null;
+      const resolvedGroupName = pickCareGroupName || group?.name || null;
 
       const ok = await assignConversation(conv.id, {
         id: pickAgentId,
         name: pickAgentName,
         avatar: pickAvatarUrl,
-        groupId: group?.id || null,
-        groupName: group?.name || null,
-        assignedAgentIds: group?.agent_ids || (pickAgentId ? [pickAgentId] : []),
+        groupId: resolvedGroupId,
+        groupName: resolvedGroupName,
+        assignedAgentIds: nextAssignedIds,
+        autoRouted: true,
       });
 
       if (ok) {
+        if (pickCareGroupId && pickCareGroupName) {
+          const nextCareGroups = upsertExclusiveCareGroup(careGroups, {
+            id: pickCareGroupId,
+            name: pickCareGroupName,
+            customerIds: [conv.id],
+            agentIds: nextAssignedIds,
+            mergeCustomers: true,
+            mergeAgents: true,
+          });
+          setCareGroups(nextCareGroups);
+        }
+
         const updated: ChatConversation = {
           ...conv,
           assigned_to: pickAgentId,
           assigned_name: pickAgentName,
           metadata: {
             ...(conv.metadata || {}),
-            assigned_group_id: group?.id || null,
-            assigned_group_name: group?.name || null,
-            assigned_agent_ids: group?.agent_ids || (pickAgentId ? [pickAgentId] : []),
+            assigned_group_id: resolvedGroupId,
+            assigned_group_name: resolvedGroupName,
+            assigned_agent_ids: nextAssignedIds,
+            auto_routed: true,
+            assigned_at: new Date().toISOString(),
           },
         };
         setConversations((prev) => prev.map((c) => (c.id === conv.id ? updated : c)));
@@ -817,7 +979,7 @@ export default function ChatInbox() {
     }
   };
 
-  // General group assign handler for any conversation
+  // General group assign handler for any conversation (legacy routing group)
   const handleAssignConversationGroup = async (conv: ChatConversation, targetGroup: ChatRoutingGroup | null) => {
     if (!targetGroup) {
       return await handleAssignConversation(conv, null);
@@ -826,7 +988,7 @@ export default function ChatInbox() {
     try {
       const ok = await assignConversation(conv.id, {
         id: targetGroup.agent_ids[0] || null,
-        name: `กลุ่ม: ${targetGroup.name}`,
+        name: targetGroup.name,
         groupId: targetGroup.id,
         groupName: targetGroup.name,
         assignedAgentIds: targetGroup.agent_ids,
@@ -836,7 +998,7 @@ export default function ChatInbox() {
         const updated: ChatConversation = {
           ...conv,
           assigned_to: targetGroup.agent_ids[0] || null,
-          assigned_name: `กลุ่ม: ${targetGroup.name}`,
+          assigned_name: targetGroup.name,
           metadata: {
             ...(conv.metadata || {}),
             assigned_group_id: targetGroup.id,
@@ -844,13 +1006,7 @@ export default function ChatInbox() {
             assigned_agent_ids: targetGroup.agent_ids,
           },
         };
-        setConversations((prev) => prev.map((c) => (c.id === conv.id ? updated : c)));
-        if (selectedConv?.id === conv.id) {
-          setSelectedConv(updated);
-        }
-        if (assignModalConv?.id === conv.id) {
-          setAssignModalConv(updated);
-        }
+        applyUpdatedConversation(updated);
         return true;
       } else {
         alert('มอบหมายกลุ่มไม่สำเร็จ');
@@ -859,6 +1015,117 @@ export default function ChatInbox() {
     } catch (err: any) {
       alert('เกิดข้อผิดพลาด: ' + err.message);
       return false;
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Assign conversation to a named ChatCareGroup (from Chat Groups settings)
+  const handleAssignConversationCareGroup = async (conv: ChatConversation, careGroup: ChatCareGroup) => {
+    setIsAssigning(true);
+    try {
+      const ok = await assignConversation(conv.id, {
+        id: careGroup.agent_ids[0] || null,
+        name: careGroup.name,
+        groupId: careGroup.id,
+        groupName: careGroup.name,
+        assignedAgentIds: careGroup.agent_ids,
+      });
+
+      if (ok) {
+        const nextCareGroups = upsertExclusiveCareGroup(careGroups, {
+          id: careGroup.id,
+          name: careGroup.name,
+          customerIds: [conv.id],
+          agentIds: careGroup.agent_ids,
+          mergeCustomers: true,
+          mergeAgents: true,
+        });
+        setCareGroups(nextCareGroups);
+        void saveChatCareGroups(nextCareGroups);
+
+        const updated: ChatConversation = {
+          ...conv,
+          assigned_to: careGroup.agent_ids[0] || null,
+          assigned_name: careGroup.name,
+          metadata: {
+            ...(conv.metadata || {}),
+            assigned_group_id: careGroup.id,
+            assigned_group_name: careGroup.name,
+            assigned_agent_ids: careGroup.agent_ids,
+          },
+        };
+        applyUpdatedConversation(updated);
+        return true;
+      } else {
+        alert('มอบหมายกลุ่มแชทไม่สำเร็จ');
+        return false;
+      }
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาด: ' + err.message);
+      return false;
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Save/update group name inline from the Inbox assignment modal and sync into chat_care_groups
+  const handleSaveInlineGroupName = async (conv: ChatConversation, rawName: string) => {
+    const trimmed = rawName.trim();
+    if (!trimmed) {
+      alert('กรุณาตั้งชื่อกลุ่มแชทก่อนบันทึก');
+      return;
+    }
+    const agentIds = getConversationAgents(conv, users).map((u) => u.id);
+    if (agentIds.length === 0) {
+      alert('กรุณาเลือกเซลล์ดูแลลูกค้าอย่างน้อย 1 คนก่อนตั้งชื่อกลุ่ม');
+      return;
+    }
+    setIsAssigning(true);
+    try {
+      const existingId = conv.metadata?.assigned_group_id;
+      const existingGroup = existingId ? careGroups.find((g) => g.id === existingId) : null;
+      const groupId = existingGroup ? existingGroup.id : existingId || `cg_${Date.now()}`;
+
+      const ok = await assignConversation(conv.id, {
+        id: agentIds[0],
+        name: trimmed,
+        groupId,
+        groupName: trimmed,
+        assignedAgentIds: agentIds,
+      });
+
+      if (!ok) {
+        alert('บันทึกชื่อกลุ่มไม่สำเร็จ');
+        return;
+      }
+
+      const nextCareGroups = upsertExclusiveCareGroup(careGroups, {
+        id: groupId,
+        name: trimmed,
+        customerIds: [conv.id],
+        agentIds,
+        mergeCustomers: true,
+        mergeAgents: true,
+      });
+
+      setCareGroups(nextCareGroups);
+      await saveChatCareGroups(nextCareGroups);
+
+      const updated: ChatConversation = {
+        ...conv,
+        assigned_to: agentIds[0],
+        assigned_name: trimmed,
+        metadata: {
+          ...(conv.metadata || {}),
+          assigned_group_id: groupId,
+          assigned_group_name: trimmed,
+          assigned_agent_ids: agentIds,
+        },
+      };
+      applyUpdatedConversation(updated);
+    } catch (err: any) {
+      alert('เกิดข้อผิดพลาดในการตั้งชื่อกลุ่ม: ' + err.message);
     } finally {
       setIsAssigning(false);
     }
@@ -884,20 +1151,29 @@ export default function ChatInbox() {
     await handleAssignConversationGroup(selectedConv, targetGroup);
   };
 
-  // Toggle resolve / active status
+  const handleAssignCareGroup = async (careGroup: ChatCareGroup) => {
+    if (!selectedConv) return;
+    setShowAssignDropdown(false);
+    await handleAssignConversationCareGroup(selectedConv, careGroup);
+  };
+
+  // Toggle resolve / active status (opens Deal Outcome modal when resolving an active chat)
   const handleToggleStatus = async () => {
     if (!selectedConv) return;
-    const newStatus = selectedConv.status === 'active' ? 'resolved' : 'active';
-    try {
-      const { error } = await supabase
-        .from('chat_conversations')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', selectedConv.id);
+    if (selectedConv.status === 'active') {
+      setQaModalConfig({ open: true, focus: 'outcome' });
+      return;
+    }
 
-      if (error) throw error;
-      setSelectedConv((prev) => (prev ? { ...prev, status: newStatus } : null));
+    try {
+      const updated = await updateConversationDealOutcome({
+        conversationId: selectedConv.id,
+        dealStatus: 'open',
+        status: 'active',
+      });
+      setSelectedConv((prev) => (prev ? { ...prev, ...updated } : null));
       setConversations((prev) =>
-        prev.map((c) => (c.id === selectedConv.id ? { ...c, status: newStatus } : c))
+        prev.map((c) => (c.id === selectedConv.id ? { ...c, ...updated } : c))
       );
     } catch (err: any) {
       alert('ไม่สามารถเปลี่ยนสถานะได้: ' + err.message);
@@ -912,6 +1188,43 @@ export default function ChatInbox() {
   };
 
   // Filter conversations
+  const myAllowedBrands =
+    currentUser && currentUser.role !== 'admin'
+      ? systemConfig.agent_weights?.[currentUser.id]?.allowed_brands
+      : undefined;
+
+  const renderBrandLockTag = (allowedBrands: string[] | undefined | null, convBrand: string | undefined | null) => {
+    const cleaned = (allowedBrands || []).filter((b) => b && b !== 'all');
+    if (cleaned.length === 0) return null;
+    const matched = isBrandAllowed(cleaned, convBrand);
+    const label = cleaned.map((slug) => getBrandDisplay(slug, channels).label).join(', ');
+    return (
+      <span
+        title={`ล็อกแบรนด์: ${label}`}
+        style={{
+          fontSize: '9px',
+          fontWeight: 700,
+          padding: '1px 5px',
+          borderRadius: '4px',
+          background: matched ? '#ECFDF5' : '#FEF3C7',
+          color: matched ? '#047857' : '#B45309',
+          border: `1px solid ${matched ? '#A7F3D0' : '#FDE68A'}`,
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {matched ? `ล็อก: ${label}` : `คนละแบรนด์ (${label})`}
+      </span>
+    );
+  };
+
+  const isConversationMine = (c: (typeof conversations)[number]) =>
+    c.assigned_to === currentUser?.id ||
+    (Array.isArray(c.metadata?.assigned_agent_ids) && c.metadata.assigned_agent_ids.includes(currentUser?.id)) ||
+    (!!c.metadata?.assigned_group_id &&
+      (careGroups.some((g) => g.id === c.metadata?.assigned_group_id && g.agent_ids.includes(currentUser?.id || '')) ||
+        routingGroups.some((g) => g.id === c.metadata?.assigned_group_id && g.agent_ids.includes(currentUser?.id || ''))));
+
   const filteredConversations = conversations.filter((c) => {
     const matchesSearch =
       c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -928,10 +1241,10 @@ export default function ChatInbox() {
       brandFilter === 'all' ||
       (c.brand || 'terrahome').toLowerCase() === brandFilter.toLowerCase();
 
-    const isMine =
-      c.assigned_to === currentUser?.id ||
-      (Array.isArray(c.metadata?.assigned_agent_ids) && c.metadata.assigned_agent_ids.includes(currentUser?.id)) ||
-      (c.metadata?.assigned_group_id && routingGroups.some((g) => g.id === c.metadata?.assigned_group_id && g.agent_ids.includes(currentUser?.id || '')));
+    const isMine = isConversationMine(c);
+    if (myAllowedBrands && myAllowedBrands.length > 0 && !isMine && !isBrandAllowed(myAllowedBrands, c.brand)) {
+      return false;
+    }
 
     const matchesAssign =
       assignFilter === 'all'
@@ -944,11 +1257,7 @@ export default function ChatInbox() {
   });
 
   const activeUnreadTotal = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
-  const myChatsCount = conversations.filter((c) =>
-    c.assigned_to === currentUser?.id ||
-    (Array.isArray(c.metadata?.assigned_agent_ids) && c.metadata.assigned_agent_ids.includes(currentUser?.id)) ||
-    (c.metadata?.assigned_group_id && routingGroups.some((g) => g.id === c.metadata?.assigned_group_id && g.agent_ids.includes(currentUser?.id || '')))
-  ).length;
+  const myChatsCount = conversations.filter((c) => isConversationMine(c)).length;
   const unassignedChatsCount = conversations.filter((c) => !c.assigned_to && !c.metadata?.assigned_group_id).length;
 
   if (accessChecked && !isAllowed) {
@@ -1093,28 +1402,50 @@ export default function ChatInbox() {
                 )}
               </div>
 
-              {/* Settings Shortcut for Admin */}
+              {/* Settings & Analytics Shortcuts for Admin */}
               {currentUser?.role === 'admin' && (
-                <button
-                  onClick={() => navigate('/chat-settings')}
-                  title="ตั้งค่าระบบแชท, จัดกลุ่มสุ่มแอดมิน & สิทธิ์เข้าใช้งาน"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <SettingsIcon size={15} />
-                </button>
+                <>
+                  <button
+                    onClick={() => navigate('/chat-settings/analytics')}
+                    title="สรุปผลการตอบแชท, ปิดการขาย & ให้คะแนน QA"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: '#2563EB',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <BarChart3 size={15} />
+                  </button>
+                  <button
+                    onClick={() => navigate('/chat-settings')}
+                    title="ตั้งค่าระบบแชท, จัดกลุ่มสุ่มแอดมิน & สิทธิ์เข้าใช้งาน"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <SettingsIcon size={15} />
+                  </button>
+                </>
               )}
 
               {/* Sound Toggle Icon Button */}
@@ -1796,6 +2127,9 @@ export default function ChatInbox() {
                             );
                           }
 
+                          const rowGroupName = resolveConvGroupName(conv);
+                          const isAutoUnnamed = !rowGroupName && cellAgents.length > 1;
+
                           return (
                             <div
                               onClick={(e) => {
@@ -1807,12 +2141,14 @@ export default function ChatInbox() {
                                 alignItems: 'center',
                                 cursor: 'pointer',
                                 padding: '1px 0',
+                                minWidth: 0,
+                                maxWidth: '100%',
                               }}
-                              title={`ผู้ดูแล (${cellAgents.length} คน): ${cellAgents.map((a) => a.nickname || a.first_name).join(', ')} (คลิกเพื่อจัดการ)`}
+                              title={`${rowGroupName ? `กลุ่ม: ${rowGroupName} • ` : isAutoUnnamed ? 'กลุ่มออโต้ (ยังไม่มีชื่อ) • ' : ''}ผู้ดูแล (${cellAgents.length} คน): ${cellAgents.map((a) => a.first_name || a.nickname).join(', ')} (คลิกเพื่อจัดการ)`}
                             >
                               {cellAgents.map((ag, idx) => {
                                 const agAvatar = ag.avatar_url ? avatarUrl(ag.avatar_url) : null;
-                                const agName = ag.nickname ? `${ag.first_name} (${ag.nickname})` : ag.first_name;
+                                const agName = ag.first_name || ag.nickname || 'U';
                                 return (
                                   <div
                                     key={ag.id}
@@ -1851,12 +2187,41 @@ export default function ChatInbox() {
                                       />
                                     ) : (
                                       <span style={{ fontSize: '9px', fontWeight: 800 }}>
-                                        {(ag.nickname || ag.first_name || 'U').charAt(0).toUpperCase()}
+                                        {agName.charAt(0).toUpperCase()}
                                       </span>
                                     )}
                                   </div>
                                 );
                               })}
+                              {rowGroupName ? (
+                                <span
+                                  style={{
+                                    marginLeft: '6px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: '#2563EB',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {rowGroupName}
+                                </span>
+                              ) : isAutoUnnamed ? (
+                                <span
+                                  style={{
+                                    marginLeft: '6px',
+                                    fontSize: '0.69rem',
+                                    fontWeight: 600,
+                                    color: '#64748B',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  กลุ่ม (ยังไม่มีชื่อ)
+                                </span>
+                              ) : null}
                             </div>
                           );
                         })()}
@@ -2056,10 +2421,15 @@ export default function ChatInbox() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {/* Agent Assignment Widget */}
                 {(() => {
-                  const assignedAgent = users.find((u) => u.id === selectedConv.assigned_to);
+                  const headerAgents = getConversationAgents(selectedConv, users);
+                  const headerGroupName = resolveConvGroupName(selectedConv);
+                  const assignedAgent = headerAgents[0] || users.find((u) => u.id === selectedConv.assigned_to);
+                  const isGroupDisplay = Boolean(headerGroupName) || headerAgents.length > 1;
+                  const stackColors = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EC4899'];
+
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {/* Assigned Agent Badge & Dropdown Trigger */}
+                      {/* Assigned Agent / Group Badge & Dropdown Trigger */}
                       <div style={{ position: 'relative' }}>
                         <button
                           onClick={() => setShowAssignDropdown(!showAssignDropdown)}
@@ -2070,15 +2440,66 @@ export default function ChatInbox() {
                             fontWeight: 600,
                             border: '1px solid var(--border)',
                             cursor: 'pointer',
-                            background: assignedAgent ? 'var(--surface-muted)' : '#FEF3C7',
-                            color: assignedAgent ? 'var(--text-primary)' : '#92400E',
+                            background: assignedAgent || headerGroupName ? 'var(--surface-muted)' : '#FEF3C7',
+                            color: assignedAgent || headerGroupName ? 'var(--text-primary)' : '#92400E',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
                           }}
-                          title="คลิกเพื่อเลือกหรือเปลี่ยนผู้ดูแลลูกค้าคนนี้"
+                          title={
+                            headerAgents.length > 0
+                              ? `${headerGroupName ? `กลุ่ม: ${headerGroupName} • ` : ''}ผู้ดูแล: ${headerAgents.map((a) => a.first_name || a.nickname).join(', ')}`
+                              : 'คลิกเพื่อเลือกหรือเปลี่ยนผู้ดูแลลูกค้าคนนี้'
+                          }
                         >
-                          {assignedAgent ? (
+                          {isGroupDisplay ? (
+                            <>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                                {headerAgents.slice(0, 3).map((ag, idx) => {
+                                  const agAv = ag.avatar_url ? avatarUrl(ag.avatar_url) : null;
+                                  return (
+                                    <div
+                                      key={ag.id}
+                                      style={{
+                                        width: '18px',
+                                        height: '18px',
+                                        borderRadius: '50%',
+                                        border: '1.5px solid #fff',
+                                        background: stackColors[idx % stackColors.length],
+                                        color: '#fff',
+                                        fontSize: '9px',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        overflow: 'hidden',
+                                        marginLeft: idx > 0 ? '-6px' : 0,
+                                        zIndex: 3 - idx,
+                                      }}
+                                    >
+                                      {agAv ? (
+                                        <img src={agAv} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      ) : (
+                                        (ag.first_name || ag.nickname || 'U').charAt(0).toUpperCase()
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <span
+                                style={{
+                                  maxWidth: '160px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  fontWeight: 700,
+                                  color: headerGroupName ? '#2563EB' : 'var(--text-primary)',
+                                }}
+                              >
+                                {headerGroupName || `กลุ่ม (ยังไม่มีชื่อ)`}
+                              </span>
+                            </>
+                          ) : assignedAgent ? (
                             <>
                               {assignedAgent.avatar_url ? (
                                 <img
@@ -2100,11 +2521,11 @@ export default function ChatInbox() {
                                     justifyContent: 'center',
                                   }}
                                 >
-                                  {(assignedAgent.nickname || assignedAgent.first_name).charAt(0)}
+                                  {(assignedAgent.first_name || assignedAgent.nickname || 'U').charAt(0).toUpperCase()}
                                 </div>
                               )}
-                              <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                👤 {assignedAgent.nickname || assignedAgent.first_name}
+                              <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {assignedAgent.first_name || assignedAgent.nickname || 'ผู้ดูแล'}
                               </span>
                             </>
                           ) : (
@@ -2171,7 +2592,83 @@ export default function ChatInbox() {
                                 {!selectedConv.assigned_to && <Check size={14} />}
                               </div>
 
-                              {/* Active Care Groups Section */}
+                              {/* Multi-agent / Group manager trigger */}
+                              <div
+                                onClick={() => {
+                                  setShowAssignDropdown(false);
+                                  setAssignModalConv(selectedConv);
+                                }}
+                                style={{
+                                  padding: '7px 10px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  color: '#2563EB',
+                                  background: 'rgba(37, 99, 235, 0.06)',
+                                  marginBottom: '4px',
+                                }}
+                              >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Users size={13} />
+                                  <span>เพิ่มหลายคน / ตั้งชื่อกลุ่ม...</span>
+                                </span>
+                              </div>
+
+                              {/* Saved Chat Care Groups Section */}
+                              {careGroups.filter((g) => g.agent_ids.length > 0).length > 0 && (
+                                <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '4px' }}>
+                                  <div
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '10px',
+                                      fontWeight: 800,
+                                      color: '#2563EB',
+                                    }}
+                                  >
+                                    กลุ่มแชท
+                                  </div>
+                                  {careGroups.filter((g) => g.agent_ids.length > 0).map((grp) => {
+                                    const isGrpSelected = selectedConv.metadata?.assigned_group_id === grp.id;
+                                    const grpLocks = grp.allowed_brands?.length
+                                      ? grp.allowed_brands
+                                      : systemConfig.group_weights?.[grp.id]?.allowed_brands;
+                                    return (
+                                      <div
+                                        key={grp.id}
+                                        onClick={() => void handleAssignCareGroup(grp)}
+                                        style={{
+                                          padding: '6px 10px',
+                                          borderRadius: '6px',
+                                          fontSize: '0.8rem',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          gap: '6px',
+                                          background: isGrpSelected ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
+                                          color: isGrpSelected ? '#2563EB' : 'var(--text-primary)',
+                                          fontWeight: isGrpSelected ? 700 : 500,
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                                          <Users size={14} color="#2563EB" style={{ flexShrink: 0 }} />
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {grp.name} ({grp.agent_ids.length})
+                                          </span>
+                                          {renderBrandLockTag(grpLocks, selectedConv.brand)}
+                                        </div>
+                                        {isGrpSelected && <Check size={14} />}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Legacy Active Routing Groups Section */}
                               {routingGroups.filter((g) => g.is_active && g.agent_ids.length > 0).length > 0 && (
                                 <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '4px' }}>
                                   <div
@@ -2182,7 +2679,7 @@ export default function ChatInbox() {
                                       color: '#4F46E5',
                                     }}
                                   >
-                                    👥 มอบหมายกลุ่มดูแลลูกค้า
+                                    ทีมดูแล
                                   </div>
                                   {routingGroups.filter((g) => g.is_active && g.agent_ids.length > 0).map((grp) => {
                                     const isGrpSelected = selectedConv.metadata?.assigned_group_id === grp.id;
@@ -2205,7 +2702,7 @@ export default function ChatInbox() {
                                       >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                           <Users size={14} color="#4F46E5" />
-                                          <span>{grp.name} ({grp.agent_ids.length} คนดูแล)</span>
+                                          <span>{grp.name} ({grp.agent_ids.length})</span>
                                         </div>
                                         {isGrpSelected && <Check size={14} />}
                                       </div>
@@ -2273,8 +2770,9 @@ export default function ChatInbox() {
                                         <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
                                         </div>
-                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                                          {u.position || u.role}
+                                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                          <span>{u.position || u.role}</span>
+                                          {renderBrandLockTag(systemConfig.agent_weights?.[u.id]?.allowed_brands, selectedConv.brand)}
                                         </div>
                                       </div>
                                     </div>
@@ -2316,6 +2814,95 @@ export default function ChatInbox() {
                   );
                 })()}
 
+                {selectedConv.deal_status === 'won' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setQaModalConfig({ open: true, focus: 'outcome' })}
+                      title="ดูประวัติปิดการขาย / บันทึกออเดอร์ซื้อซ้ำ"
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        border: '1px solid #A7F3D0',
+                        background: '#ECFDF5',
+                        color: '#047857',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Trophy size={13} />
+                      <span>
+                        ปิดการขายได้{selectedConv.deal_amount ? ` · ${formatCurrencyTHB(selectedConv.deal_amount)}` : ''}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQaModalConfig({ open: true, focus: 'outcome' })}
+                      title="บันทึกออเดอร์ซื้อซ้ำเพิ่มสำหรับลูกค้ารายนี้"
+                      style={{
+                        padding: '5px 9px',
+                        borderRadius: '8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        border: '1px solid #99F6E4',
+                        background: '#F0FDFA',
+                        color: '#0F766E',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + ซื้อซ้ำ
+                    </button>
+                  </>
+                )}
+
+                {selectedConv.deal_status === 'lost' && (
+                  <button
+                    type="button"
+                    onClick={() => setQaModalConfig({ open: true, focus: 'outcome' })}
+                    title="คลิกเพื่อแก้ไขผลปิดเคส"
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-muted)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ปิดเคส · ไม่ซื้อ
+                  </button>
+                )}
+
+                {currentUser?.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => setQaModalConfig({ open: true, focus: 'qa' })}
+                    title="ประเมินคุณภาพการพูดคุย (QA) สำหรับแชทนี้"
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: '1px solid #FDE68A',
+                      cursor: 'pointer',
+                      background: '#FFFBEB',
+                      color: '#B45309',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <Star size={13} />
+                    <span>ให้คะแนน QA</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleToggleStatus}
                   style={{
@@ -2340,7 +2927,7 @@ export default function ChatInbox() {
                   ) : (
                     <>
                       <CheckCircle2 size={14} style={{ color: '#059669' }} />
-                      <span>ปิดเคส (Resolved)</span>
+                      <span>ปิดเคส / ปิดการขาย</span>
                     </>
                   )}
                 </button>
@@ -2796,12 +3383,19 @@ export default function ChatInbox() {
               const canReply = (() => {
                 if (!selectedConv) return false;
                 if (currentUser?.role === 'admin') return true;
+
+                const isAssignedExplicitly = isConversationMine(selectedConv);
+                if (
+                  myAllowedBrands &&
+                  myAllowedBrands.length > 0 &&
+                  !isAssignedExplicitly &&
+                  !isBrandAllowed(myAllowedBrands, selectedConv.brand)
+                ) {
+                  return false;
+                }
+
                 if (systemConfig.reply_policy === 'everyone') return true;
-
-                if (selectedConv.assigned_to === currentUser?.id) return true;
-                if (Array.isArray(selectedConv.metadata?.assigned_agent_ids) && selectedConv.metadata.assigned_agent_ids.includes(currentUser?.id)) return true;
-                if (selectedConv.metadata?.assigned_group_id && routingGroups.some((g) => g.id === selectedConv.metadata?.assigned_group_id && g.agent_ids.includes(currentUser?.id || ''))) return true;
-
+                if (isAssignedExplicitly) return true;
                 if (!selectedConv.assigned_to && !selectedConv.metadata?.assigned_group_id) return true;
 
                 return false;
@@ -2823,7 +3417,7 @@ export default function ChatInbox() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
                       <Lock size={16} style={{ color: '#F59E0B', flexShrink: 0 }} />
                       <span>
-                        🔒 แชทนี้อยู่ในความดูแลของ <b>{selectedConv.assigned_name || 'เซลล์ท่านอื่น'}</b> (ระบบล็อกเฉพาะผู้ดูแลพิมพ์ตอบ)
+                        🔒 แชทนี้อยู่ในความดูแลของ <b>{resolveConvGroupName(selectedConv) || selectedConv.assigned_name || 'เซลล์ท่านอื่น'}</b> (ระบบล็อกเฉพาะผู้ดูแลพิมพ์ตอบ)
                       </span>
                     </div>
                     <button
@@ -3656,6 +4250,58 @@ export default function ChatInbox() {
                 )}
               </div>
 
+              {(modalAgents.length > 1 || Boolean(resolveConvGroupName(assignModalConv))) && (
+                <div
+                  style={{
+                    padding: '10px 20px',
+                    background: '#F8FAFC',
+                    borderBottom: '1px solid var(--border, #E2E8F0)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>
+                    ชื่อกลุ่มแชท:
+                  </span>
+                  <input
+                    type="text"
+                    value={assignGroupNameInput}
+                    onChange={(e) => setAssignGroupNameInput(e.target.value)}
+                    placeholder="ตั้งชื่อกลุ่มเพื่อแสดงแทนชื่อเซลล์..."
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      padding: '6px 10px',
+                      borderRadius: '7px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.78rem',
+                      background: '#fff',
+                      color: '#0F172A',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={isAssigning || !assignGroupNameInput.trim()}
+                    onClick={() => void handleSaveInlineGroupName(assignModalConv, assignGroupNameInput)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '7px',
+                      border: 'none',
+                      background: assignGroupNameInput.trim() ? '#2563EB' : '#CBD5E1',
+                      color: '#fff',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: isAssigning || !assignGroupNameInput.trim() ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    บันทึกชื่อกลุ่ม
+                  </button>
+                </div>
+              )}
+
               {/* Quick Action Shortcuts */}
               <div style={{ padding: '10px 20px 6px', display: 'flex', gap: '8px' }}>
                 {/* Assign / Toggle Me Button */}
@@ -3723,7 +4369,50 @@ export default function ChatInbox() {
                 </button>
               </div>
 
-              {/* Active Care Groups Section (if available) */}
+              {/* Saved Chat Care Groups Quick Assign */}
+              {careGroups.filter((g) => g.agent_ids.length > 0).length > 0 && (
+                <div style={{ padding: '4px 20px 6px' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563EB', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Users size={12} />
+                    <span>มอบหมายเข้ากลุ่มแชท:</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {careGroups
+                      .filter((g) => g.agent_ids.length > 0)
+                      .map((grp) => {
+                        const isGrpAssigned = assignModalConv.metadata?.assigned_group_id === grp.id;
+                        return (
+                          <button
+                            key={grp.id}
+                            type="button"
+                            onClick={async () => {
+                              await handleAssignConversationCareGroup(assignModalConv, grp);
+                            }}
+                            disabled={isAssigning}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: isAssigning ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: isGrpAssigned ? '#2563EB' : 'rgba(37, 99, 235, 0.08)',
+                              color: isGrpAssigned ? '#ffffff' : '#2563EB',
+                              border: '1px solid rgba(37, 99, 235, 0.25)',
+                            }}
+                          >
+                            <span>{grp.name} ({grp.agent_ids.length} คน)</span>
+                            {isGrpAssigned && <Check size={12} />}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Routing Groups Section (if available) */}
               {routingGroups.filter((g) => g.is_active && g.agent_ids.length > 0).length > 0 && (
                 <div style={{ padding: '4px 20px 6px' }}>
                   <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4F46E5', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -3820,11 +4509,13 @@ export default function ChatInbox() {
               >
                 {(() => {
                   const q = assignSearch.trim().toLowerCase();
-                  const authorizedUsers = users.filter((u) => {
-                    const isAssigned = modalAgentIds.has(u.id);
-                    const isPermitted = hasChatAccess(u, accessUsers, routingGroups);
-                    return isAssigned || isPermitted;
-                  });
+                  const authorizedUsers = sortSalesFirst(
+                    users.filter((u) => {
+                      const isAssigned = modalAgentIds.has(u.id);
+                      const isPermitted = hasChatAccess(u, accessUsers, routingGroups);
+                      return isAssigned || isPermitted;
+                    })
+                  );
 
                   const filtered = authorizedUsers.filter((u) => {
                     if (!q) return true;
@@ -3856,7 +4547,7 @@ export default function ChatInbox() {
                           type="button"
                           onClick={() => {
                             setAssignModalConv(null);
-                            navigate('/chat-settings');
+                            navigate('/chat-settings/access');
                           }}
                           style={{
                             padding: '6px 14px',
@@ -3949,7 +4640,7 @@ export default function ChatInbox() {
                                 )}
                               </div>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                   <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
                                   </span>
@@ -3963,6 +4654,7 @@ export default function ChatInbox() {
                                       ตรงแบรนด์
                                     </span>
                                   )}
+                                  {renderBrandLockTag(systemConfig.agent_weights?.[u.id]?.allowed_brands, assignModalConv.brand)}
                                 </div>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #64748B)' }}>
                                   {u.position || u.department || u.role}
@@ -4031,7 +4723,7 @@ export default function ChatInbox() {
                   type="button"
                   onClick={() => {
                     setAssignModalConv(null);
-                    navigate('/chat-settings');
+                    navigate('/chat-settings/groups');
                   }}
                   style={{
                     background: 'none',
@@ -4084,11 +4776,44 @@ export default function ChatInbox() {
         <ChatDistributionModal
           isOpen={showDistributionModal}
           onClose={() => setShowDistributionModal(false)}
+          channels={channels}
+          initialBrand={brandFilter}
+          initialMode={systemConfig.routing_target_mode === 'groups' ? 'groups' : 'agents'}
           onSuccess={() => {
             void fetchConversations();
+            void fetchChatCareGroups().then((res) => {
+              if (res) setCareGroups(res);
+            });
           }}
         />
       )}
+
+      {/* Outcome Tagging & Manual QA Review Modal */}
+      <ChatQAReviewModal
+        isOpen={qaModalConfig.open}
+        onClose={() => setQaModalConfig((prev) => ({ ...prev, open: false }))}
+        conversation={selectedConv}
+        agents={users.map((u) => ({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          nickname: u.nickname,
+          avatar_url: u.avatar_url,
+          role: u.role,
+        }))}
+        currentUserId={currentUser?.id || null}
+        isAdmin={currentUser?.role === 'admin'}
+        initialMessages={messages}
+        initialFocus={qaModalConfig.focus}
+        onSaved={(outcomeUpdate) => {
+          if (!outcomeUpdate) return;
+          const { conversationId, ...fields } = outcomeUpdate;
+          setSelectedConv((prev) => (prev && prev.id === conversationId ? { ...prev, ...fields } : prev));
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, ...fields } : c))
+          );
+        }}
+      />
 
       {/* Lightbox Image Preview Modal */}
       {previewImage && (

@@ -1,5 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+
+type ChatSettingsTab = 'channels' | 'routing' | 'system' | 'access' | 'analytics';
+
+const TAB_TO_URL_SLUG: Record<ChatSettingsTab, string> = {
+  channels: 'channels',
+  routing: 'groups',
+  system: 'system',
+  access: 'access',
+  analytics: 'analytics',
+};
+
+const URL_SLUG_TO_TAB: Record<string, ChatSettingsTab> = {
+  channels: 'channels',
+  groups: 'routing',
+  routing: 'routing',
+  system: 'system',
+  access: 'access',
+  analytics: 'analytics',
+  summary: 'analytics',
+};
 import {
   MessageSquare,
   Plus,
@@ -12,10 +32,12 @@ import {
   Users,
   Shield,
   Sliders,
+  BarChart3,
 } from 'lucide-react';
 import ChatRoutingTab from '../components/chat/ChatRoutingTab';
 import ChatAccessTab from '../components/chat/ChatAccessTab';
 import ChatSystemConfigTab from '../components/chat/ChatSystemConfigTab';
+import ChatAnalyticsTab from '../components/chat/ChatAnalyticsTab';
 import { supabase } from '../lib/supabase';
 import type { ChatChannel } from '../types';
 
@@ -83,7 +105,26 @@ export default function ChatSettings() {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'channels' | 'routing' | 'system' | 'access'>('channels');
+  const { tab: paramTab } = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const rawTab = (paramTab || searchParams.get('tab') || '').toLowerCase().trim();
+  const activeTab: ChatSettingsTab = URL_SLUG_TO_TAB[rawTab] || 'channels';
+  const expectedSlug = TAB_TO_URL_SLUG[activeTab];
+
+  useEffect(() => {
+    if (!paramTab || paramTab.toLowerCase() !== expectedSlug) {
+      navigate(`/chat-settings/${expectedSlug}`, { replace: true });
+    }
+  }, [paramTab, expectedSlug, navigate]);
+
+  const setActiveTab = useCallback(
+    (nextTab: ChatSettingsTab) => {
+      navigate(`/chat-settings/${TAB_TO_URL_SLUG[nextTab]}`);
+    },
+    [navigate]
+  );
 
   // Modal State
   const [showChannelModal, setShowChannelModal] = useState(false);
@@ -335,7 +376,7 @@ export default function ChatSettings() {
               }`}
             >
               <Users size={13} className={activeTab === 'routing' ? 'text-blue-600' : ''} />
-              <span>จัดกลุ่มแอดมิน & สุ่มคนดูแล</span>
+              <span>กลุ่มแชท</span>
             </button>
 
             <button
@@ -360,6 +401,14 @@ export default function ChatSettings() {
             >
               <Shield size={13} className={activeTab === 'access' ? 'text-blue-600' : ''} />
               <span>สิทธิ์เข้าใช้งาน</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'analytics' ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'}`}
+            >
+              <BarChart3 size={13} className={activeTab === 'analytics' ? 'text-blue-600' : ''} />
+              <span>สรุปผลการตอบ</span>
             </button>
           </div>
         </div>
@@ -632,10 +681,13 @@ export default function ChatSettings() {
       {activeTab === 'routing' && <ChatRoutingTab onNavigateToAccess={() => setActiveTab('access')} />}
 
       {/* ================= TAB 3: SYSTEM CONFIG & AGENT RATIOS ================= */}
-      {activeTab === 'system' && <ChatSystemConfigTab onNavigateToAccess={() => setActiveTab('access')} />}
+      {activeTab === 'system' && <ChatSystemConfigTab onNavigateToAccess={() => setActiveTab('access')} onNavigateToGroups={() => setActiveTab('routing')} />}
 
       {/* ================= TAB 4: ACCESS PERMISSIONS ================= */}
       {activeTab === 'access' && <ChatAccessTab />}
+
+      {/* ================= TAB 5: RESPONSE ANALYTICS & QA ================= */}
+      {activeTab === 'analytics' && <ChatAnalyticsTab />}
 
       {/* ================= MODAL: CHANNEL DETAILS & SETTINGS ================= */}
       {showChannelModal && (

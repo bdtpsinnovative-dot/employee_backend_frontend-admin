@@ -173,6 +173,7 @@ export default function App() {
             <Route path="inquiries" element={<ContactInquiries />} />
             <Route path="chat-inbox" element={<ChatInbox />} />
             <Route path="chat-settings" element={<ChatSettings />} />
+            <Route path="chat-settings/:tab" element={<ChatSettings />} />
           </Route>
         </Routes>
       </Suspense>
