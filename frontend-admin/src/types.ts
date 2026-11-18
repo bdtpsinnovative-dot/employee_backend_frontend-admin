@@ -633,11 +633,19 @@ export type ShippingVehicleType =
   | 'customer_pickup'
   | 'other';
 
+export interface ShippingBranch {
+  id: number;
+  branch_code: string;
+  branch_name: string;
+  branch_type: string;
+}
+
 export interface ShippingSchedule {
   id: string;
   delivery_date: string; // YYYY-MM-DD
   time_slot: string;
   title: string;
+  branch_id: number | null;
   brand_id: string | null;
   customer_name: string;
   customer_phone: string;
@@ -659,6 +667,7 @@ export interface ShippingScheduleInput {
   delivery_date: string;
   time_slot?: string;
   title: string;
+  branch_id?: number | null;
   brand_id?: string | null;
   customer_name?: string;
   customer_phone?: string;

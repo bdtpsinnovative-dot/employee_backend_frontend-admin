@@ -24,6 +24,7 @@ import type {
   BackupConfig,
   Position,
   TeamMembersData,
+  ShippingBranch,
   ShippingSchedule,
   ShippingScheduleInput,
 } from '../types';
@@ -820,7 +821,14 @@ export async function toggleStarTask(taskId: string, isStarred: boolean): Promis
   return data;
 }
 
-// ────────────────── Shipping Calendar (ปฏิทินขนส่ง — Go Backend API) ──────────────────
+// ────────────────── Shipping Plan (แผนขนส่ง — Go Backend API) ──────────────────
+
+export async function fetchShippingBranches(): Promise<ShippingBranch[]> {
+  return cachedQuery('shipping-branches', 10 * 60_000, async () => {
+    const { data } = await api.get<ApiResponse<ShippingBranch[]>>('/api/shipping-schedules/branches');
+    return data.data ?? [];
+  });
+}
 
 export async function fetchShippingSchedules(year: number): Promise<ShippingSchedule[]> {
   const { data } = await api.get<ApiResponse<ShippingSchedule[]>>('/api/shipping-schedules', {

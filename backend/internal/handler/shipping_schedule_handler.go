@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ShippingScheduleHandler handles CRUD HTTP endpoints for the Shipping Calendar.
+// ShippingScheduleHandler handles CRUD HTTP endpoints for the Shipping Plan Calendar.
 // Accessible to all authenticated active users (admin & employee).
 type ShippingScheduleHandler struct {
 	repo *repository.ShippingScheduleRepo
@@ -41,21 +42,61 @@ var validShippingVehicles = map[string]bool{
 	"other":            true,
 }
 
+// optionalInt64 distinguishes between omitted field, explicit null/empty (clear), and integer value.
+type optionalInt64 struct {
+	Set   bool
+	Value *int64
+}
+
+func (o *optionalInt64) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" || trimmed == `""` {
+		o.Value = nil
+		return nil
+	}
+	var num int64
+	if err := json.Unmarshal(data, &num); err == nil {
+		if num <= 0 {
+			o.Value = nil
+			return nil
+		}
+		o.Value = &num
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		str = strings.TrimSpace(str)
+		if str == "" {
+			o.Value = nil
+			return nil
+		}
+		parsed, err := strconv.ParseInt(str, 10, 64)
+		if err != nil {
+			return err
+		}
+		o.Value = &parsed
+		return nil
+	}
+	return errors.New("invalid branch_id")
+}
+
 type shippingScheduleBody struct {
-	DeliveryDate  *string `json:"delivery_date"`
-	TimeSlot      *string `json:"time_slot"`
-	Title         *string `json:"title"`
-	BrandID       *string `json:"brand_id"`
-	CustomerName  *string `json:"customer_name"`
-	CustomerPhone *string `json:"customer_phone"`
-	Location      *string `json:"location"`
-	MapURL        *string `json:"map_url"`
-	OrderNo       *string `json:"order_no"`
-	VehicleType   *string `json:"vehicle_type"`
-	DriverName    *string `json:"driver_name"`
-	AssigneeID    *string `json:"assignee_id"`
-	Status        *string `json:"status"`
-	Notes         *string `json:"notes"`
+	DeliveryDate  *string       `json:"delivery_date"`
+	TimeSlot      *string       `json:"time_slot"`
+	Title         *string       `json:"title"`
+	BranchID      optionalInt64 `json:"branch_id"`
+	BrandID       *string       `json:"brand_id"`
+	CustomerName  *string       `json:"customer_name"`
+	CustomerPhone *string       `json:"customer_phone"`
+	Location      *string       `json:"location"`
+	MapURL        *string       `json:"map_url"`
+	OrderNo       *string       `json:"order_no"`
+	VehicleType   *string       `json:"vehicle_type"`
+	DriverName    *string       `json:"driver_name"`
+	AssigneeID    *string       `json:"assignee_id"`
+	Status        *string       `json:"status"`
+	Notes         *string       `json:"notes"`
 }
 
 func parseOptionalUUID(raw *string) (*uuid.UUID, error) {
@@ -82,6 +123,16 @@ func getActorUserID(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
+// ListBranches GET /api/shipping-schedules/branches
+func (h *ShippingScheduleHandler) ListBranches(c *gin.Context) {
+	branches, err := h.repo.ListBranches(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถโหลดรายชื่อสาขาได้"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": branches})
+}
+
 // List GET /api/shipping-schedules?year=2026
 func (h *ShippingScheduleHandler) List(c *gin.Context) {
 	yearStr := c.DefaultQuery("year", strconv.Itoa(time.Now().Year()))
@@ -92,7 +143,7 @@ func (h *ShippingScheduleHandler) List(c *gin.Context) {
 
 	items, err := h.repo.ListByYear(c.Request.Context(), year)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถโหลดข้อมูลปฏิทินขนส่งได้"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถโหลดข้อมูลแผนขนส่งได้"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": items})
@@ -164,6 +215,7 @@ func (h *ShippingScheduleHandler) Create(c *gin.Context) {
 		DeliveryDate:  dateStr,
 		TimeSlot:      trimStr(body.TimeSlot),
 		Title:         trimStr(body.Title),
+		BranchID:      body.BranchID.Value,
 		BrandID:       brandID,
 		CustomerName:  trimStr(body.CustomerName),
 		CustomerPhone: trimStr(body.CustomerPhone),
@@ -181,7 +233,7 @@ func (h *ShippingScheduleHandler) Create(c *gin.Context) {
 
 	created, err := h.repo.Create(c.Request.Context(), item)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มคิวขนส่งไม่สำเร็จ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "เพิ่มแผนขนส่งไม่สำเร็จ"})
 		return
 	}
 
@@ -230,6 +282,9 @@ func (h *ShippingScheduleHandler) Update(c *gin.Context) {
 			return
 		}
 		existing.Title = t
+	}
+	if body.BranchID.Set {
+		existing.BranchID = body.BranchID.Value
 	}
 	if body.BrandID != nil {
 		bid, err := parseOptionalUUID(body.BrandID)

@@ -9,7 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// ShippingScheduleRepo manages SQL queries for public.shipping_schedules.
+// ShippingScheduleRepo manages SQL queries for public.shipping_schedules and public.branches.
 type ShippingScheduleRepo struct {
 	db *sqlx.DB
 }
@@ -23,6 +23,7 @@ const shippingScheduleSelectCols = `
 	TO_CHAR(delivery_date, 'YYYY-MM-DD') AS delivery_date,
 	time_slot,
 	title,
+	branch_id,
 	brand_id,
 	customer_name,
 	customer_phone,
@@ -40,7 +41,7 @@ const shippingScheduleSelectCols = `
 	updated_at
 `
 
-// EnsureTable creates public.shipping_schedules and indexes idempotently on server startup.
+// EnsureTable creates public.shipping_schedules, branch_id column, and indexes idempotently on server startup.
 func (r *ShippingScheduleRepo) EnsureTable(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS public.shipping_schedules (
@@ -48,6 +49,7 @@ func (r *ShippingScheduleRepo) EnsureTable(ctx context.Context) error {
 			delivery_date DATE NOT NULL,
 			time_slot TEXT NOT NULL DEFAULT '',
 			title TEXT NOT NULL,
+			branch_id BIGINT REFERENCES public.branches(id) ON DELETE SET NULL,
 			brand_id UUID REFERENCES public.brands(id) ON DELETE SET NULL,
 			customer_name TEXT NOT NULL DEFAULT '',
 			customer_phone TEXT NOT NULL DEFAULT '',
@@ -66,14 +68,39 @@ func (r *ShippingScheduleRepo) EnsureTable(ctx context.Context) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		ALTER TABLE public.shipping_schedules
+			ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES public.branches(id) ON DELETE SET NULL;
 		CREATE INDEX IF NOT EXISTS idx_shipping_schedules_delivery_date
 			ON public.shipping_schedules (delivery_date);
+		CREATE INDEX IF NOT EXISTS idx_shipping_schedules_branch_id
+			ON public.shipping_schedules (branch_id);
 		CREATE INDEX IF NOT EXISTS idx_shipping_schedules_brand_id
 			ON public.shipping_schedules (brand_id);
 		CREATE INDEX IF NOT EXISTS idx_shipping_schedules_status
 			ON public.shipping_schedules (status);
 	`)
 	return err
+}
+
+// ListBranches returns all branches from public.branches ordered by id ASC.
+func (r *ShippingScheduleRepo) ListBranches(ctx context.Context) ([]domain.ShippingBranch, error) {
+	var branches []domain.ShippingBranch
+	err := r.db.SelectContext(ctx, &branches, `
+		SELECT
+			id,
+			COALESCE(branch_code, '') AS branch_code,
+			COALESCE(branch_name, '') AS branch_name,
+			COALESCE(branch_type, 'SHOWROOM') AS branch_type
+		FROM public.branches
+		ORDER BY id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	if branches == nil {
+		branches = []domain.ShippingBranch{}
+	}
+	return branches, nil
 }
 
 // ListByYear returns shipping schedules spanning Dec (year-1) through Feb (year+1) for smooth calendar navigation.
@@ -122,15 +149,15 @@ func (r *ShippingScheduleRepo) Create(ctx context.Context, item *domain.Shipping
 	var created domain.ShippingSchedule
 	query := fmt.Sprintf(`
 		INSERT INTO public.shipping_schedules (
-			id, delivery_date, time_slot, title, brand_id,
+			id, delivery_date, time_slot, title, branch_id, brand_id,
 			customer_name, customer_phone, location, map_url, order_no,
 			vehicle_type, driver_name, assignee_id, status, notes,
 			created_by, updated_by
 		) VALUES (
-			$1, $2::date, $3, $4, $5,
-			$6, $7, $8, $9, $10,
-			$11, $12, $13, $14, $15,
-			$16, $17
+			$1, $2::date, $3, $4, $5, $6,
+			$7, $8, $9, $10, $11,
+			$12, $13, $14, $15, $16,
+			$17, $18
 		)
 		RETURNING %s
 	`, shippingScheduleSelectCols)
@@ -143,6 +170,7 @@ func (r *ShippingScheduleRepo) Create(ctx context.Context, item *domain.Shipping
 		item.DeliveryDate,
 		item.TimeSlot,
 		item.Title,
+		item.BranchID,
 		item.BrandID,
 		item.CustomerName,
 		item.CustomerPhone,
@@ -172,18 +200,19 @@ func (r *ShippingScheduleRepo) Update(ctx context.Context, item *domain.Shipping
 			delivery_date = $2::date,
 			time_slot = $3,
 			title = $4,
-			brand_id = $5,
-			customer_name = $6,
-			customer_phone = $7,
-			location = $8,
-			map_url = $9,
-			order_no = $10,
-			vehicle_type = $11,
-			driver_name = $12,
-			assignee_id = $13,
-			status = $14,
-			notes = $15,
-			updated_by = $16,
+			branch_id = $5,
+			brand_id = $6,
+			customer_name = $7,
+			customer_phone = $8,
+			location = $9,
+			map_url = $10,
+			order_no = $11,
+			vehicle_type = $12,
+			driver_name = $13,
+			assignee_id = $14,
+			status = $15,
+			notes = $16,
+			updated_by = $17,
 			updated_at = NOW()
 		WHERE id = $1
 		RETURNING %s
@@ -197,6 +226,7 @@ func (r *ShippingScheduleRepo) Update(ctx context.Context, item *domain.Shipping
 		item.DeliveryDate,
 		item.TimeSlot,
 		item.Title,
+		item.BranchID,
 		item.BrandID,
 		item.CustomerName,
 		item.CustomerPhone,

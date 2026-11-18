@@ -21,10 +21,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Tag,
+  Building2,
   FileText,
 } from 'lucide-react';
 import {
+  fetchShippingBranches,
   fetchShippingSchedules,
   createShippingSchedule,
   updateShippingSchedule,
@@ -38,6 +39,7 @@ import { queryKeys } from '../lib/queryKeys';
 import type {
   Brand,
   Holiday,
+  ShippingBranch,
   ShippingSchedule,
   ShippingScheduleInput,
   ShippingStatus,
@@ -63,42 +65,37 @@ const WEEKDAY_NAMES_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.
 
 const STATUS_META: Record<
   ShippingStatus,
-  { label: string; dot: string; badge: string; cardBorder: string; bgSoft: string }
+  { label: string; dot: string; badge: string; cardBorder: string }
 > = {
   pending: {
     label: 'รอจัดส่ง',
     dot: 'bg-amber-500',
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
     cardBorder: 'border-amber-200 hover:border-amber-300',
-    bgSoft: 'bg-amber-50/70',
   },
   in_transit: {
     label: 'กำลังจัดส่ง',
     dot: 'bg-blue-500',
     badge: 'bg-blue-50 text-blue-700 border-blue-200',
     cardBorder: 'border-blue-200 hover:border-blue-300',
-    bgSoft: 'bg-blue-50/70',
   },
   delivered: {
     label: 'ส่งสำเร็จ',
     dot: 'bg-emerald-500',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     cardBorder: 'border-emerald-200 hover:border-emerald-300',
-    bgSoft: 'bg-emerald-50/70',
   },
   postponed: {
     label: 'เลื่อนส่ง',
     dot: 'bg-purple-500',
     badge: 'bg-purple-50 text-purple-700 border-purple-200',
     cardBorder: 'border-purple-200 hover:border-purple-300',
-    bgSoft: 'bg-purple-50/70',
   },
   cancelled: {
     label: 'ยกเลิก',
     dot: 'bg-rose-500',
     badge: 'bg-rose-50 text-rose-700 border-rose-200',
     cardBorder: 'border-rose-200 hover:border-rose-300',
-    bgSoft: 'bg-rose-50/60',
   },
 };
 
@@ -110,9 +107,14 @@ const VEHICLE_META: Record<ShippingVehicleType, { label: string; icon: string }>
   other: { label: 'อื่นๆ', icon: '🚚' },
 };
 
-const TIME_SLOT_PRESETS = ['ช่วงเช้า (09:00-12:00)', 'ช่วงบ่าย (13:00-17:00)', 'ทั้งวัน', 'นัดเวลาเฉพาะ'];
+const TIME_SLOT_PRESETS = [
+  'ช่วงเช้า (09:00-12:00)',
+  'ช่วงบ่าย (13:00-17:00)',
+  'ทั้งวัน',
+  'นัดเวลาเฉพาะ',
+];
 
-const BRAND_PALETTES = [
+const BRANCH_PALETTES = [
   { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', dot: 'bg-blue-600' },
   { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-600' },
   { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-600' },
@@ -121,6 +123,8 @@ const BRAND_PALETTES = [
   { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200', dot: 'bg-cyan-600' },
   { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', dot: 'bg-orange-600' },
   { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200', dot: 'bg-teal-600' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200', dot: 'bg-indigo-600' },
+  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200', dot: 'bg-pink-600' },
 ];
 
 function formatDateStr(d: Date): string {
@@ -150,6 +154,7 @@ interface FormState {
   delivery_date: string;
   time_slot: string;
   title: string;
+  branch_id: string;
   brand_id: string;
   customer_name: string;
   customer_phone: string;
@@ -167,6 +172,7 @@ const createEmptyForm = (dateStr: string): FormState => ({
   delivery_date: dateStr,
   time_slot: 'ช่วงเช้า (09:00-12:00)',
   title: '',
+  branch_id: '',
   brand_id: '',
   customer_name: '',
   customer_phone: '',
@@ -195,6 +201,7 @@ export default function ShippingCalendar() {
   const [year, setYear] = useState<number>(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -220,6 +227,12 @@ export default function ShippingCalendar() {
     staleTime: 30_000,
   });
 
+  const branchesQuery = useQuery({
+    queryKey: queryKeys.shippingBranches,
+    queryFn: () => fetchShippingBranches(),
+    staleTime: 10 * 60_000,
+  });
+
   const brandsQuery = useQuery({
     queryKey: queryKeys.brands,
     queryFn: () => fetchBrands(),
@@ -239,7 +252,7 @@ export default function ShippingCalendar() {
     staleTime: 5 * 60_000,
   });
 
-  // Realtime sync across all logged-in teammates
+  // Realtime sync across teammates
   useEffect(() => {
     const channel = supabase
       .channel('shipping_schedules_realtime')
@@ -258,6 +271,7 @@ export default function ShippingCalendar() {
   }, [queryClient, year]);
 
   const schedules: ShippingSchedule[] = schedulesQuery.data ?? [];
+  const branches: ShippingBranch[] = branchesQuery.data ?? [];
   const brands: Brand[] = useMemo(() => {
     const raw = brandsQuery.data ?? [];
     return [...raw].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999) || a.name.localeCompare(b.name));
@@ -265,11 +279,17 @@ export default function ShippingCalendar() {
   const holidays: Holiday[] = holidaysQuery.data ?? [];
   const users: User[] = usersQuery.data ?? [];
 
-  const brandMap = useMemo(() => {
-    const map = new Map<string, { brand: Brand; palette: (typeof BRAND_PALETTES)[number] }>();
-    brands.forEach((b, idx) => {
-      map.set(b.id, { brand: b, palette: BRAND_PALETTES[idx % BRAND_PALETTES.length] });
+  const branchMap = useMemo(() => {
+    const map = new Map<number, { branch: ShippingBranch; palette: (typeof BRANCH_PALETTES)[number] }>();
+    branches.forEach((b, idx) => {
+      map.set(b.id, { branch: b, palette: BRANCH_PALETTES[idx % BRANCH_PALETTES.length] });
     });
+    return map;
+  }, [branches]);
+
+  const brandMap = useMemo(() => {
+    const map = new Map<string, Brand>();
+    brands.forEach((b) => map.set(b.id, b));
     return map;
   }, [brands]);
 
@@ -293,10 +313,14 @@ export default function ShippingCalendar() {
   const filteredSchedules = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     return schedules.filter((item) => {
-      if (brandFilter === 'none') {
-        if (item.brand_id) return false;
-      } else if (brandFilter !== 'all') {
-        if (item.brand_id !== brandFilter) return false;
+      if (branchFilter === 'none') {
+        if (item.branch_id !== null && item.branch_id !== undefined) return false;
+      } else if (branchFilter !== 'all') {
+        if (String(item.branch_id ?? '') !== branchFilter) return false;
+      }
+
+      if (brandFilter !== 'all' && (item.brand_id || '') !== brandFilter) {
+        return false;
       }
 
       if (statusFilter !== 'all' && item.status !== statusFilter) {
@@ -304,7 +328,9 @@ export default function ShippingCalendar() {
       }
 
       if (q) {
-        const bName = item.brand_id ? (brandMap.get(item.brand_id)?.brand.name || '') : '';
+        const branchName = item.branch_id ? (branchMap.get(item.branch_id)?.branch.branch_name || '') : '';
+        const branchCode = item.branch_id ? (branchMap.get(item.branch_id)?.branch.branch_code || '') : '';
+        const brandName = item.brand_id ? (brandMap.get(item.brand_id)?.name || '') : '';
         const assigneeName = getUserDisplayName(item.assignee_id);
         const haystack = [
           item.title,
@@ -315,7 +341,9 @@ export default function ShippingCalendar() {
           item.driver_name,
           item.notes,
           item.time_slot,
-          bName,
+          branchName,
+          branchCode,
+          brandName,
           assigneeName,
           formatDateThai(item.delivery_date),
         ]
@@ -326,7 +354,7 @@ export default function ShippingCalendar() {
 
       return true;
     });
-  }, [schedules, brandFilter, statusFilter, searchTerm, brandMap, getUserDisplayName]);
+  }, [schedules, branchFilter, brandFilter, statusFilter, searchTerm, branchMap, brandMap, getUserDisplayName]);
 
   // Map by YYYY-MM-DD
   const schedulesByDate = useMemo(() => {
@@ -376,26 +404,27 @@ export default function ShippingCalendar() {
     return { total: currentMonthSchedules.length, pending, inTransit, delivered };
   }, [currentMonthSchedules]);
 
-  // Brand counts for current month (unfiltered by brand so users can see counts on pills)
-  const monthBrandCounts = useMemo(() => {
+  // Branch counts for current month
+  const monthBranchCounts = useMemo(() => {
     const prefix = `${year}-${String(currentMonth + 1).padStart(2, '0')}-`;
     const counts = new Map<string, number>();
     let total = 0;
     for (const s of schedules) {
       if (!s.delivery_date.startsWith(prefix)) continue;
+      if (brandFilter !== 'all' && (s.brand_id || '') !== brandFilter) continue;
       if (statusFilter !== 'all' && s.status !== statusFilter) continue;
       total++;
-      const key = s.brand_id || 'none';
+      const key = s.branch_id !== null && s.branch_id !== undefined ? String(s.branch_id) : 'none';
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     counts.set('all', total);
     return counts;
-  }, [schedules, year, currentMonth, statusFilter]);
+  }, [schedules, year, currentMonth, brandFilter, statusFilter]);
 
-  // Calendar grid days for selected month
+  // Calendar grid days
   const calendarDays = useMemo(() => {
     const firstOfMonth = new Date(year, currentMonth, 1);
-    const startDay = firstOfMonth.getDay(); // 0 = Sun
+    const startDay = firstOfMonth.getDay();
     const startDate = new Date(firstOfMonth);
     startDate.setDate(startDate.getDate() - startDay);
 
@@ -433,7 +462,7 @@ export default function ShippingCalendar() {
     return cells;
   }, [year, currentMonth, todayStr, schedulesByDate, holidaysByDate]);
 
-  // List view grouped by month for the selected year
+  // Grouped by month for List View
   const groupedByMonth = useMemo(() => {
     const groups: Record<number, ShippingSchedule[]> = {};
     const yearPrefix = `${year}-`;
@@ -478,7 +507,10 @@ export default function ShippingCalendar() {
         ? todayStr
         : `${year}-${String(currentMonth + 1).padStart(2, '0')}-01`);
     const nextForm = createEmptyForm(defaultDate);
-    if (brandFilter !== 'all' && brandFilter !== 'none') {
+    if (branchFilter !== 'all' && branchFilter !== 'none') {
+      nextForm.branch_id = branchFilter;
+    }
+    if (brandFilter !== 'all') {
       nextForm.brand_id = brandFilter;
     }
     if (currentUser?.id) {
@@ -494,6 +526,7 @@ export default function ShippingCalendar() {
       delivery_date: item.delivery_date.split('T')[0],
       time_slot: item.time_slot || '',
       title: item.title || '',
+      branch_id: item.branch_id !== null && item.branch_id !== undefined ? String(item.branch_id) : '',
       brand_id: item.brand_id || '',
       customer_name: item.customer_name || '',
       customer_phone: item.customer_phone || '',
@@ -518,10 +551,12 @@ export default function ShippingCalendar() {
 
     setSaving(true);
     try {
+      const parsedBranchId = form.branch_id ? Number(form.branch_id) : null;
       const payload: ShippingScheduleInput = {
         delivery_date: form.delivery_date,
         time_slot: form.time_slot,
         title: form.title,
+        branch_id: parsedBranchId && Number.isFinite(parsedBranchId) ? parsedBranchId : null,
         brand_id: form.brand_id || null,
         customer_name: form.customer_name,
         customer_phone: form.customer_phone,
@@ -533,16 +568,14 @@ export default function ShippingCalendar() {
         assignee_id: form.assignee_id || null,
         status: form.status,
         notes: form.notes,
-        updated_by: currentUser?.id || null,
       };
 
       if (editingItem) {
         await updateShippingSchedule(editingItem.id, payload);
-        showToast('success', 'อัปเดตคิวขนส่งเรียบร้อยแล้ว');
+        showToast('success', 'อัปเดตแผนขนส่งเรียบร้อยแล้ว');
       } else {
-        payload.created_by = currentUser?.id || null;
         await createShippingSchedule(payload);
-        showToast('success', 'เพิ่มคิวขนส่งเรียบร้อยแล้ว');
+        showToast('success', 'เพิ่มแผนขนส่งเรียบร้อยแล้ว');
       }
 
       const savedYear = Number(form.delivery_date.slice(0, 4));
@@ -563,10 +596,7 @@ export default function ShippingCalendar() {
     if (item.status === newStatus || updatingStatusId) return;
     setUpdatingStatusId(item.id);
     try {
-      await updateShippingSchedule(item.id, {
-        status: newStatus,
-        updated_by: currentUser?.id || null,
-      });
+      await updateShippingSchedule(item.id, { status: newStatus });
       await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
       showToast('success', `เปลี่ยนสถานะเป็น "${STATUS_META[newStatus].label}" แล้ว`);
     } catch (err: any) {
@@ -577,20 +607,20 @@ export default function ShippingCalendar() {
   };
 
   const handleDelete = async (item: ShippingSchedule) => {
-    if (!window.confirm(`ยืนยันลบคิวขนส่ง "${item.title}" วันที่ ${formatDateThai(item.delivery_date)}?`)) {
+    if (!window.confirm(`ยืนยันลบแผนขนส่ง "${item.title}" วันที่ ${formatDateThai(item.delivery_date)}?`)) {
       return;
     }
     setDeletingId(item.id);
     try {
       await deleteShippingSchedule(item.id);
       await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
-      showToast('success', 'ลบคิวขนส่งเรียบร้อยแล้ว');
+      showToast('success', 'ลบแผนขนส่งเรียบร้อยแล้ว');
       if (editingItem?.id === item.id) {
         setShowFormModal(false);
         setEditingItem(null);
       }
     } catch (err: any) {
-      showToast('error', err?.message || 'ลบคิวขนส่งไม่สำเร็จ');
+      showToast('error', err?.message || 'ลบแผนขนส่งไม่สำเร็จ');
     } finally {
       setDeletingId(null);
     }
@@ -598,7 +628,6 @@ export default function ShippingCalendar() {
 
   const selectedDayItems = selectedDayStr ? schedulesByDate.get(selectedDayStr) || [] : [];
   const selectedDayHolidays = selectedDayStr ? holidaysByDate.get(selectedDayStr) || [] : [];
-
   const loading = schedulesQuery.isLoading;
 
   return (
@@ -607,9 +636,9 @@ export default function ShippingCalendar() {
       className="page-section active flex w-full min-w-0 flex-none flex-col pb-12 content-area-flush px-4 sm:px-6 md:px-8 pt-0"
       style={{ display: 'flex', flexDirection: 'column' }}
     >
-      {/* Consolidated Master Toolbar (Matches Holidays.tsx design) */}
+      {/* Consolidated Master Toolbar (Cloned from Holidays.tsx) */}
       <div className="holiday-master-toolbar sticky z-30 bg-white border-b border-slate-200 shadow-xs -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 divide-y divide-slate-100">
-        {/* Deck 1: Title, Year, View Switcher, Add Button */}
+        {/* Deck 1: Title, Search, Year, View Mode, Add Button */}
         <div className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2.5">
@@ -618,10 +647,10 @@ export default function ShippingCalendar() {
               </span>
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">
-                  ปฏิทินขนส่ง
+                  แผนขนส่ง
                 </h2>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  ดูและจัดการคิวจัดส่งสินค้าทุกแบรนด์ (ทุกคนที่ล็อกอินแก้ไขได้)
+                  ปฏิทินและตารางจัดส่งสินค้าแยกตามสาขา (ทุกคนที่ล็อกอินดูและแก้ไขได้)
                 </p>
               </div>
             </div>
@@ -638,7 +667,7 @@ export default function ShippingCalendar() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ค้นหา ลูกค้า, ออเดอร์, แบรนด์..."
+                placeholder="ค้นหา ลูกค้า, สาขา, ออเดอร์..."
                 className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-8 pr-7 py-1.5 w-48 sm:w-56 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
               />
               {searchTerm && (
@@ -693,21 +722,21 @@ export default function ShippingCalendar() {
               </button>
             </div>
 
-            {/* Add Delivery Button (All logged-in users) */}
+            {/* Add Button */}
             <button
               type="button"
               onClick={() => openCreateModal()}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              เพิ่มคิวขนส่ง
+              เพิ่มแผนขนส่ง
             </button>
           </div>
         </div>
 
-        {/* Deck 2: Month Navigator + Month Pills + Status Filter */}
+        {/* Deck 2: Month Navigator + Month Pills + Brand & Status Filters */}
         <div className="py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-          {/* Left: Current Month + Prev/Today/Next */}
+          {/* Left: Current Month + Stats + Prev/Today/Next */}
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
               <CalendarIcon className="w-4 h-4 text-blue-600" />
@@ -781,8 +810,23 @@ export default function ShippingCalendar() {
             })}
           </div>
 
-          {/* Right: Status Filter */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right: Brand + Status Filters */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {brands.length > 0 && (
+              <select
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+                aria-label="กรองตามแบรนด์"
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2.5 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 max-w-[150px]"
+              >
+                <option value="all">แบรนด์: ทั้งหมด</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -799,32 +843,34 @@ export default function ShippingCalendar() {
           </div>
         </div>
 
-        {/* Deck 3: System Brands Bar (Pulled live from fetchBrands) */}
+        {/* Deck 3: Branches Bar (Pulled live from public.branches via Go API) */}
         <div className="py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 mr-1 shrink-0">
-            <Tag className="w-3.5 h-3.5 text-slate-400" />
-            แบรนด์ในระบบ:
+            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+            สาขาในระบบ:
           </span>
           <button
             type="button"
-            onClick={() => setBrandFilter('all')}
+            onClick={() => setBranchFilter('all')}
             className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
-              brandFilter === 'all'
+              branchFilter === 'all'
                 ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
             }`}
           >
-            ทุกแบรนด์ ({monthBrandCounts.get('all') || 0})
+            ทุกสาขา ({monthBranchCounts.get('all') || 0})
           </button>
-          {brands.map((b, idx) => {
-            const palette = BRAND_PALETTES[idx % BRAND_PALETTES.length];
-            const active = brandFilter === b.id;
-            const cnt = monthBrandCounts.get(b.id) || 0;
+          {branches.map((b, idx) => {
+            const palette = BRANCH_PALETTES[idx % BRANCH_PALETTES.length];
+            const key = String(b.id);
+            const active = branchFilter === key;
+            const cnt = monthBranchCounts.get(key) || 0;
             return (
               <button
                 key={b.id}
                 type="button"
-                onClick={() => setBrandFilter(active ? 'all' : b.id)}
+                onClick={() => setBranchFilter(active ? 'all' : key)}
+                title={`${b.branch_code ? `[${b.branch_code}] ` : ''}${b.branch_name} (${b.branch_type})`}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
                   active
                     ? `${palette.bg} ${palette.text} ${palette.border} ring-2 ring-blue-500/30`
@@ -832,22 +878,22 @@ export default function ShippingCalendar() {
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${palette.dot}`} />
-                {b.name}
+                {b.branch_name.trim()}
                 <span className="text-[10px] opacity-75">({cnt})</span>
               </button>
             );
           })}
-          {(monthBrandCounts.get('none') || 0) > 0 && (
+          {(monthBranchCounts.get('none') || 0) > 0 && (
             <button
               type="button"
-              onClick={() => setBrandFilter(brandFilter === 'none' ? 'all' : 'none')}
+              onClick={() => setBranchFilter(branchFilter === 'none' ? 'all' : 'none')}
               className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
-                brandFilter === 'none'
+                branchFilter === 'none'
                   ? 'bg-slate-700 text-white border-slate-700'
                   : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              ไม่ระบุแบรนด์ ({monthBrandCounts.get('none') || 0})
+              ไม่ระบุสาขา ({monthBranchCounts.get('none') || 0})
             </button>
           )}
         </div>
@@ -859,7 +905,7 @@ export default function ShippingCalendar() {
           <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>
-              โหลดข้อมูลปฏิทินขนส่งไม่สำเร็จ: {(schedulesQuery.error as Error)?.message || 'กรุณาลองใหม่อีกครั้ง'}
+              โหลดข้อมูลแผนขนส่งไม่สำเร็จ: {(schedulesQuery.error as Error)?.message || 'กรุณาลองใหม่อีกครั้ง'}
             </span>
           </div>
         )}
@@ -879,7 +925,7 @@ export default function ShippingCalendar() {
             {loading ? (
               <div className="py-20 text-center text-slate-400">
                 <Loader2 className="w-7 h-7 animate-spin text-blue-500 mx-auto mb-2" />
-                <p className="text-sm font-medium">กำลังโหลดปฏิทินขนส่ง...</p>
+                <p className="text-sm font-medium">กำลังโหลดแผนขนส่ง...</p>
               </div>
             ) : (
               <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-200 bg-slate-200/40">
@@ -930,7 +976,7 @@ export default function ShippingCalendar() {
                               e.stopPropagation();
                               openCreateModal(cell.dateStr);
                             }}
-                            title={`เพิ่มคิวขนส่งวันที่ ${formatDateThai(cell.dateStr)}`}
+                            title={`เพิ่มแผนขนส่งวันที่ ${formatDateThai(cell.dateStr)}`}
                             className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
                           >
                             <Plus className="w-3 h-3" />
@@ -938,7 +984,7 @@ export default function ShippingCalendar() {
                         </div>
                       </div>
 
-                      {/* Company Holiday Reference Tag */}
+                      {/* Company Holiday Reference */}
                       {cell.holidays.length > 0 && (
                         <div className="mb-1 px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200/80 text-[10px] font-bold text-rose-600 truncate">
                           วันหยุด: {cell.holidays[0].name}
@@ -948,7 +994,11 @@ export default function ShippingCalendar() {
                       {/* Delivery Cards inside Day Cell */}
                       <div className="flex flex-col gap-1 flex-1">
                         {visibleItems.map((item) => {
-                          const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                          const branchInfo =
+                            item.branch_id !== null && item.branch_id !== undefined
+                              ? branchMap.get(item.branch_id)
+                              : undefined;
+                          const brandObj = item.brand_id ? brandMap.get(item.brand_id) : undefined;
                           const st = STATUS_META[item.status] || STATUS_META.pending;
                           return (
                             <div
@@ -966,11 +1016,16 @@ export default function ShippingCalendar() {
                               }`}
                             >
                               <div className="flex items-center justify-between gap-1">
-                                {brandInfo ? (
+                                {branchInfo ? (
                                   <span
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold truncate max-w-[85px] ${brandInfo.palette.bg} ${brandInfo.palette.text}`}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold truncate max-w-[105px] ${branchInfo.palette.bg} ${branchInfo.palette.text}`}
+                                    title={branchInfo.branch.branch_name}
                                   >
-                                    {brandInfo.brand.name}
+                                    {branchInfo.branch.branch_name.trim()}
+                                  </span>
+                                ) : brandObj ? (
+                                  <span className="text-[9px] font-bold text-slate-600 truncate">
+                                    {brandObj.name}
                                   </span>
                                 ) : (
                                   <span className="text-[9px] font-bold text-slate-400">ขนส่ง</span>
@@ -1026,20 +1081,20 @@ export default function ShippingCalendar() {
             {loading ? (
               <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center text-slate-400">
                 <Loader2 className="w-7 h-7 animate-spin text-blue-500 mx-auto mb-2" />
-                กำลังโหลดรายการขนส่ง...
+                กำลังโหลดรายการแผนขนส่ง...
               </div>
             ) : Object.keys(groupedByMonth).length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center">
                 <Truck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-600 font-bold">ยังไม่มีคิวขนส่งในปี {year + 543}</p>
-                <p className="text-xs text-slate-400 mt-1">กดปุ่ม "+ เพิ่มคิวขนส่ง" เพื่อเริ่มลงตารางได้เลยครับ</p>
+                <p className="text-slate-600 font-bold">ยังไม่มีแผนขนส่งในปี {year + 543}</p>
+                <p className="text-xs text-slate-400 mt-1">กดปุ่ม "+ เพิ่มแผนขนส่ง" เพื่อเริ่มลงตารางได้เลยครับ</p>
                 <button
                   type="button"
                   onClick={() => openCreateModal()}
                   className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  เพิ่มคิวขนส่งแรก
+                  เพิ่มแผนขนส่งแรก
                 </button>
               </div>
             ) : (
@@ -1065,7 +1120,11 @@ export default function ShippingCalendar() {
 
                       <div className="divide-y divide-slate-100">
                         {list.map((item) => {
-                          const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                          const branchInfo =
+                            item.branch_id !== null && item.branch_id !== undefined
+                              ? branchMap.get(item.branch_id)
+                              : undefined;
+                          const brandObj = item.brand_id ? brandMap.get(item.brand_id) : undefined;
                           const st = STATUS_META[item.status] || STATUS_META.pending;
                           const veh = VEHICLE_META[item.vehicle_type] || VEHICLE_META.other;
                           const assigneeName = getUserDisplayName(item.assignee_id);
@@ -1086,12 +1145,17 @@ export default function ShippingCalendar() {
                                       {item.time_slot}
                                     </span>
                                   )}
-                                  {brandInfo && (
+                                  {branchInfo && (
                                     <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-extrabold border ${brandInfo.palette.bg} ${brandInfo.palette.text} ${brandInfo.palette.border}`}
+                                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${branchInfo.palette.bg} ${branchInfo.palette.text} ${branchInfo.palette.border}`}
                                     >
-                                      <span className={`w-1.5 h-1.5 rounded-full ${brandInfo.palette.dot}`} />
-                                      {brandInfo.brand.name}
+                                      <span className={`w-1.5 h-1.5 rounded-full ${branchInfo.palette.dot}`} />
+                                      {branchInfo.branch.branch_name.trim()}
+                                    </span>
+                                  )}
+                                  {brandObj && (
+                                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                      {brandObj.name}
                                     </span>
                                   )}
                                   {item.order_no && (
@@ -1160,7 +1224,7 @@ export default function ShippingCalendar() {
                                 )}
                               </div>
 
-                              {/* Right Actions: Quick Status + Edit + Delete */}
+                              {/* Right Actions */}
                               <div className="flex items-center gap-2 shrink-0">
                                 <select
                                   value={item.status}
@@ -1214,7 +1278,6 @@ export default function ShippingCalendar() {
             className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/70">
               <div>
                 <p className="text-xs font-bold text-blue-600">{getWeekdayThai(selectedDayStr)}</p>
@@ -1229,7 +1292,7 @@ export default function ShippingCalendar() {
                   className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  เพิ่มคิววันนี้
+                  เพิ่มแผนวันนี้
                 </button>
                 <button
                   type="button"
@@ -1241,7 +1304,6 @@ export default function ShippingCalendar() {
               </div>
             </div>
 
-            {/* Body */}
             <div className="p-5 overflow-y-auto space-y-3 flex-1">
               {selectedDayHolidays.length > 0 && (
                 <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-xs font-bold text-rose-700">
@@ -1252,11 +1314,15 @@ export default function ShippingCalendar() {
               {selectedDayItems.length === 0 ? (
                 <div className="py-10 text-center text-slate-400">
                   <Truck className="w-9 h-9 mx-auto mb-2 text-slate-300" />
-                  <p className="text-sm font-semibold text-slate-500">ยังไม่มีคิวขนส่งในวันนี้</p>
+                  <p className="text-sm font-semibold text-slate-500">ยังไม่มีแผนขนส่งในวันนี้</p>
                 </div>
               ) : (
                 selectedDayItems.map((item) => {
-                  const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                  const branchInfo =
+                    item.branch_id !== null && item.branch_id !== undefined
+                      ? branchMap.get(item.branch_id)
+                      : undefined;
+                  const brandObj = item.brand_id ? brandMap.get(item.brand_id) : undefined;
                   const st = STATUS_META[item.status] || STATUS_META.pending;
                   const veh = VEHICLE_META[item.vehicle_type] || VEHICLE_META.other;
                   const assigneeName = getUserDisplayName(item.assignee_id);
@@ -1269,12 +1335,17 @@ export default function ShippingCalendar() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {brandInfo && (
+                          {branchInfo && (
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${brandInfo.palette.bg} ${brandInfo.palette.text} ${brandInfo.palette.border}`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${branchInfo.palette.bg} ${branchInfo.palette.text} ${branchInfo.palette.border}`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full ${brandInfo.palette.dot}`} />
-                              {brandInfo.brand.name}
+                              <span className={`w-1.5 h-1.5 rounded-full ${branchInfo.palette.dot}`} />
+                              {branchInfo.branch.branch_name.trim()}
+                            </span>
+                          )}
+                          {brandObj && (
+                            <span className="text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                              {brandObj.name}
                             </span>
                           )}
                           {item.time_slot && (
@@ -1426,7 +1497,7 @@ export default function ShippingCalendar() {
                   <Truck className="w-4 h-4" />
                 </span>
                 <h3 className="text-base font-extrabold text-slate-900">
-                  {editingItem ? 'แก้ไขคิวขนส่ง' : 'เพิ่มคิวขนส่งใหม่'}
+                  {editingItem ? 'แก้ไขแผนขนส่ง' : 'เพิ่มแผนขนส่งใหม่'}
                 </h3>
               </div>
               <button
@@ -1480,13 +1551,30 @@ export default function ShippingCalendar() {
                     required
                     value={form.title}
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                    placeholder="เช่น ส่งแผ่นไม้จามจุรี 2 แผ่น + ขาโต๊ะ, ส่งผนังหิน 20 ตร.ม."
+                    placeholder="เช่น ส่งแผ่นไม้จามจุรี 2 แผ่น + ขาโต๊ะ, ย้ายของไปสาขาลาดพร้าว"
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">แบรนด์ในระบบ</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">สาขา</label>
+                  <select
+                    value={form.branch_id}
+                    onChange={(e) => setForm((f) => ({ ...f, branch_id: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="">— เลือกสาขา —</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={String(b.id)}>
+                        {b.branch_name.trim()}
+                        {b.branch_code ? ` (${b.branch_code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">แบรนด์ (ไม่บังคับ)</label>
                   <select
                     value={form.brand_id}
                     onChange={(e) => setForm((f) => ({ ...f, brand_id: e.target.value }))}
@@ -1514,6 +1602,17 @@ export default function ShippingCalendar() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เลขออเดอร์ / ใบเสนอราคา</label>
+                  <input
+                    type="text"
+                    value={form.order_no}
+                    onChange={(e) => setForm((f) => ({ ...f, order_no: e.target.value }))}
+                    placeholder="เช่น QT-2026-001 / SO-123"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
                 </div>
 
                 <div>
@@ -1549,24 +1648,13 @@ export default function ShippingCalendar() {
                   />
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">ลิงก์ Google Maps</label>
                   <input
                     type="url"
                     value={form.map_url}
                     onChange={(e) => setForm((f) => ({ ...f, map_url: e.target.value }))}
                     placeholder="https://maps.app.goo.gl/..."
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">เลขออเดอร์ / ใบเสนอราคา</label>
-                  <input
-                    type="text"
-                    value={form.order_no}
-                    onChange={(e) => setForm((f) => ({ ...f, order_no: e.target.value }))}
-                    placeholder="เช่น QT-2026-001 / SO-123"
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
@@ -1660,7 +1748,7 @@ export default function ShippingCalendar() {
                     className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
                   >
                     {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    {editingItem ? 'บันทึกการแก้ไข' : 'บันทึกคิวขนส่ง'}
+                    {editingItem ? 'บันทึกการแก้ไข' : 'บันทึกแผนขนส่ง'}
                   </button>
                 </div>
               </div>

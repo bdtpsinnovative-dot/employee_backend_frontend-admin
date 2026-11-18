@@ -249,7 +249,7 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
     {
       to: '/shipping',
       icon: Truck,
-      label: 'ปฏิทินขนส่ง',
+      label: 'แผนขนส่ง',
       adminOnly: false,
     },
     {

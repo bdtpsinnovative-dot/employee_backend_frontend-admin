@@ -310,7 +310,8 @@ func registerRoutes(
 		// วันหยุด
 		api.GET("/holidays", holidayH.List) // ดูวันหยุดทั้งปี ?year=2026
 
-		// ปฏิทินขนส่ง (ทุกคนที่ล็อกอินดูและแก้ไขได้)
+		// แผนขนส่ง (ทุกคนที่ล็อกอินดูและแก้ไขได้)
+		api.GET("/shipping-schedules/branches", shippingScheduleH.ListBranches)
 		api.GET("/shipping-schedules", shippingScheduleH.List)
 		api.POST("/shipping-schedules", shippingScheduleH.Create)
 		api.PUT("/shipping-schedules/:id", shippingScheduleH.Update)
