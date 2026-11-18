@@ -1,0 +1,1691 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Truck,
+  Plus,
+  Calendar as CalendarIcon,
+  List as ListIcon,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  MapPin,
+  Phone,
+  Clock,
+  Package,
+  User as UserIcon,
+  Edit3,
+  Trash2,
+  X,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Tag,
+  FileText,
+} from 'lucide-react';
+import {
+  fetchShippingSchedules,
+  createShippingSchedule,
+  updateShippingSchedule,
+  deleteShippingSchedule,
+  fetchBrands,
+  fetchHolidays,
+  fetchUsers,
+} from '../services/adminApi';
+import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
+import type {
+  Brand,
+  Holiday,
+  ShippingSchedule,
+  ShippingScheduleInput,
+  ShippingStatus,
+  ShippingVehicleType,
+  User,
+} from '../types';
+
+interface LayoutContext {
+  currentUser: User | null;
+}
+
+const MONTH_NAMES = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+];
+
+const MONTH_NAMES_SHORT = [
+  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+];
+
+const WEEKDAY_NAMES_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+
+const STATUS_META: Record<
+  ShippingStatus,
+  { label: string; dot: string; badge: string; cardBorder: string; bgSoft: string }
+> = {
+  pending: {
+    label: 'รอจัดส่ง',
+    dot: 'bg-amber-500',
+    badge: 'bg-amber-50 text-amber-700 border-amber-200',
+    cardBorder: 'border-amber-200 hover:border-amber-300',
+    bgSoft: 'bg-amber-50/70',
+  },
+  in_transit: {
+    label: 'กำลังจัดส่ง',
+    dot: 'bg-blue-500',
+    badge: 'bg-blue-50 text-blue-700 border-blue-200',
+    cardBorder: 'border-blue-200 hover:border-blue-300',
+    bgSoft: 'bg-blue-50/70',
+  },
+  delivered: {
+    label: 'ส่งสำเร็จ',
+    dot: 'bg-emerald-500',
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cardBorder: 'border-emerald-200 hover:border-emerald-300',
+    bgSoft: 'bg-emerald-50/70',
+  },
+  postponed: {
+    label: 'เลื่อนส่ง',
+    dot: 'bg-purple-500',
+    badge: 'bg-purple-50 text-purple-700 border-purple-200',
+    cardBorder: 'border-purple-200 hover:border-purple-300',
+    bgSoft: 'bg-purple-50/70',
+  },
+  cancelled: {
+    label: 'ยกเลิก',
+    dot: 'bg-rose-500',
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    cardBorder: 'border-rose-200 hover:border-rose-300',
+    bgSoft: 'bg-rose-50/60',
+  },
+};
+
+const VEHICLE_META: Record<ShippingVehicleType, { label: string; icon: string }> = {
+  company_truck: { label: 'รถบริษัท', icon: '🚛' },
+  lalamove: { label: 'Lalamove / รถรับจ้าง', icon: '🚐' },
+  external_courier: { label: 'ขนส่งเอกชน', icon: '📦' },
+  customer_pickup: { label: 'ลูกค้ารับเอง', icon: '🏪' },
+  other: { label: 'อื่นๆ', icon: '🚚' },
+};
+
+const TIME_SLOT_PRESETS = ['ช่วงเช้า (09:00-12:00)', 'ช่วงบ่าย (13:00-17:00)', 'ทั้งวัน', 'นัดเวลาเฉพาะ'];
+
+const BRAND_PALETTES = [
+  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', dot: 'bg-blue-600' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-600' },
+  { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-600' },
+  { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200', dot: 'bg-violet-600' },
+  { bg: 'bg-rose-100', text: 'text-rose-800', border: 'border-rose-200', dot: 'bg-rose-600' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200', dot: 'bg-cyan-600' },
+  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', dot: 'bg-orange-600' },
+  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200', dot: 'bg-teal-600' },
+];
+
+function formatDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatDateThai(dateStr: string): string {
+  if (!dateStr) return '-';
+  const clean = dateStr.split('T')[0];
+  const [y, m, d] = clean.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `${d} ${MONTH_NAMES[m - 1]} ${y + 543}`;
+}
+
+function getWeekdayThai(dateStr: string): string {
+  const clean = dateStr.split('T')[0];
+  const dt = new Date(`${clean}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return '';
+  const names = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+  return names[dt.getDay()] || '';
+}
+
+interface FormState {
+  delivery_date: string;
+  time_slot: string;
+  title: string;
+  brand_id: string;
+  customer_name: string;
+  customer_phone: string;
+  location: string;
+  map_url: string;
+  order_no: string;
+  vehicle_type: ShippingVehicleType;
+  driver_name: string;
+  assignee_id: string;
+  status: ShippingStatus;
+  notes: string;
+}
+
+const createEmptyForm = (dateStr: string): FormState => ({
+  delivery_date: dateStr,
+  time_slot: 'ช่วงเช้า (09:00-12:00)',
+  title: '',
+  brand_id: '',
+  customer_name: '',
+  customer_phone: '',
+  location: '',
+  map_url: '',
+  order_no: '',
+  vehicle_type: 'company_truck',
+  driver_name: '',
+  assignee_id: '',
+  status: 'pending',
+  notes: '',
+});
+
+export default function ShippingCalendar() {
+  const { currentUser } = useOutletContext<LayoutContext>() || {};
+  const queryClient = useQueryClient();
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const todayStr = useMemo(() => formatDateStr(today), [today]);
+
+  const [year, setYear] = useState<number>(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Modals
+  const [selectedDayStr, setSelectedDayStr] = useState<string | null>(null);
+  const [showFormModal, setShowFormModal] = useState<boolean>(false);
+  const [editingItem, setEditingItem] = useState<ShippingSchedule | null>(null);
+  const [form, setForm] = useState<FormState>(() => createEmptyForm(todayStr));
+  const [saving, setSaving] = useState<boolean>(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showToast = useCallback((type: 'success' | 'error', text: string) => {
+    setToast({ type, text });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const schedulesQuery = useQuery({
+    queryKey: queryKeys.shippingSchedules(year),
+    queryFn: () => fetchShippingSchedules(year),
+    staleTime: 30_000,
+  });
+
+  const brandsQuery = useQuery({
+    queryKey: queryKeys.brands,
+    queryFn: () => fetchBrands(),
+    staleTime: 15 * 60_000,
+  });
+
+  const holidaysQuery = useQuery({
+    queryKey: queryKeys.holidays(year),
+    queryFn: () => fetchHolidays(year),
+    staleTime: 30 * 60_000,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: queryKeys.users(),
+    queryFn: () => fetchUsers(),
+    enabled: Boolean(currentUser?.id),
+    staleTime: 5 * 60_000,
+  });
+
+  // Realtime sync across all logged-in teammates
+  useEffect(() => {
+    const channel = supabase
+      .channel('shipping_schedules_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shipping_schedules' },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, year]);
+
+  const schedules: ShippingSchedule[] = schedulesQuery.data ?? [];
+  const brands: Brand[] = useMemo(() => {
+    const raw = brandsQuery.data ?? [];
+    return [...raw].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999) || a.name.localeCompare(b.name));
+  }, [brandsQuery.data]);
+  const holidays: Holiday[] = holidaysQuery.data ?? [];
+  const users: User[] = usersQuery.data ?? [];
+
+  const brandMap = useMemo(() => {
+    const map = new Map<string, { brand: Brand; palette: (typeof BRAND_PALETTES)[number] }>();
+    brands.forEach((b, idx) => {
+      map.set(b.id, { brand: b, palette: BRAND_PALETTES[idx % BRAND_PALETTES.length] });
+    });
+    return map;
+  }, [brands]);
+
+  const userMap = useMemo(() => {
+    const map = new Map<string, User>();
+    users.forEach((u) => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  const getUserDisplayName = useCallback(
+    (userId?: string | null) => {
+      if (!userId) return '';
+      const u = userMap.get(userId);
+      if (!u) return '';
+      return u.nickname?.trim() || `${u.first_name} ${u.last_name}`.trim() || u.email;
+    },
+    [userMap]
+  );
+
+  // Filtered schedules
+  const filteredSchedules = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return schedules.filter((item) => {
+      if (brandFilter === 'none') {
+        if (item.brand_id) return false;
+      } else if (brandFilter !== 'all') {
+        if (item.brand_id !== brandFilter) return false;
+      }
+
+      if (statusFilter !== 'all' && item.status !== statusFilter) {
+        return false;
+      }
+
+      if (q) {
+        const bName = item.brand_id ? (brandMap.get(item.brand_id)?.brand.name || '') : '';
+        const assigneeName = getUserDisplayName(item.assignee_id);
+        const haystack = [
+          item.title,
+          item.customer_name,
+          item.customer_phone,
+          item.location,
+          item.order_no,
+          item.driver_name,
+          item.notes,
+          item.time_slot,
+          bName,
+          assigneeName,
+          formatDateThai(item.delivery_date),
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [schedules, brandFilter, statusFilter, searchTerm, brandMap, getUserDisplayName]);
+
+  // Map by YYYY-MM-DD
+  const schedulesByDate = useMemo(() => {
+    const map = new Map<string, ShippingSchedule[]>();
+    for (const item of filteredSchedules) {
+      const key = item.delivery_date.split('T')[0];
+      const list = map.get(key) || [];
+      list.push(item);
+      map.set(key, list);
+    }
+    return map;
+  }, [filteredSchedules]);
+
+  // Holiday lookup by YYYY-MM-DD
+  const holidaysByDate = useMemo(() => {
+    const map = new Map<string, Holiday[]>();
+    for (const h of holidays) {
+      const startStr = h.date.split('T')[0];
+      const start = new Date(`${startStr}T00:00:00`);
+      const numDays = Math.max(1, h.num_days || 1);
+      for (let i = 0; i < numDays; i++) {
+        const d = new Date(start.getTime() + i * 86400000);
+        const key = formatDateStr(d);
+        const list = map.get(key) || [];
+        list.push(h);
+        map.set(key, list);
+      }
+    }
+    return map;
+  }, [holidays]);
+
+  // Month stats
+  const currentMonthSchedules = useMemo(() => {
+    const prefix = `${year}-${String(currentMonth + 1).padStart(2, '0')}-`;
+    return filteredSchedules.filter((s) => s.delivery_date.startsWith(prefix));
+  }, [filteredSchedules, year, currentMonth]);
+
+  const monthStats = useMemo(() => {
+    let pending = 0;
+    let inTransit = 0;
+    let delivered = 0;
+    for (const s of currentMonthSchedules) {
+      if (s.status === 'pending') pending++;
+      else if (s.status === 'in_transit') inTransit++;
+      else if (s.status === 'delivered') delivered++;
+    }
+    return { total: currentMonthSchedules.length, pending, inTransit, delivered };
+  }, [currentMonthSchedules]);
+
+  // Brand counts for current month (unfiltered by brand so users can see counts on pills)
+  const monthBrandCounts = useMemo(() => {
+    const prefix = `${year}-${String(currentMonth + 1).padStart(2, '0')}-`;
+    const counts = new Map<string, number>();
+    let total = 0;
+    for (const s of schedules) {
+      if (!s.delivery_date.startsWith(prefix)) continue;
+      if (statusFilter !== 'all' && s.status !== statusFilter) continue;
+      total++;
+      const key = s.brand_id || 'none';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    counts.set('all', total);
+    return counts;
+  }, [schedules, year, currentMonth, statusFilter]);
+
+  // Calendar grid days for selected month
+  const calendarDays = useMemo(() => {
+    const firstOfMonth = new Date(year, currentMonth, 1);
+    const startDay = firstOfMonth.getDay(); // 0 = Sun
+    const startDate = new Date(firstOfMonth);
+    startDate.setDate(startDate.getDate() - startDay);
+
+    const lastOfMonth = new Date(year, currentMonth + 1, 0);
+    const endDay = lastOfMonth.getDay();
+    const endDate = new Date(lastOfMonth);
+    endDate.setDate(endDate.getDate() + (6 - endDay));
+
+    const cells: Array<{
+      dateStr: string;
+      dayNumber: number;
+      monthNumber: number;
+      yearNumber: number;
+      isCurrentMonth: boolean;
+      isToday: boolean;
+      items: ShippingSchedule[];
+      holidays: Holiday[];
+    }> = [];
+
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+      const dateStr = formatDateStr(cur);
+      cells.push({
+        dateStr,
+        dayNumber: cur.getDate(),
+        monthNumber: cur.getMonth(),
+        yearNumber: cur.getFullYear(),
+        isCurrentMonth: cur.getMonth() === currentMonth && cur.getFullYear() === year,
+        isToday: dateStr === todayStr,
+        items: schedulesByDate.get(dateStr) || [],
+        holidays: holidaysByDate.get(dateStr) || [],
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return cells;
+  }, [year, currentMonth, todayStr, schedulesByDate, holidaysByDate]);
+
+  // List view grouped by month for the selected year
+  const groupedByMonth = useMemo(() => {
+    const groups: Record<number, ShippingSchedule[]> = {};
+    const yearPrefix = `${year}-`;
+    for (const item of filteredSchedules) {
+      if (!item.delivery_date.startsWith(yearPrefix)) continue;
+      const m = Number(item.delivery_date.slice(5, 7)) - 1;
+      if (m < 0 || m > 11) continue;
+      if (!groups[m]) groups[m] = [];
+      groups[m].push(item);
+    }
+    return groups;
+  }, [filteredSchedules, year]);
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setYear((y) => y - 1);
+    } else {
+      setCurrentMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setYear((y) => y + 1);
+    } else {
+      setCurrentMonth((m) => m + 1);
+    }
+  };
+
+  const handleGoToday = () => {
+    setYear(today.getFullYear());
+    setCurrentMonth(today.getMonth());
+  };
+
+  const openCreateModal = (dateStr?: string) => {
+    setEditingItem(null);
+    const defaultDate =
+      dateStr ||
+      (year === today.getFullYear() && currentMonth === today.getMonth()
+        ? todayStr
+        : `${year}-${String(currentMonth + 1).padStart(2, '0')}-01`);
+    const nextForm = createEmptyForm(defaultDate);
+    if (brandFilter !== 'all' && brandFilter !== 'none') {
+      nextForm.brand_id = brandFilter;
+    }
+    if (currentUser?.id) {
+      nextForm.assignee_id = currentUser.id;
+    }
+    setForm(nextForm);
+    setShowFormModal(true);
+  };
+
+  const openEditModal = (item: ShippingSchedule) => {
+    setEditingItem(item);
+    setForm({
+      delivery_date: item.delivery_date.split('T')[0],
+      time_slot: item.time_slot || '',
+      title: item.title || '',
+      brand_id: item.brand_id || '',
+      customer_name: item.customer_name || '',
+      customer_phone: item.customer_phone || '',
+      location: item.location || '',
+      map_url: item.map_url || '',
+      order_no: item.order_no || '',
+      vehicle_type: item.vehicle_type || 'company_truck',
+      driver_name: item.driver_name || '',
+      assignee_id: item.assignee_id || '',
+      status: item.status || 'pending',
+      notes: item.notes || '',
+    });
+    setShowFormModal(true);
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.delivery_date || !form.title.trim()) {
+      showToast('error', 'กรุณาระบุวันที่จัดส่งและรายการขนส่ง');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: ShippingScheduleInput = {
+        delivery_date: form.delivery_date,
+        time_slot: form.time_slot,
+        title: form.title,
+        brand_id: form.brand_id || null,
+        customer_name: form.customer_name,
+        customer_phone: form.customer_phone,
+        location: form.location,
+        map_url: form.map_url,
+        order_no: form.order_no,
+        vehicle_type: form.vehicle_type,
+        driver_name: form.driver_name,
+        assignee_id: form.assignee_id || null,
+        status: form.status,
+        notes: form.notes,
+        updated_by: currentUser?.id || null,
+      };
+
+      if (editingItem) {
+        await updateShippingSchedule(editingItem.id, payload);
+        showToast('success', 'อัปเดตคิวขนส่งเรียบร้อยแล้ว');
+      } else {
+        payload.created_by = currentUser?.id || null;
+        await createShippingSchedule(payload);
+        showToast('success', 'เพิ่มคิวขนส่งเรียบร้อยแล้ว');
+      }
+
+      const savedYear = Number(form.delivery_date.slice(0, 4));
+      await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
+      if (savedYear && savedYear !== year) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(savedYear) });
+      }
+      setShowFormModal(false);
+      setEditingItem(null);
+    } catch (err: any) {
+      showToast('error', err?.message || 'บันทึกข้อมูลไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQuickStatus = async (item: ShippingSchedule, newStatus: ShippingStatus) => {
+    if (item.status === newStatus || updatingStatusId) return;
+    setUpdatingStatusId(item.id);
+    try {
+      await updateShippingSchedule(item.id, {
+        status: newStatus,
+        updated_by: currentUser?.id || null,
+      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
+      showToast('success', `เปลี่ยนสถานะเป็น "${STATUS_META[newStatus].label}" แล้ว`);
+    } catch (err: any) {
+      showToast('error', err?.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const handleDelete = async (item: ShippingSchedule) => {
+    if (!window.confirm(`ยืนยันลบคิวขนส่ง "${item.title}" วันที่ ${formatDateThai(item.delivery_date)}?`)) {
+      return;
+    }
+    setDeletingId(item.id);
+    try {
+      await deleteShippingSchedule(item.id);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.shippingSchedules(year) });
+      showToast('success', 'ลบคิวขนส่งเรียบร้อยแล้ว');
+      if (editingItem?.id === item.id) {
+        setShowFormModal(false);
+        setEditingItem(null);
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || 'ลบคิวขนส่งไม่สำเร็จ');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const selectedDayItems = selectedDayStr ? schedulesByDate.get(selectedDayStr) || [] : [];
+  const selectedDayHolidays = selectedDayStr ? holidaysByDate.get(selectedDayStr) || [] : [];
+
+  const loading = schedulesQuery.isLoading;
+
+  return (
+    <div
+      id="shipping-calendar"
+      className="page-section active flex w-full min-w-0 flex-none flex-col pb-12 content-area-flush px-4 sm:px-6 md:px-8 pt-0"
+      style={{ display: 'flex', flexDirection: 'column' }}
+    >
+      {/* Consolidated Master Toolbar (Matches Holidays.tsx design) */}
+      <div className="holiday-master-toolbar sticky z-30 bg-white border-b border-slate-200 shadow-xs -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 divide-y divide-slate-100">
+        {/* Deck 1: Title, Year, View Switcher, Add Button */}
+        <div className="py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 flex items-center justify-center">
+                <Truck className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">
+                  ปฏิทินขนส่ง
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  ดูและจัดการคิวจัดส่งสินค้าทุกแบรนด์ (ทุกคนที่ล็อกอินแก้ไขได้)
+                </p>
+              </div>
+            </div>
+            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-slate-200">
+              ปี {year + 543}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ค้นหา ลูกค้า, ออเดอร์, แบรนด์..."
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-xl pl-8 pr-7 py-1.5 w-48 sm:w-56 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Year Selector */}
+            <select
+              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-1.5 shadow-xs hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+            >
+              {[year - 1, year, year + 1].map((y) => (
+                <option key={y} value={y}>
+                  พ.ศ. {y + 543} ({y})
+                </option>
+              ))}
+            </select>
+
+            {/* View Mode Switcher */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setViewMode('calendar')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'calendar'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <CalendarIcon className="w-3.5 h-3.5" />
+                ปฏิทิน
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <ListIcon className="w-3.5 h-3.5" />
+                รายการ
+              </button>
+            </div>
+
+            {/* Add Delivery Button (All logged-in users) */}
+            <button
+              type="button"
+              onClick={() => openCreateModal()}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-blue-500/30 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              เพิ่มคิวขนส่ง
+            </button>
+          </div>
+        </div>
+
+        {/* Deck 2: Month Navigator + Month Pills + Status Filter */}
+        <div className="py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          {/* Left: Current Month + Prev/Today/Next */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
+              <CalendarIcon className="w-4 h-4 text-blue-600" />
+              เดือน{MONTH_NAMES[currentMonth]} {year + 543}
+            </h3>
+            <span className="text-[11px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-200">
+              {monthStats.total} คิว
+            </span>
+            {monthStats.pending > 0 && (
+              <span className="text-[11px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                รอส่ง {monthStats.pending}
+              </span>
+            )}
+            {monthStats.inTransit > 0 && (
+              <span className="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                กำลังส่ง {monthStats.inTransit}
+              </span>
+            )}
+            {monthStats.delivered > 0 && (
+              <span className="text-[11px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                สำเร็จ {monthStats.delivered}
+              </span>
+            )}
+
+            <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="w-6 h-6 rounded-md hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer"
+                title="เดือนก่อนหน้า"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleGoToday}
+                className="px-2 py-0.5 rounded-md hover:bg-white text-slate-700 font-bold text-[11px] transition-all cursor-pointer"
+                title="ไปเดือนปัจจุบัน"
+              >
+                วันนี้
+              </button>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="w-6 h-6 rounded-md hover:bg-white text-slate-600 hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer"
+                title="เดือนถัดไป"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Center: Month Pills */}
+          <div className="overflow-x-auto flex items-center gap-1 scrollbar-none py-0.5">
+            {MONTH_NAMES_SHORT.map((mShort, idx) => {
+              const isSelected = currentMonth === idx;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentMonth(idx)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-slate-50 border border-slate-200/60'
+                  }`}
+                >
+                  {mShort}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Status Filter */}
+          <div className="flex items-center gap-2 shrink-0">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="กรองตามสถานะ"
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2.5 py-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="all">สถานะ: ทั้งหมด</option>
+              {(Object.keys(STATUS_META) as ShippingStatus[]).map((st) => (
+                <option key={st} value={st}>
+                  {STATUS_META[st].label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Deck 3: System Brands Bar (Pulled live from fetchBrands) */}
+        <div className="py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 mr-1 shrink-0">
+            <Tag className="w-3.5 h-3.5 text-slate-400" />
+            แบรนด์ในระบบ:
+          </span>
+          <button
+            type="button"
+            onClick={() => setBrandFilter('all')}
+            className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
+              brandFilter === 'all'
+                ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            ทุกแบรนด์ ({monthBrandCounts.get('all') || 0})
+          </button>
+          {brands.map((b, idx) => {
+            const palette = BRAND_PALETTES[idx % BRAND_PALETTES.length];
+            const active = brandFilter === b.id;
+            const cnt = monthBrandCounts.get(b.id) || 0;
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => setBrandFilter(active ? 'all' : b.id)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
+                  active
+                    ? `${palette.bg} ${palette.text} ${palette.border} ring-2 ring-blue-500/30`
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${palette.dot}`} />
+                {b.name}
+                <span className="text-[10px] opacity-75">({cnt})</span>
+              </button>
+            );
+          })}
+          {(monthBrandCounts.get('none') || 0) > 0 && (
+            <button
+              type="button"
+              onClick={() => setBrandFilter(brandFilter === 'none' ? 'all' : 'none')}
+              className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
+                brandFilter === 'none'
+                  ? 'bg-slate-700 text-white border-slate-700'
+                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              ไม่ระบุแบรนด์ ({monthBrandCounts.get('none') || 0})
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="mt-4">
+        {schedulesQuery.isError && (
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>
+              โหลดข้อมูลปฏิทินขนส่งไม่สำเร็จ: {(schedulesQuery.error as Error)?.message || 'กรุณาลองใหม่อีกครั้ง'}
+            </span>
+          </div>
+        )}
+
+        {/* CALENDAR VIEW */}
+        {viewMode === 'calendar' && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 bg-slate-50/90 border-b border-slate-200 text-center text-xs font-bold text-slate-500 py-3">
+              {WEEKDAY_NAMES_SHORT.map((day, i) => (
+                <div key={day} className={i === 0 || i === 6 ? 'text-rose-500' : ''}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {loading ? (
+              <div className="py-20 text-center text-slate-400">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-500 mx-auto mb-2" />
+                <p className="text-sm font-medium">กำลังโหลดปฏิทินขนส่ง...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-200 bg-slate-200/40">
+                {calendarDays.map((cell, idx) => {
+                  const isWeekend = idx % 7 === 0 || idx % 7 === 6;
+                  const visibleItems = cell.items.slice(0, 3);
+                  const extraCount = Math.max(0, cell.items.length - visibleItems.length);
+
+                  return (
+                    <div
+                      key={cell.dateStr}
+                      onClick={() => {
+                        if (cell.items.length > 0 || cell.holidays.length > 0) {
+                          setSelectedDayStr(cell.dateStr);
+                        } else {
+                          openCreateModal(cell.dateStr);
+                        }
+                      }}
+                      className={`min-h-[142px] p-2 transition-all relative flex flex-col group cursor-pointer ${
+                        cell.isCurrentMonth
+                          ? 'bg-white hover:bg-slate-50/90'
+                          : 'bg-slate-50/70 opacity-45 hover:opacity-80'
+                      } ${cell.isToday ? 'ring-2 ring-inset ring-blue-500/50 bg-blue-50/20 opacity-100' : ''}`}
+                    >
+                      {/* Cell Header */}
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span
+                          className={`inline-flex items-center justify-center text-xs font-extrabold rounded-full ${
+                            cell.isToday
+                              ? 'w-6 h-6 bg-blue-600 text-white shadow-xs'
+                              : isWeekend
+                              ? 'text-rose-500 px-1'
+                              : 'text-slate-700 px-1'
+                          }`}
+                        >
+                          {cell.dayNumber}
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          {cell.items.length > 0 && (
+                            <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200/70 px-1.5 py-0.2 rounded-full">
+                              {cell.items.length}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openCreateModal(cell.dateStr);
+                            }}
+                            title={`เพิ่มคิวขนส่งวันที่ ${formatDateThai(cell.dateStr)}`}
+                            className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Company Holiday Reference Tag */}
+                      {cell.holidays.length > 0 && (
+                        <div className="mb-1 px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200/80 text-[10px] font-bold text-rose-600 truncate">
+                          วันหยุด: {cell.holidays[0].name}
+                        </div>
+                      )}
+
+                      {/* Delivery Cards inside Day Cell */}
+                      <div className="flex flex-col gap-1 flex-1">
+                        {visibleItems.map((item) => {
+                          const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                          const st = STATUS_META[item.status] || STATUS_META.pending;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDayStr(cell.dateStr);
+                              }}
+                              className={`rounded-lg border px-1.5 py-1 text-left transition-all shadow-2xs ${
+                                item.status === 'cancelled'
+                                  ? 'bg-slate-50 border-slate-200 opacity-60'
+                                  : item.status === 'delivered'
+                                  ? 'bg-emerald-50/60 border-emerald-200'
+                                  : 'bg-white border-slate-200/90 hover:border-blue-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                {brandInfo ? (
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold truncate max-w-[85px] ${brandInfo.palette.bg} ${brandInfo.palette.text}`}
+                                  >
+                                    {brandInfo.brand.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-slate-400">ขนส่ง</span>
+                                )}
+                                <span
+                                  className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`}
+                                  title={st.label}
+                                />
+                              </div>
+                              <p
+                                className={`text-[11px] font-bold leading-snug truncate mt-0.5 ${
+                                  item.status === 'cancelled'
+                                    ? 'line-through text-slate-400'
+                                    : 'text-slate-800'
+                                }`}
+                              >
+                                {item.title}
+                              </p>
+                              {(item.customer_name || item.time_slot) && (
+                                <p className="text-[9.5px] text-slate-500 truncate">
+                                  {item.time_slot ? `${item.time_slot.split(' ')[0]} · ` : ''}
+                                  {item.customer_name || item.location}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {extraCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDayStr(cell.dateStr);
+                            }}
+                            className="text-[10px] font-extrabold text-blue-600 hover:text-blue-800 bg-blue-50/70 rounded-md py-0.5 text-center"
+                          >
+                            +{extraCount} คิวเพิ่มเติม
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* LIST VIEW */}
+        {viewMode === 'list' && (
+          <div className="space-y-6">
+            {loading ? (
+              <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center text-slate-400">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-500 mx-auto mb-2" />
+                กำลังโหลดรายการขนส่ง...
+              </div>
+            ) : Object.keys(groupedByMonth).length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center">
+                <Truck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-600 font-bold">ยังไม่มีคิวขนส่งในปี {year + 543}</p>
+                <p className="text-xs text-slate-400 mt-1">กดปุ่ม "+ เพิ่มคิวขนส่ง" เพื่อเริ่มลงตารางได้เลยครับ</p>
+                <button
+                  type="button"
+                  onClick={() => openCreateModal()}
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  เพิ่มคิวขนส่งแรก
+                </button>
+              </div>
+            ) : (
+              Object.keys(groupedByMonth)
+                .map(Number)
+                .sort((a, b) => a - b)
+                .map((monthIdx) => {
+                  const list = groupedByMonth[monthIdx] || [];
+                  return (
+                    <div
+                      key={monthIdx}
+                      className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden"
+                    >
+                      <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-blue-600" />
+                          เดือน{MONTH_NAMES[monthIdx]} {year + 543}
+                        </h4>
+                        <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                          {list.length} คิว
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {list.map((item) => {
+                          const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                          const st = STATUS_META[item.status] || STATUS_META.pending;
+                          const veh = VEHICLE_META[item.vehicle_type] || VEHICLE_META.other;
+                          const assigneeName = getUserDisplayName(item.assignee_id);
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+                            >
+                              <div className="min-w-0 flex-1 space-y-1.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                                    {formatDateThai(item.delivery_date)}
+                                  </span>
+                                  {item.time_slot && (
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600">
+                                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                      {item.time_slot}
+                                    </span>
+                                  )}
+                                  {brandInfo && (
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-extrabold border ${brandInfo.palette.bg} ${brandInfo.palette.text} ${brandInfo.palette.border}`}
+                                    >
+                                      <span className={`w-1.5 h-1.5 rounded-full ${brandInfo.palette.dot}`} />
+                                      {brandInfo.brand.name}
+                                    </span>
+                                  )}
+                                  {item.order_no && (
+                                    <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                                      #{item.order_no}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p
+                                  className={`text-sm font-extrabold ${
+                                    item.status === 'cancelled'
+                                      ? 'line-through text-slate-400'
+                                      : 'text-slate-900'
+                                  }`}
+                                >
+                                  {item.title}
+                                </p>
+
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                                  {item.customer_name && (
+                                    <span className="inline-flex items-center gap-1 font-medium">
+                                      <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                                      {item.customer_name}
+                                    </span>
+                                  )}
+                                  {item.customer_phone && (
+                                    <a
+                                      href={`tel:${item.customer_phone}`}
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:underline font-semibold"
+                                    >
+                                      <Phone className="w-3.5 h-3.5" />
+                                      {item.customer_phone}
+                                    </a>
+                                  )}
+                                  {item.location && (
+                                    <span className="inline-flex items-center gap-1">
+                                      <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                      {item.location}
+                                    </span>
+                                  )}
+                                  {item.map_url && (
+                                    <a
+                                      href={item.map_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-semibold"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      เปิดแผนที่
+                                    </a>
+                                  )}
+                                  <span>
+                                    {veh.icon} {veh.label}
+                                    {item.driver_name ? ` (${item.driver_name})` : ''}
+                                  </span>
+                                  {assigneeName && (
+                                    <span className="text-slate-500">ผู้ดูแล: {assigneeName}</span>
+                                  )}
+                                </div>
+
+                                {item.notes && (
+                                  <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-100">
+                                    หมายเหตุ: {item.notes}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Right Actions: Quick Status + Edit + Delete */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <select
+                                  value={item.status}
+                                  disabled={updatingStatusId === item.id}
+                                  onChange={(e) => handleQuickStatus(item, e.target.value as ShippingStatus)}
+                                  className={`text-xs font-bold rounded-xl px-2.5 py-1.5 border cursor-pointer focus:outline-none ${st.badge}`}
+                                >
+                                  {(Object.keys(STATUS_META) as ShippingStatus[]).map((k) => (
+                                    <option key={k} value={k}>
+                                      {STATUS_META[k].label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(item)}
+                                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-300 transition-colors cursor-pointer"
+                                  title="แก้ไข"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingId === item.id}
+                                  onClick={() => handleDelete(item)}
+                                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-300 transition-colors cursor-pointer disabled:opacity-50"
+                                  title="ลบ"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* DAY DETAILS MODAL */}
+      {selectedDayStr && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setSelectedDayStr(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/70">
+              <div>
+                <p className="text-xs font-bold text-blue-600">{getWeekdayThai(selectedDayStr)}</p>
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  {formatDateThai(selectedDayStr)}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openCreateModal(selectedDayStr)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  เพิ่มคิววันนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayStr(null)}
+                  className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              {selectedDayHolidays.length > 0 && (
+                <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-xs font-bold text-rose-700">
+                  วันหยุดบริษัท: {selectedDayHolidays.map((h) => h.name).join(', ')}
+                </div>
+              )}
+
+              {selectedDayItems.length === 0 ? (
+                <div className="py-10 text-center text-slate-400">
+                  <Truck className="w-9 h-9 mx-auto mb-2 text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-500">ยังไม่มีคิวขนส่งในวันนี้</p>
+                </div>
+              ) : (
+                selectedDayItems.map((item) => {
+                  const brandInfo = item.brand_id ? brandMap.get(item.brand_id) : undefined;
+                  const st = STATUS_META[item.status] || STATUS_META.pending;
+                  const veh = VEHICLE_META[item.vehicle_type] || VEHICLE_META.other;
+                  const assigneeName = getUserDisplayName(item.assignee_id);
+                  const updatedByName = getUserDisplayName(item.updated_by || item.created_by);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`rounded-2xl border bg-white p-4 shadow-2xs space-y-2.5 ${st.cardBorder}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {brandInfo && (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${brandInfo.palette.bg} ${brandInfo.palette.text} ${brandInfo.palette.border}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${brandInfo.palette.dot}`} />
+                              {brandInfo.brand.name}
+                            </span>
+                          )}
+                          {item.time_slot && (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">
+                              <Clock className="w-3 h-3" />
+                              {item.time_slot}
+                            </span>
+                          )}
+                          {item.order_no && (
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">
+                              #{item.order_no}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:text-blue-600 hover:border-blue-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === item.id}
+                            onClick={() => handleDelete(item)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-300 cursor-pointer disabled:opacity-50"
+                            title="ลบ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <h4
+                        className={`text-base font-extrabold ${
+                          item.status === 'cancelled' ? 'line-through text-slate-400' : 'text-slate-900'
+                        }`}
+                      >
+                        {item.title}
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-600">
+                        {item.customer_name && (
+                          <div className="flex items-center gap-1.5">
+                            <UserIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="font-semibold text-slate-700">{item.customer_name}</span>
+                          </div>
+                        )}
+                        {item.customer_phone && (
+                          <div className="flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <a href={`tel:${item.customer_phone}`} className="text-blue-600 font-bold hover:underline">
+                              {item.customer_phone}
+                            </a>
+                          </div>
+                        )}
+                        {item.location && (
+                          <div className="flex items-start gap-1.5 sm:col-span-2">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                            <span>{item.location}</span>
+                          </div>
+                        )}
+                        {item.map_url && (
+                          <div className="sm:col-span-2">
+                            <a
+                              href={item.map_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-bold"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              เปิดพิกัดใน Google Maps
+                            </a>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>
+                            {veh.icon} {veh.label}
+                            {item.driver_name ? ` — ${item.driver_name}` : ''}
+                          </span>
+                        </div>
+                        {assigneeName && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">ผู้ประสานงาน:</span>
+                            <span className="font-semibold text-slate-700">{assigneeName}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {item.notes && (
+                        <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs text-slate-600 flex items-start gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                          <span className="whitespace-pre-wrap">{item.notes}</span>
+                        </div>
+                      )}
+
+                      {/* Quick Status Bar */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {(Object.keys(STATUS_META) as ShippingStatus[]).map((k) => {
+                            const active = item.status === k;
+                            return (
+                              <button
+                                key={k}
+                                type="button"
+                                disabled={updatingStatusId === item.id}
+                                onClick={() => handleQuickStatus(item, k)}
+                                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                  active
+                                    ? `${STATUS_META[k].badge} ring-2 ring-offset-1 ring-slate-300`
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                {STATUS_META[k].label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {updatedByName && (
+                          <span className="text-[10px] text-slate-400">อัปเดตโดย {updatedByName}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT MODAL */}
+      {showFormModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => !saving && setShowFormModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                  <Truck className="w-4 h-4" />
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {editingItem ? 'แก้ไขคิวขนส่ง' : 'เพิ่มคิวขนส่งใหม่'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setShowFormModal(false)}
+                className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitForm} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    วันที่จัดส่ง <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={form.delivery_date}
+                    onChange={(e) => setForm((f) => ({ ...f, delivery_date: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ช่วงเวลาจัดส่ง</label>
+                  <input
+                    type="text"
+                    list="shipping-time-presets"
+                    value={form.time_slot}
+                    onChange={(e) => setForm((f) => ({ ...f, time_slot: e.target.value }))}
+                    placeholder="เช่น ช่วงเช้า (09:00-12:00) หรือ 14:30"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  <datalist id="shipping-time-presets">
+                    {TIME_SLOT_PRESETS.map((p) => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    รายการสินค้า / หัวข้องานขนส่ง <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={form.title}
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="เช่น ส่งแผ่นไม้จามจุรี 2 แผ่น + ขาโต๊ะ, ส่งผนังหิน 20 ตร.ม."
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">แบรนด์ในระบบ</label>
+                  <select
+                    value={form.brand_id}
+                    onChange={(e) => setForm((f) => ({ ...f, brand_id: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="">— เลือกแบรนด์ —</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">สถานะงาน</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as ShippingStatus }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    {(Object.keys(STATUS_META) as ShippingStatus[]).map((st) => (
+                      <option key={st} value={st}>
+                        {STATUS_META[st].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อลูกค้า / โครงการ</label>
+                  <input
+                    type="text"
+                    value={form.customer_name}
+                    onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
+                    placeholder="ชื่อลูกค้า หรือชื่อโปรเจกต์"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เบอร์ติดต่อลูกค้า</label>
+                  <input
+                    type="text"
+                    value={form.customer_phone}
+                    onChange={(e) => setForm((f) => ({ ...f, customer_phone: e.target.value }))}
+                    placeholder="เช่น 081-234-5678"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">สถานที่จัดส่ง / ที่อยู่</label>
+                  <input
+                    type="text"
+                    value={form.location}
+                    onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                    placeholder="ที่อยู่จัดส่ง หรือหน้างาน"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ลิงก์ Google Maps</label>
+                  <input
+                    type="url"
+                    value={form.map_url}
+                    onChange={(e) => setForm((f) => ({ ...f, map_url: e.target.value }))}
+                    placeholder="https://maps.app.goo.gl/..."
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">เลขออเดอร์ / ใบเสนอราคา</label>
+                  <input
+                    type="text"
+                    value={form.order_no}
+                    onChange={(e) => setForm((f) => ({ ...f, order_no: e.target.value }))}
+                    placeholder="เช่น QT-2026-001 / SO-123"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ประเภทการขนส่ง</label>
+                  <select
+                    value={form.vehicle_type}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicle_type: e.target.value as ShippingVehicleType }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    {(Object.keys(VEHICLE_META) as ShippingVehicleType[]).map((v) => (
+                      <option key={v} value={v}>
+                        {VEHICLE_META[v].icon} {VEHICLE_META[v].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">คนขับ / ทะเบียนรถ / ขนส่ง</label>
+                  <input
+                    type="text"
+                    value={form.driver_name}
+                    onChange={(e) => setForm((f) => ({ ...f, driver_name: e.target.value }))}
+                    placeholder="เช่น พี่เอก กข-1234 / นิ่มซี่เส็ง"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ผู้ประสานงาน / ผู้รับผิดชอบ</label>
+                  <select
+                    value={form.assignee_id}
+                    onChange={(e) => setForm((f) => ({ ...f, assignee_id: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="">— ไม่ระบุ —</option>
+                    {users.map((u) => {
+                      const label = u.nickname?.trim()
+                        ? `${u.nickname} (${u.first_name} ${u.last_name})`
+                        : `${u.first_name} ${u.last_name}`.trim() || u.email;
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">หมายเหตุเพิ่มเติม</label>
+                  <textarea
+                    rows={3}
+                    value={form.notes}
+                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                    placeholder="เช่น ต้องใช้คนยก 4 คน, แลกบัตรหน้าหมู่บ้าน, เก็บยอดปลายทาง..."
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                {editingItem ? (
+                  <button
+                    type="button"
+                    disabled={saving || deletingId === editingItem.id}
+                    onClick={() => handleDelete(editingItem)}
+                    className="px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    ลบคิวนี้
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setShowFormModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-bold cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {editingItem ? 'บันทึกการแก้ไข' : 'บันทึกคิวขนส่ง'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-[70] flex items-center gap-2 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span>{toast.text}</span>
+        </div>
+      )}
+    </div>
+  );
+}

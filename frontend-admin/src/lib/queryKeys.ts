@@ -4,6 +4,7 @@ export const queryKeys = {
   brands: ['brands'] as const,
   taskCategories: ['task-categories'] as const,
   holidays: (year: number) => ['holidays', year] as const,
+  shippingSchedules: (year: number) => ['shipping-schedules', year] as const,
   tasks: (scope: 'mine' | 'all' = 'mine') => ['tasks', scope] as const,
   salesTasks: ['tasks', 'sales'] as const,
   taskEvents: (taskId: string, taskOnly = false) => ['task-events', taskId, taskOnly] as const,

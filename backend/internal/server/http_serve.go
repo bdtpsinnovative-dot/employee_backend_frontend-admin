@@ -45,6 +45,7 @@ func New(cfg *config.Config) (*Server, error) {
 	leaveQuotaRepo := repository.NewLeaveQuotaRepo(db)
 	offsiteRepo := repository.NewOffsiteRepo(db)
 	holidayRepo := repository.NewHolidayRepo(db)
+	shippingScheduleRepo := repository.NewShippingScheduleRepo(db)
 	locationRepo := repository.NewLocationRepo(db)
 	taskRepo := repository.NewTaskRepo(db)
 	brandRepo := repository.NewBrandRepo(db)
@@ -74,6 +75,9 @@ func New(cfg *config.Config) (*Server, error) {
 	if err := taskEventRepo.EnsureTable(context.Background()); err != nil {
 		return nil, fmt.Errorf("task activity table migration failed: %w", err)
 	}
+	if err := shippingScheduleRepo.EnsureTable(context.Background()); err != nil {
+		return nil, fmt.Errorf("shipping schedules table migration failed: %w", err)
+	}
 
 	// --- สร้าง Services (ชั้น Business Logic) ---
 	firebaseSvc := service.NewFirebaseService()
@@ -98,6 +102,7 @@ func New(cfg *config.Config) (*Server, error) {
 	leaveH := handler.NewLeaveHandler(leaveSvc, userSvc, notifSvc)
 	offsiteH := handler.NewOffsiteHandler(offsiteSvc, userSvc, notifSvc)
 	holidayH := handler.NewHolidayHandler(holidaySvc)
+	shippingScheduleH := handler.NewShippingScheduleHandler(shippingScheduleRepo)
 	adminH := handler.NewAdminHandler(userSvc, leaveSvc, offsiteSvc, attendanceSvc, locationSvc, firebaseSvc, notifSvc)
 	taskH := handler.NewTaskHandler(taskSvc, subItemRepo, taskEventRepo, listRepo, cardRepo, taskRepo)
 	brandCategoryH := handler.NewBrandCategoryHandler(brandRepo, categoryRepo, subItemRepo, listRepo, cardRepo, attachmentRepo, commentRepo, assigneeRepo, notifSvc, taskEventRepo, userRepo)
@@ -180,7 +185,7 @@ func New(cfg *config.Config) (*Server, error) {
 		AllowCredentials: true,
 	}))
 
-	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, reminderH, backupH, posH, maintenanceGate)
+	registerRoutes(router, cfg, userSvc, authH, userH, attendanceH, leaveH, offsiteH, holidayH, shippingScheduleH, adminH, uploadH, taskH, brandCategoryH, taskEventH, notifH, settingH, piRecordH, reminderH, backupH, posH, maintenanceGate)
 
 	return &Server{router: router, cfg: cfg}, nil
 }
@@ -204,6 +209,7 @@ func registerRoutes(
 	leaveH *handler.LeaveHandler,
 	offsiteH *handler.OffsiteHandler,
 	holidayH *handler.HolidayHandler,
+	shippingScheduleH *handler.ShippingScheduleHandler,
 	adminH *handler.AdminHandler,
 	uploadH *handler.UploadHandler,
 	taskH *handler.TaskHandler,
@@ -303,6 +309,12 @@ func registerRoutes(
 
 		// วันหยุด
 		api.GET("/holidays", holidayH.List) // ดูวันหยุดทั้งปี ?year=2026
+
+		// ปฏิทินขนส่ง (ทุกคนที่ล็อกอินดูและแก้ไขได้)
+		api.GET("/shipping-schedules", shippingScheduleH.List)
+		api.POST("/shipping-schedules", shippingScheduleH.Create)
+		api.PUT("/shipping-schedules/:id", shippingScheduleH.Update)
+		api.DELETE("/shipping-schedules/:id", shippingScheduleH.Delete)
 
 		// จุดทำงาน
 		api.GET("/locations", adminH.ListLocations) // ดูจุดทำงานทั้งหมด (สำหรับตรวจ Geofence)

@@ -10,6 +10,7 @@ import {
   Calendar,
   CalendarDays,
   CalendarCheck,
+  Truck,
   Kanban,
   LogOut,
   Settings,
@@ -243,6 +244,12 @@ export default function Sidebar({ isOpen, onClose, currentUser, tasksSearch = ''
       to: '/holidays',
       icon: CalendarDays,
       label: 'ปฏิทินวันหยุด',
+      adminOnly: false,
+    },
+    {
+      to: '/shipping',
+      icon: Truck,
+      label: 'ปฏิทินขนส่ง',
       adminOnly: false,
     },
     {

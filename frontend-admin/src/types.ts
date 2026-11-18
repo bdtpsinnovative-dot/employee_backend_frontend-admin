@@ -623,3 +623,53 @@ export interface ChatResponseAnalytics {
   daily_trend: ChatAnalyticsDailyPoint[];
   teams: ChatTeamAnalytics[];
 }
+
+export type ShippingStatus = 'pending' | 'in_transit' | 'delivered' | 'postponed' | 'cancelled';
+
+export type ShippingVehicleType =
+  | 'company_truck'
+  | 'lalamove'
+  | 'external_courier'
+  | 'customer_pickup'
+  | 'other';
+
+export interface ShippingSchedule {
+  id: string;
+  delivery_date: string; // YYYY-MM-DD
+  time_slot: string;
+  title: string;
+  brand_id: string | null;
+  customer_name: string;
+  customer_phone: string;
+  location: string;
+  map_url: string;
+  order_no: string;
+  vehicle_type: ShippingVehicleType;
+  driver_name: string;
+  assignee_id: string | null;
+  status: ShippingStatus;
+  notes: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShippingScheduleInput {
+  delivery_date: string;
+  time_slot?: string;
+  title: string;
+  brand_id?: string | null;
+  customer_name?: string;
+  customer_phone?: string;
+  location?: string;
+  map_url?: string;
+  order_no?: string;
+  vehicle_type?: ShippingVehicleType;
+  driver_name?: string;
+  assignee_id?: string | null;
+  status?: ShippingStatus;
+  notes?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+}

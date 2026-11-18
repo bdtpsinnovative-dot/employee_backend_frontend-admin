@@ -24,6 +24,8 @@ import type {
   BackupConfig,
   Position,
   TeamMembersData,
+  ShippingSchedule,
+  ShippingScheduleInput,
 } from '../types';
 
 // ────────────────── Backup & Restore ──────────────────
@@ -816,4 +818,30 @@ export async function markAllNotificationsRead(): Promise<void> {
 export async function toggleStarTask(taskId: string, isStarred: boolean): Promise<any> {
   const { data } = await api.post<ApiResponse<any>>(`/api/tasks/${taskId}/star`, { is_starred: isStarred });
   return data;
+}
+
+// ────────────────── Shipping Calendar (ปฏิทินขนส่ง — Go Backend API) ──────────────────
+
+export async function fetchShippingSchedules(year: number): Promise<ShippingSchedule[]> {
+  const { data } = await api.get<ApiResponse<ShippingSchedule[]>>('/api/shipping-schedules', {
+    params: { year },
+  });
+  return data.data ?? [];
+}
+
+export async function createShippingSchedule(body: ShippingScheduleInput): Promise<ShippingSchedule> {
+  const { data } = await api.post<ApiResponse<ShippingSchedule>>('/api/shipping-schedules', body);
+  return data.data;
+}
+
+export async function updateShippingSchedule(
+  id: string,
+  body: Partial<ShippingScheduleInput>
+): Promise<ShippingSchedule> {
+  const { data } = await api.put<ApiResponse<ShippingSchedule>>(`/api/shipping-schedules/${id}`, body);
+  return data.data;
+}
+
+export async function deleteShippingSchedule(id: string): Promise<void> {
+  await api.delete(`/api/shipping-schedules/${id}`);
 }
