@@ -20,6 +20,9 @@ import {
   X,
   ExternalLink,
   CheckCircle2,
+  Check,
+  CalendarClock,
+  Ban,
   AlertCircle,
   Loader2,
   Building2,
@@ -66,37 +69,47 @@ const WEEKDAY_NAMES_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.
 
 const STATUS_META: Record<
   ShippingStatus,
-  { label: string; dot: string; badge: string; cardBorder: string }
+  { label: string; dot: string; badge: string; cardBorder: string; cellCard: string; miniBar: string }
 > = {
   pending: {
     label: 'รอจัดส่ง',
     dot: 'bg-amber-500',
     badge: 'bg-amber-50 text-amber-700 border-amber-200',
     cardBorder: 'border-amber-200 hover:border-amber-300',
+    cellCard: 'bg-amber-50/40 border-amber-200/80 border-l-[3px] border-l-amber-400 hover:border-amber-300',
+    miniBar: 'w-1/3 bg-amber-400',
   },
   in_transit: {
     label: 'กำลังจัดส่ง',
     dot: 'bg-blue-500',
     badge: 'bg-blue-50 text-blue-700 border-blue-200',
     cardBorder: 'border-blue-200 hover:border-blue-300',
+    cellCard: 'bg-blue-50/60 border-blue-200 border-l-[3px] border-l-blue-500 hover:border-blue-400',
+    miniBar: 'w-2/3 bg-blue-500',
   },
   delivered: {
     label: 'ส่งสำเร็จ',
     dot: 'bg-emerald-500',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     cardBorder: 'border-emerald-200 hover:border-emerald-300',
+    cellCard: 'bg-emerald-50/70 border-emerald-200 border-l-[3px] border-l-emerald-500 hover:border-emerald-400',
+    miniBar: 'w-full bg-emerald-500',
   },
   postponed: {
     label: 'เลื่อนส่ง',
     dot: 'bg-purple-500',
     badge: 'bg-purple-50 text-purple-700 border-purple-200',
     cardBorder: 'border-purple-200 hover:border-purple-300',
+    cellCard: 'bg-purple-50/60 border-purple-200 border-l-[3px] border-l-purple-500 hover:border-purple-400',
+    miniBar: 'w-full bg-purple-400/70',
   },
   cancelled: {
     label: 'ยกเลิก',
     dot: 'bg-rose-500',
     badge: 'bg-rose-50 text-rose-700 border-rose-200',
     cardBorder: 'border-rose-200 hover:border-rose-300',
+    cellCard: 'bg-rose-50/55 border-rose-200 border-l-[3px] border-l-rose-500 hover:border-rose-300',
+    miniBar: 'w-full bg-rose-400',
   },
 };
 
@@ -149,6 +162,188 @@ function getWeekdayThai(dateStr: string): string {
   if (Number.isNaN(dt.getTime())) return '';
   const names = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
   return names[dt.getDay()] || '';
+}
+
+const STEPPER_MAIN_STEPS: { key: ShippingStatus; label: string }[] = [
+  { key: 'pending', label: 'รอจัดส่ง' },
+  { key: 'in_transit', label: 'กำลังจัดส่ง' },
+  { key: 'delivered', label: 'ส่งสำเร็จ' },
+];
+
+const STEPPER_EXTRA_STEPS: { key: ShippingStatus; label: string }[] = [
+  { key: 'postponed', label: 'เลื่อนส่ง' },
+  { key: 'cancelled', label: 'ยกเลิก' },
+];
+
+function ShippingStatusStepper({
+  status,
+  disabled,
+  onChange,
+  compact = false,
+}: {
+  status: ShippingStatus;
+  disabled?: boolean;
+  onChange: (nextStatus: ShippingStatus) => void;
+  compact?: boolean;
+}) {
+  const activeMainIdx = STEPPER_MAIN_STEPS.findIndex((s) => s.key === status);
+  const isException = activeMainIdx === -1;
+
+  return (
+    <div
+      className={`rounded-xl bg-slate-50/80 border border-slate-100 ${
+        compact ? 'px-3 py-2' : 'px-3 py-3'
+      }`}
+    >
+      <div className="flex items-start">
+        {/* Main 3-step delivery track: รอจัดส่ง ━━ กำลังจัดส่ง ━━ ส่งสำเร็จ */}
+        {STEPPER_MAIN_STEPS.map((step, idx) => {
+          const isCompleted = !isException && activeMainIdx > idx;
+          const isCurrent = !isException && activeMainIdx === idx;
+          const isLineFilled = !isException && activeMainIdx > idx;
+
+          const circleClass = isCurrent
+            ? step.key === 'delivered'
+              ? 'bg-emerald-500 text-white border-emerald-500 ring-4 ring-emerald-100 shadow-xs'
+              : step.key === 'in_transit'
+              ? 'bg-blue-600 text-white border-blue-600 ring-4 ring-blue-100 shadow-xs'
+              : 'bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 shadow-xs'
+            : isCompleted
+            ? status === 'delivered'
+              ? 'bg-emerald-500 text-white border-emerald-500'
+              : 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-slate-400 border-slate-200 hover:border-blue-300 hover:text-blue-600';
+
+          const labelClass = isCurrent
+            ? step.key === 'delivered'
+              ? 'text-emerald-700 font-extrabold'
+              : step.key === 'in_transit'
+              ? 'text-blue-700 font-extrabold'
+              : 'text-amber-700 font-extrabold'
+            : isCompleted
+            ? 'text-slate-700 font-bold'
+            : 'text-slate-400 font-semibold group-hover:text-slate-600';
+
+          const lineClass = isLineFilled
+            ? status === 'delivered'
+              ? 'bg-emerald-500'
+              : 'bg-blue-500'
+            : 'bg-slate-200';
+
+          return (
+            <React.Fragment key={step.key}>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(step.key)}
+                className={`group flex flex-col items-center gap-1.5 shrink-0 cursor-pointer transition-opacity disabled:opacity-50 ${
+                  isException ? 'opacity-55 hover:opacity-100' : ''
+                }`}
+                title={`เปลี่ยนสถานะเป็น "${step.label}"`}
+              >
+                <span
+                  className={`${
+                    compact ? 'w-6 h-6' : 'w-7 h-7'
+                  } rounded-full border-2 flex items-center justify-center transition-all duration-200 group-hover:scale-105 ${circleClass}`}
+                >
+                  {isCompleted || (isCurrent && step.key === 'delivered') ? (
+                    <Check className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} stroke-[2.8]`} />
+                  ) : step.key === 'in_transit' ? (
+                    <Truck className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+                  ) : (
+                    <Clock className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+                  )}
+                </span>
+                <span
+                  className={`${
+                    compact ? 'text-[10px]' : 'text-[10.5px]'
+                  } leading-none whitespace-nowrap ${labelClass}`}
+                >
+                  {step.label}
+                </span>
+              </button>
+
+              {idx < STEPPER_MAIN_STEPS.length - 1 && (
+                <div className={`flex-1 px-1.5 ${compact ? 'pt-[10px] min-w-[16px]' : 'pt-[12px] min-w-[20px]'}`}>
+                  <div className={`h-[3px] w-full rounded-full transition-colors duration-300 ${lineClass}`} />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+
+        {/* Dashed branch connector to exception statuses */}
+        <div
+          className={`flex-1 px-1.5 ${
+            compact ? 'pt-[10px] min-w-[14px] max-w-[28px]' : 'pt-[12px] min-w-[16px] max-w-[36px]'
+          }`}
+        >
+          <div
+            className={`w-full border-t-2 border-dashed transition-colors ${
+              isException ? 'border-purple-300' : 'border-slate-200'
+            }`}
+          />
+        </div>
+
+        {/* Exception nodes: เลื่อนส่ง ┄┄ ยกเลิก */}
+        {STEPPER_EXTRA_STEPS.map((step, idx) => {
+          const isCurrent = status === step.key;
+          const isPostponed = step.key === 'postponed';
+
+          const circleClass = isCurrent
+            ? isPostponed
+              ? 'bg-purple-600 text-white border-purple-600 ring-4 ring-purple-100 shadow-xs'
+              : 'bg-rose-500 text-white border-rose-500 ring-4 ring-rose-100 shadow-xs'
+            : isPostponed
+            ? 'bg-white text-slate-400 border-slate-200 hover:border-purple-300 hover:text-purple-600'
+            : 'bg-white text-slate-400 border-slate-200 hover:border-rose-300 hover:text-rose-500';
+
+          const labelClass = isCurrent
+            ? isPostponed
+              ? 'text-purple-700 font-extrabold'
+              : 'text-rose-600 font-extrabold'
+            : 'text-slate-400 font-semibold group-hover:text-slate-600';
+
+          return (
+            <React.Fragment key={step.key}>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(step.key)}
+                className="group flex flex-col items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                title={`เปลี่ยนสถานะเป็น "${step.label}"`}
+              >
+                <span
+                  className={`${
+                    compact ? 'w-6 h-6' : 'w-7 h-7'
+                  } rounded-full border-2 flex items-center justify-center transition-all duration-200 group-hover:scale-105 ${circleClass}`}
+                >
+                  {isPostponed ? (
+                    <CalendarClock className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+                  ) : (
+                    <Ban className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+                  )}
+                </span>
+                <span
+                  className={`${
+                    compact ? 'text-[10px]' : 'text-[10.5px]'
+                  } leading-none whitespace-nowrap ${labelClass}`}
+                >
+                  {step.label}
+                </span>
+              </button>
+
+              {idx < STEPPER_EXTRA_STEPS.length - 1 && (
+                <div className={`${compact ? 'w-4 sm:w-5 pt-[10px]' : 'w-5 sm:w-7 pt-[12px]'} px-1 shrink-0`}>
+                  <div className="w-full border-t-2 border-dashed border-slate-200" />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 interface FormState {
@@ -992,6 +1187,13 @@ export default function ShippingCalendar() {
                               : undefined;
                           const brandObj = item.brand_id ? brandMap.get(item.brand_id) : undefined;
                           const st = STATUS_META[item.status] || STATUS_META.pending;
+                          const subMeta = [
+                            item.time_slot ? item.time_slot.split(' ')[0] : '',
+                            item.customer_name || item.location || '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ');
+
                           return (
                             <div
                               key={item.id}
@@ -999,49 +1201,57 @@ export default function ShippingCalendar() {
                                 e.stopPropagation();
                                 setSelectedDayStr(cell.dateStr);
                               }}
-                              className={`rounded-lg border px-1.5 py-1 text-left transition-all shadow-2xs ${
-                                item.status === 'cancelled'
-                                  ? 'bg-slate-50 border-slate-200 opacity-60'
-                                  : item.status === 'delivered'
-                                  ? 'bg-emerald-50/60 border-emerald-200'
-                                  : 'bg-white border-slate-200/90 hover:border-blue-300'
-                              }`}
+                              className={`rounded-lg border px-2 py-1.5 text-left transition-all shadow-2xs ${st.cellCard}`}
                             >
                               <div className="flex items-center justify-between gap-1">
                                 {branchInfo ? (
                                   <span
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold truncate max-w-[105px] ${branchInfo.palette.bg} ${branchInfo.palette.text}`}
+                                    className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-extrabold truncate max-w-[92px] ${branchInfo.palette.bg} ${branchInfo.palette.text}`}
                                     title={branchInfo.branch.branch_name}
                                   >
                                     {branchInfo.branch.branch_name.trim()}
                                   </span>
                                 ) : brandObj ? (
-                                  <span className="text-[9px] font-bold text-slate-600 truncate">
+                                  <span className="text-[9px] font-bold text-slate-600 truncate max-w-[92px]">
                                     {brandObj.name}
                                   </span>
                                 ) : (
                                   <span className="text-[9px] font-bold text-slate-400">ขนส่ง</span>
                                 )}
+
                                 <span
-                                  className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded-full border text-[9px] font-extrabold shrink-0 ${st.badge}`}
                                   title={st.label}
-                                />
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot} ${
+                                      item.status === 'in_transit' ? 'animate-pulse' : ''
+                                    }`}
+                                  />
+                                  {st.label}
+                                </span>
                               </div>
+
                               <p
-                                className={`text-[11px] font-bold leading-snug truncate mt-0.5 ${
+                                className={`text-[11px] font-bold leading-snug truncate mt-1 ${
                                   item.status === 'cancelled'
-                                    ? 'line-through text-slate-400'
+                                    ? 'line-through text-rose-400'
+                                    : item.status === 'postponed'
+                                    ? 'text-purple-900'
                                     : 'text-slate-800'
                                 }`}
                               >
                                 {item.title}
                               </p>
-                              {(item.customer_name || item.time_slot) && (
-                                <p className="text-[9.5px] text-slate-500 truncate">
-                                  {item.time_slot ? `${item.time_slot.split(' ')[0]} · ` : ''}
-                                  {item.customer_name || item.location}
-                                </p>
+
+                              {subMeta && (
+                                <p className="text-[9.5px] text-slate-500 truncate mt-0.5">{subMeta}</p>
                               )}
+
+                              {/* Mini progress bar */}
+                              <div className="mt-1.5 h-[3px] w-full rounded-full bg-slate-200/70 overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${st.miniBar}`} />
+                              </div>
                             </div>
                           );
                         })}
@@ -1117,14 +1327,13 @@ export default function ShippingCalendar() {
                               ? branchMap.get(item.branch_id)
                               : undefined;
                           const brandObj = item.brand_id ? brandMap.get(item.brand_id) : undefined;
-                          const st = STATUS_META[item.status] || STATUS_META.pending;
                           const veh = VEHICLE_META[item.vehicle_type] || VEHICLE_META.other;
                           const assigneeName = getUserDisplayName(item.assignee_id);
 
                           return (
                             <div
                               key={item.id}
-                              className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+                              className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col xl:flex-row xl:items-center justify-between gap-4"
                             >
                               <div className="min-w-0 flex-1 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -1216,37 +1425,35 @@ export default function ShippingCalendar() {
                                 )}
                               </div>
 
-                              {/* Right Actions */}
-                              <div className="flex items-center gap-2 shrink-0">
-                                <select
-                                  value={item.status}
-                                  disabled={updatingStatusId === item.id}
-                                  onChange={(e) => handleQuickStatus(item, e.target.value as ShippingStatus)}
-                                  className={`text-xs font-bold rounded-xl px-2.5 py-1.5 border cursor-pointer focus:outline-none ${st.badge}`}
-                                >
-                                  {(Object.keys(STATUS_META) as ShippingStatus[]).map((k) => (
-                                    <option key={k} value={k}>
-                                      {STATUS_META[k].label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal(item)}
-                                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-300 transition-colors cursor-pointer"
-                                  title="แก้ไข"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={deletingId === item.id}
-                                  onClick={() => handleDelete(item)}
-                                  className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-300 transition-colors cursor-pointer disabled:opacity-50"
-                                  title="ลบ"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                              {/* Status Stepper + Right Actions */}
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                                <div className="sm:w-[390px] xl:w-[420px]">
+                                  <ShippingStatusStepper
+                                    status={item.status}
+                                    disabled={updatingStatusId === item.id}
+                                    onChange={(nextStatus) => handleQuickStatus(item, nextStatus)}
+                                    compact
+                                  />
+                                </div>
+                                <div className="flex items-center justify-end gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditModal(item)}
+                                    className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-300 transition-colors cursor-pointer"
+                                    title="แก้ไข"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={deletingId === item.id}
+                                    onClick={() => handleDelete(item)}
+                                    className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-300 transition-colors cursor-pointer disabled:opacity-50"
+                                    title="ลบ"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );
@@ -1438,31 +1645,31 @@ export default function ShippingCalendar() {
                         </div>
                       )}
 
-                      {/* Quick Status Bar */}
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {(Object.keys(STATUS_META) as ShippingStatus[]).map((k) => {
-                            const active = item.status === k;
-                            return (
-                              <button
-                                key={k}
-                                type="button"
-                                disabled={updatingStatusId === item.id}
-                                onClick={() => handleQuickStatus(item, k)}
-                                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                  active
-                                    ? `${STATUS_META[k].badge} ring-2 ring-offset-1 ring-slate-300`
-                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                                }`}
-                              >
-                                {STATUS_META[k].label}
-                              </button>
-                            );
-                          })}
+                      {/* Quick Status Stepper Timeline */}
+                      <div className="pt-3 mt-1 border-t border-slate-100 space-y-2.5">
+                        <ShippingStatusStepper
+                          status={item.status}
+                          disabled={updatingStatusId === item.id}
+                          onChange={(nextStatus) => handleQuickStatus(item, nextStatus)}
+                        />
+
+                        <div className="flex items-center justify-between gap-2 text-[11px]">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border font-bold ${
+                              (STATUS_META[item.status] || STATUS_META.pending).badge
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                (STATUS_META[item.status] || STATUS_META.pending).dot
+                              }`}
+                            />
+                            {(STATUS_META[item.status] || STATUS_META.pending).label}
+                          </span>
+                          {updatedByName && (
+                            <span className="text-[10.5px] text-slate-400">อัปเดตโดย {updatedByName}</span>
+                          )}
                         </div>
-                        {updatedByName && (
-                          <span className="text-[10px] text-slate-400">อัปเดตโดย {updatedByName}</span>
-                        )}
                       </div>
                     </div>
                   );
