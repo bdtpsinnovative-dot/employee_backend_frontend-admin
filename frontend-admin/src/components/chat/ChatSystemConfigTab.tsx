@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -37,6 +37,7 @@ import type { ChatSystemConfig, User, ChatAccessUser, ChatCareGroup, ChatChannel
 import { avatarUrl } from '../tasks/taskUtils';
 import ChatDistributionModal from './ChatDistributionModal';
 import BrandLockSelector from './BrandLockSelector';
+import { useQueryParams } from '../../utils/urlParams';
 
 function StaffAvatar({ url, name, size = 32 }: { url?: string | null; name: string; size?: number }) {
   const [error, setError] = useState(false);
@@ -102,7 +103,13 @@ export default function ChatSystemConfigTab({ onNavigateToAccess, onNavigateToGr
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [ratioSubTab, setRatioSubTab] = useState<'agents' | 'groups'>('agents');
+  const { patchParams, getEnumParam } = useQueryParams();
+  const ratioSubTab = getEnumParam('sub', ['agents', 'groups'] as const, 'agents');
+  const setRatioSubTab = useCallback(
+    (val: 'agents' | 'groups') => patchParams({ sub: val === 'agents' ? null : val }),
+    [patchParams]
+  );
+  const didInitSubRef = useRef(false);
   const [showDistributionModal, setShowDistributionModal] = useState(false);
   const [distributionLaunchMode, setDistributionLaunchMode] = useState<'agents' | 'groups'>('agents');
 
@@ -130,7 +137,12 @@ export default function ChatSystemConfigTab({ onNavigateToAccess, onNavigateToGr
       setConfig(cfg);
       setInitialWeightsKey(JSON.stringify(cfg.agent_weights || {}));
       setInitialGroupWeightsKey(JSON.stringify(cfg.group_weights || {}));
-      setRatioSubTab(cfg.routing_target_mode === 'groups' ? 'groups' : 'agents');
+      if (!didInitSubRef.current) {
+        didInitSubRef.current = true;
+        if (!new URLSearchParams(window.location.search).get('sub') && cfg.routing_target_mode === 'groups') {
+          setRatioSubTab('groups');
+        }
+      }
       setUsers(userList);
       setAccessUsers(accessList);
       setCareGroups(careGroupList);
@@ -142,7 +154,7 @@ export default function ChatSystemConfigTab({ onNavigateToAccess, onNavigateToGr
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setRatioSubTab]);
 
   useEffect(() => {
     void loadData();

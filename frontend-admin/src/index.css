@@ -7940,6 +7940,45 @@ td {
   color: var(--text-secondary) !important;
 }
 
+.pi-record-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 255px);
+  min-height: 340px;
+  scrollbar-gutter: stable;
+}
+
+.pi-record-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 12px;
+}
+
+.pi-record-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pi-record-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+  border: 2px solid #f1f5f9;
+}
+
+.pi-record-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+:root[data-theme='dark'] .pi-record-scroll::-webkit-scrollbar-track,
+.dark .pi-record-scroll::-webkit-scrollbar-track {
+  background: #18181b;
+  border-top-color: #27272a;
+}
+
+:root[data-theme='dark'] .pi-record-scroll::-webkit-scrollbar-thumb,
+.dark .pi-record-scroll::-webkit-scrollbar-thumb {
+  background: #52525b;
+  border-color: #18181b;
+}
+
 /* ──── PI Record Dedicated Pure Dark Theme Overrides (Zero Blue, Pure Charcoal) ──── */
 :root[data-theme='dark'] .pi-record-root,
 .dark .pi-record-root {

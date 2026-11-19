@@ -24,4 +24,5 @@ type PIRecord struct {
 	ShippingMethod string    `db:"shipping_method" json:"shipping_method"`
 	DeliveredDate  string    `db:"delivered_date" json:"delivered_date"`
 	DateOrder      string    `db:"date_order" json:"date_order"`
+	LastUpdate     string    `db:"last_update" json:"last_update"`
 }

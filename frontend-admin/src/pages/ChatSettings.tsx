@@ -115,9 +115,12 @@ export default function ChatSettings() {
 
   useEffect(() => {
     if (!paramTab || paramTab.toLowerCase() !== expectedSlug) {
-      navigate(`/chat-settings/${expectedSlug}`, { replace: true });
+      const preserved = new URLSearchParams(searchParams);
+      preserved.delete('tab');
+      const qs = preserved.toString();
+      navigate(`/chat-settings/${expectedSlug}${qs ? `?${qs}` : ''}`, { replace: true });
     }
-  }, [paramTab, expectedSlug, navigate]);
+  }, [paramTab, expectedSlug, navigate, searchParams]);
 
   const setActiveTab = useCallback(
     (nextTab: ChatSettingsTab) => {
@@ -376,7 +379,7 @@ export default function ChatSettings() {
               }`}
             >
               <Users size={13} className={activeTab === 'routing' ? 'text-blue-600' : ''} />
-              <span>กลุ่มแชท</span>
+              <span>กลุ่ม & รายบุคคล</span>
             </button>
 
             <button

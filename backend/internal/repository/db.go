@@ -27,8 +27,8 @@ func NewDB(databaseURL string) (*sqlx.DB, error) {
 	// ตั้งค่า connection pool (จำกัดให้ไม่เกิน 8 เพื่อเลี่ยงลิมิต 15 ของ Supabase ใน session mode)
 	db.SetMaxOpenConns(8) // จำนวนการเชื่อมต่อสูงสุด
 	db.SetMaxIdleConns(4) // รองรับ page-load burst โดยไม่เปิด TLS connection กลาง request
-	db.SetConnMaxIdleTime(10 * time.Minute)
-	db.SetConnMaxLifetime(45 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute) // ป้องกัน connection ค้างจน Supabase pooler/NAT ตัดสาย (เลี่ยง error EOF)
+	db.SetConnMaxLifetime(10 * time.Minute) // หมุนเวียน connection ทุก 10 นาที
 
 	// ทดสอบการเชื่อมต่อ
 	if err := db.Ping(); err != nil {

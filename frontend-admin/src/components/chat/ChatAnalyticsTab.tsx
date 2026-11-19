@@ -43,6 +43,7 @@ import {
 import { avatarUrl } from '../tasks/taskUtils';
 import ChatQAReviewModal, { type QAModalAgentInfo } from './ChatQAReviewModal';
 import ChatAnalyticsCharts from './ChatAnalyticsCharts';
+import { useQueryParams, useDebouncedUrlSearch } from '../../utils/urlParams';
 import type {
   ChatAgentAnalytics,
   ChatCareGroup,
@@ -72,15 +73,60 @@ const PLATFORM_LABELS: Record<string, string> = {
   web: 'Web',
 };
 
+const VALID_CASE_FILTERS: readonly CaseQueueFilter[] = [
+  'all',
+  'unassigned',
+  'solo',
+  'team_group',
+  'pending_qa',
+  'won',
+  'repeat',
+  'lost',
+  'open',
+];
+
 export default function ChatAnalyticsTab() {
-  const [viewMode, setViewMode] = useState<'individual' | 'team'>('individual');
-  const [preset, setPreset] = useState<AnalyticsDatePreset>('all');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [caseFilter, setCaseFilter] = useState<CaseQueueFilter>('all');
-  const [agentFilterId, setAgentFilterId] = useState<string | null>(null);
-  const [teamFilterId, setTeamFilterId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [hideIdleAgents, setHideIdleAgents] = useState(true);
+  const { searchParams, patchParams, getParam, getEnumParam } = useQueryParams();
+  const viewMode = getEnumParam('view', ['individual', 'team'] as const, 'individual');
+  const setViewMode = useCallback(
+    (val: 'individual' | 'team') => patchParams({ view: val === 'individual' ? null : val }),
+    [patchParams]
+  );
+  const preset = getEnumParam('range', ['7d', '30d', 'month', 'all'] as const, 'all') as AnalyticsDatePreset;
+  const setPreset = useCallback(
+    (val: AnalyticsDatePreset) => patchParams({ range: val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const brandFilter = getParam('brand', 'all') || 'all';
+  const setBrandFilter = useCallback(
+    (val: string) => patchParams({ brand: !val || val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const caseFilter = getEnumParam('case', VALID_CASE_FILTERS, 'all');
+  const setCaseFilter = useCallback(
+    (val: CaseQueueFilter) => patchParams({ case: val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const agentFilterId = searchParams.get('agent') || null;
+  const setAgentFilterId = useCallback(
+    (val: string | null) => patchParams({ agent: val }),
+    [patchParams]
+  );
+  const teamFilterId = searchParams.get('team') || null;
+  const setTeamFilterId = useCallback(
+    (val: string | null) => patchParams({ team: val }),
+    [patchParams]
+  );
+  const {
+    value: searchQuery,
+    setValue: setSearchQuery,
+    flush: flushSearchQuery,
+  } = useDebouncedUrlSearch('q', 150);
+  const hideIdleAgents = searchParams.get('idle') !== '0';
+  const setHideIdleAgents = useCallback(
+    (val: boolean) => patchParams({ idle: val ? null : '0' }),
+    [patchParams]
+  );
 
   const [analytics, setAnalytics] = useState<ChatResponseAnalytics | null>(null);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
@@ -272,16 +318,20 @@ export default function ChatAnalyticsTab() {
       : null;
 
   const handleSelectAgentForCases = (agentId: string) => {
-    setTeamFilterId(null);
-    setAgentFilterId((prev) => (prev === agentId ? null : agentId));
+    patchParams({
+      team: null,
+      agent: agentFilterId === agentId ? null : agentId,
+    });
     setTimeout(() => {
       queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
   };
 
   const handleSelectTeamForCases = (teamId: string) => {
-    setAgentFilterId(null);
-    setTeamFilterId((prev) => (prev === teamId ? null : teamId));
+    patchParams({
+      agent: null,
+      team: teamFilterId === teamId ? null : teamId,
+    });
     setTimeout(() => {
       queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
@@ -308,9 +358,11 @@ export default function ChatAnalyticsTab() {
   );
 
   const handleSelectCoverageCategory = (category: 'team_group' | 'solo' | 'unassigned') => {
-    setAgentFilterId(null);
-    setTeamFilterId(null);
-    setCaseFilter((prev) => (prev === category ? 'all' : category));
+    patchParams({
+      agent: null,
+      team: null,
+      case: caseFilter === category ? null : category,
+    });
     setTimeout(() => {
       queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
@@ -1214,6 +1266,7 @@ export default function ChatAnalyticsTab() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={flushSearchQuery}
                 placeholder="ค้นหาชื่อลูกค้า / เลข PI / ข้อความ..."
                 className="pl-7 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/70 dark:bg-zinc-950 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 w-52"
               />

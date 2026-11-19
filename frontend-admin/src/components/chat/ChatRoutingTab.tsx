@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Users,
+  User as UserIcon,
+  UserCheck,
   Search,
   Plus,
   Trash2,
@@ -37,6 +39,7 @@ import type {
 import { avatarUrl } from '../tasks/taskUtils';
 import { LineIcon, FacebookIcon, InstagramIcon } from '../../pages/ChatSettings';
 import BrandLockSelector from './BrandLockSelector';
+import { useQueryParams, useDebouncedUrlSearch } from '../../utils/urlParams';
 
 const BRAND_PRESETS: Record<string, { label: string; shortLabel: string; bg: string }> = {
   terrahome: { label: 'Terra Home Studio', shortLabel: 'TERRA', bg: '#B45309' },
@@ -179,6 +182,15 @@ interface DisplayChatGroup {
   allowedBrands?: string[];
 }
 
+interface DisplayIndividualAgent {
+  user: User;
+  customers: ChatConversation[];
+  allowedBrands: string[];
+  isPaused: boolean;
+  weight: number;
+  maxActiveChats: number;
+}
+
 interface ChatRoutingTabProps {
   onNavigateToAccess?: () => void;
 }
@@ -210,16 +222,48 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
 
   // Modal Search Filters
   const [customerSearch, setCustomerSearch] = useState('');
-  const [customerFilter, setCustomerFilter] = useState<'all' | 'selected'>('all');
+  const [customerFilter, setCustomerFilter] = useState<'all' | 'unassigned' | 'selected'>('all');
   const [agentSearch, setAgentSearch] = useState('');
 
-  // List Filter & Inline Rename State
-  const [listSearch, setListSearch] = useState('');
-  const [listFilter, setListFilter] = useState<'all' | 'named' | 'auto'>('all');
+  // List Filter & Inline Rename State (persisted in URL search params)
+  const { patchParams, getEnumParam } = useQueryParams();
+  const {
+    value: listSearch,
+    setValue: setListSearch,
+    flush: flushListSearch,
+    clear: clearListSearch,
+  } = useDebouncedUrlSearch('q', 150);
+  const listFilter = getEnumParam('filter', ['all', 'named', 'auto'] as const, 'all');
+  const setListFilter = useCallback(
+    (val: 'all' | 'named' | 'auto') => patchParams({ filter: val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const viewMode = getEnumParam('view', ['groups', 'agents'] as const, 'groups');
+  const setViewMode = useCallback(
+    (val: 'groups' | 'agents') => patchParams({ view: val === 'groups' ? null : val }),
+    [patchParams]
+  );
+  const agentFilter = getEnumParam('agent_filter', ['all', 'has_customers', 'no_customers'] as const, 'all');
+  const setAgentFilter = useCallback(
+    (val: 'all' | 'has_customers' | 'no_customers') =>
+      patchParams({ agent_filter: val === 'all' ? null : val }),
+    [patchParams]
+  );
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [inlineName, setInlineName] = useState('');
   const [inlineSaving, setInlineSaving] = useState(false);
   const [popoverGroupId, setPopoverGroupId] = useState<string | null>(null);
+
+  // Individual Agent Assignment Modal State
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [selectedAgentUser, setSelectedAgentUser] = useState<User | null>(null);
+  const [agentFormCustomerIds, setAgentFormCustomerIds] = useState<string[]>([]);
+  const [agentPrevCustomerIds, setAgentPrevCustomerIds] = useState<string[]>([]);
+  const [agentCustomerFilter, setAgentCustomerFilter] = useState<'assigned' | 'unassigned' | 'all'>('assigned');
+  const [agentCustomerSearch, setAgentCustomerSearch] = useState('');
+  const [agentFormSaving, setAgentFormSaving] = useState(false);
+  const [agentFormError, setAgentFormError] = useState('');
+  const [popoverAgentId, setPopoverAgentId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -326,6 +370,113 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
 
   const namedCount = displayGroups.filter((g) => !g.isAuto && g.name).length;
   const autoCount = displayGroups.filter((g) => g.isAuto || !g.name).length;
+
+  // Calculate individual caretakers (single sales agent assigned without group)
+  const displayAgents = useMemo<DisplayIndividualAgent[]>(() => {
+    return chatStaffUsers
+      .map((u) => {
+        const singleCustomers = conversations.filter((c) => {
+          if (c.metadata?.assigned_group_id) return false;
+          const agentIds = getConversationAgentIds(c);
+          if (agentIds.length === 1 && agentIds[0] === u.id) return true;
+          if (agentIds.length === 0 && c.assigned_to === u.id) return true;
+          return false;
+        });
+
+        const weightCfg = systemConfig?.agent_weights?.[u.id];
+        return {
+          user: u,
+          customers: singleCustomers,
+          allowedBrands: weightCfg?.allowed_brands || [],
+          isPaused: weightCfg?.is_paused ?? false,
+          weight: weightCfg?.weight ?? 1,
+          maxActiveChats: weightCfg?.max_active_chats ?? 0,
+        };
+      })
+      .sort((a, b) => {
+        if (b.customers.length !== a.customers.length) {
+          return b.customers.length - a.customers.length;
+        }
+        return (a.user.first_name || '').localeCompare(b.user.first_name || '');
+      });
+  }, [chatStaffUsers, conversations, systemConfig]);
+
+  const agentsWithCustomersCount = useMemo(
+    () => displayAgents.filter((a) => a.customers.length > 0).length,
+    [displayAgents]
+  );
+  const agentsWithoutCustomersCount = useMemo(
+    () => displayAgents.filter((a) => a.customers.length === 0).length,
+    [displayAgents]
+  );
+
+  const handleOpenAgentModal = (item: DisplayIndividualAgent) => {
+    setSelectedAgentUser(item.user);
+    const cIds = item.customers.map((c) => c.id);
+    setAgentFormCustomerIds(cIds);
+    setAgentPrevCustomerIds(cIds);
+    setAgentCustomerFilter('assigned');
+    setAgentCustomerSearch('');
+    setAgentFormError('');
+    setShowAgentModal(true);
+  };
+
+  const toggleAgentCustomer = (convId: string) => {
+    setAgentFormCustomerIds((prev) =>
+      prev.includes(convId) ? prev.filter((id) => id !== convId) : [...prev, convId]
+    );
+  };
+
+  const handleSaveAgentCustomers = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedAgentUser) return;
+    setAgentFormSaving(true);
+    setAgentFormError('');
+    try {
+      const toAdd = agentFormCustomerIds.filter((id) => !agentPrevCustomerIds.includes(id));
+      const toRemove = agentPrevCustomerIds.filter((id) => !agentFormCustomerIds.includes(id));
+
+      const agentName = `${selectedAgentUser.first_name} ${selectedAgentUser.last_name}`.trim();
+      const agentAvatar = selectedAgentUser.avatar_url || null;
+
+      await Promise.all(
+        toAdd.map((convId) =>
+          assignConversation(convId, {
+            id: selectedAgentUser.id,
+            name: agentName,
+            avatar: agentAvatar,
+            groupId: null,
+            groupName: null,
+            assignedAgentIds: [selectedAgentUser.id],
+          })
+        )
+      );
+
+      await Promise.all(
+        toRemove.map((convId) =>
+          assignConversation(convId, {
+            id: null,
+            name: null,
+            avatar: null,
+            groupId: null,
+            groupName: null,
+            assignedAgentIds: [],
+          })
+        )
+      );
+
+      await loadData();
+      setShowAgentModal(false);
+      showNotification(
+        `บันทึกการมอบหมายลูกค้าให้ ${selectedAgentUser.first_name} ${selectedAgentUser.nickname ? `(${selectedAgentUser.nickname})` : ''} เรียบร้อยแล้ว (เพิ่ม ${toAdd.length}, ถอด ${toRemove.length})`
+      );
+    } catch (err: any) {
+      console.error('Failed to assign customers to agent:', err);
+      setAgentFormError(err.message || 'ไม่สามารถบันทึกการมอบหมายได้');
+    } finally {
+      setAgentFormSaving(false);
+    }
+  };
 
   // Open Create Modal
   const handleOpenCreate = () => {
@@ -642,10 +793,27 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
     }
   };
 
-  // Filtered customers for modal picker
+  const hasCustomerCaretaker = useCallback(
+    (c: ChatConversation) =>
+      Boolean(c.metadata?.assigned_group_id) ||
+      Boolean(c.metadata?.assigned_group_name) ||
+      getConversationAgentIds(c).length > 0,
+    []
+  );
+
+  const unassignedCustomerCount = useMemo(
+    () => conversations.filter((c) => !hasCustomerCaretaker(c)).length,
+    [conversations, hasCustomerCaretaker]
+  );
+
+  // Filtered customers for modal picker (unassigned customers ALWAYS appear first)
   const filteredCustomers = useMemo(() => {
-    let list = conversations;
-    if (customerFilter === 'selected') {
+    let list = [...conversations].sort(
+      (a, b) => Number(hasCustomerCaretaker(a)) - Number(hasCustomerCaretaker(b))
+    );
+    if (customerFilter === 'unassigned') {
+      list = list.filter((c) => !hasCustomerCaretaker(c));
+    } else if (customerFilter === 'selected') {
       list = list.filter((c) => formCustomerIds.includes(c.id));
     }
     const q = customerSearch.toLowerCase().trim();
@@ -656,7 +824,7 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
       const gName = (c.metadata?.assigned_group_name || '').toLowerCase();
       return cName.includes(q) || bName.includes(q) || gName.includes(q);
     });
-  }, [conversations, customerFilter, formCustomerIds, customerSearch]);
+  }, [conversations, customerFilter, formCustomerIds, customerSearch, hasCustomerCaretaker]);
 
   // Filtered sales staff for modal picker
   const filteredStaff = useMemo(() => {
@@ -696,6 +864,97 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
     });
   }, [displayGroups, listFilter, listSearch, conversations, users]);
 
+  // Filtered individual agents for compact list display
+  const filteredDisplayAgents = useMemo(() => {
+    let list = displayAgents;
+    if (agentFilter === 'has_customers') {
+      list = list.filter((a) => a.customers.length > 0);
+    } else if (agentFilter === 'no_customers') {
+      list = list.filter((a) => a.customers.length === 0);
+    }
+    const q = listSearch.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter((item) => {
+      const u = item.user;
+      const fullName = `${u.first_name || ''} ${u.last_name || ''} ${u.nickname || ''}`.toLowerCase();
+      const dept = (u.department || u.position || '').toLowerCase();
+      if (fullName.includes(q) || dept.includes(q)) return true;
+      return item.customers.some((c) => {
+        const cName = (c.customer_name || '').toLowerCase();
+        const bName = (c.brand || '').toLowerCase();
+        return cName.includes(q) || bName.includes(q);
+      });
+    });
+  }, [displayAgents, agentFilter, listSearch]);
+
+  // Filtered customers for individual agent assignment modal
+  const filteredAgentCustomers = useMemo(() => {
+    let list = [...conversations].sort((a, b) => {
+      const aSelected = agentFormCustomerIds.includes(a.id);
+      const bSelected = agentFormCustomerIds.includes(b.id);
+      if (aSelected !== bSelected) return aSelected ? -1 : 1;
+      return Number(hasCustomerCaretaker(a)) - Number(hasCustomerCaretaker(b));
+    });
+
+    if (agentCustomerFilter === 'assigned') {
+      list = list.filter((c) => agentFormCustomerIds.includes(c.id));
+    } else if (agentCustomerFilter === 'unassigned') {
+      list = list.filter((c) => !hasCustomerCaretaker(c) || agentFormCustomerIds.includes(c.id));
+    }
+
+    const q = agentCustomerSearch.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter((c) => {
+      const cName = (c.customer_name || '').toLowerCase();
+      const bName = (c.brand || '').toLowerCase();
+      return cName.includes(q) || bName.includes(q);
+    });
+  }, [conversations, agentCustomerFilter, agentFormCustomerIds, agentCustomerSearch, hasCustomerCaretaker]);
+
+  const renderCustomerRow = (c: ChatConversation) => {
+    const bInfo = getBrandDisplay(c.brand, channels);
+    return (
+      <div key={c.id} className="flex items-center gap-2 min-w-0 py-0.5">
+        <CustomerAvatarWithBadge conv={c} size={20} />
+        <div className="min-w-0 flex-1 flex items-center gap-1.5">
+          <span className="text-[11.5px] font-semibold text-slate-800 dark:text-zinc-100 truncate">
+            {c.customer_name}
+          </span>
+          <span
+            style={{
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              color: bInfo.bg,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              flexShrink: 0,
+            }}
+          >
+            {bInfo.logo ? (
+              <img
+                src={bInfo.logo}
+                alt=""
+                style={{ width: '9px', height: '9px', borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span
+                style={{
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  background: bInfo.bg,
+                  display: 'inline-block',
+                }}
+              />
+            )}
+            <span>{bInfo.shortLabel}</span>
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       {/* Toast Notification */}
@@ -706,70 +965,136 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
         </div>
       )}
 
-      {/* Compact Top Toolbar */}
+      {/* Top Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="text-sm font-black text-slate-900 dark:text-zinc-100">
-            กลุ่มแชท
-          </h2>
-
-          {/* Segmented Filter */}
-          <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200/70 dark:border-zinc-700">
+          {/* Segmented Switcher: รายกลุ่ม vs รายบุคคล */}
+          <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-zinc-800 border border-slate-300/80 dark:border-zinc-700">
             <button
               type="button"
-              onClick={() => setListFilter('all')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                listFilter === 'all'
-                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+              onClick={() => setViewMode('groups')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'groups'
+                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              ทั้งหมด ({displayGroups.length})
+              <Users size={13} className={viewMode === 'groups' ? 'text-blue-600' : ''} />
+              <span>รายกลุ่ม ({displayGroups.length})</span>
             </button>
             <button
               type="button"
-              onClick={() => setListFilter('named')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                listFilter === 'named'
-                  ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+              onClick={() => setViewMode('agents')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                viewMode === 'agents'
+                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              ตั้งชื่อแล้ว ({namedCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setListFilter('auto')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                listFilter === 'auto'
-                  ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              <span>กลุ่มออโต้ ({autoCount})</span>
+              <UserIcon size={13} className={viewMode === 'agents' ? 'text-blue-600' : ''} />
+              <span>รายบุคคล ({displayAgents.length})</span>
             </button>
           </div>
 
+          {viewMode === 'groups' ? (
+            /* Sub Filter for Groups */
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200/70 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setListFilter('all')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  listFilter === 'all'
+                    ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                ทั้งหมด ({displayGroups.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setListFilter('named')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  listFilter === 'named'
+                    ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                ตั้งชื่อแล้ว ({namedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setListFilter('auto')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  listFilter === 'auto'
+                    ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span>กลุ่มออโต้ ({autoCount})</span>
+              </button>
+            </div>
+          ) : (
+            /* Sub Filter for Individual Agents */
+            <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200/70 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setAgentFilter('all')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  agentFilter === 'all'
+                    ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                ทั้งหมด ({displayAgents.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgentFilter('has_customers')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  agentFilter === 'has_customers'
+                    ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                มีลูกค้าดูแล ({agentsWithCustomersCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgentFilter('no_customers')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  agentFilter === 'no_customers'
+                    ? 'bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                }`}
+              >
+                ยังไม่มีลูกค้า ({agentsWithoutCustomersCount})
+              </button>
+            </div>
+          )}
+
           <span className="hidden xl:inline text-[11px] text-slate-400">
-            • รวมกลุ่มตามทีมผู้ดูแล (&gt; 1 คน) และดึงลูกค้าที่ดูแลร่วมกันเข้ามาอยู่ในบล็อกเดียว
+            {viewMode === 'groups'
+              ? '• รวมกลุ่มตามทีมผู้ดูแล (> 1 คน) และดึงลูกค้าที่ดูแลร่วมกันเข้ามาอยู่ในบล็อกเดียว'
+              : `• เซลล์เดี่ยวดูแลลูกค้า (${displayAgents.reduce((s, a) => s + a.customers.length, 0)} ลค.) · รอจ่ายงาน (${unassignedCustomerCount} ลค.)`}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-52">
+          <div className="relative flex-1 sm:w-56">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={listSearch}
               onChange={(e) => setListSearch(e.target.value)}
-              placeholder="ค้นหากลุ่ม, ลูกค้า, เซลล์..."
+              onBlur={flushListSearch}
+              placeholder={viewMode === 'groups' ? 'ค้นหากลุ่ม, ลูกค้า, เซลล์...' : 'ค้นหาเซลล์, ชื่อเล่น, แผนก, ลูกค้า...'}
               className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 text-xs outline-none focus:border-blue-500"
             />
             {listSearch && (
               <button
                 type="button"
-                onClick={() => setListSearch('')}
+                onClick={clearListSearch}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={12} />
@@ -777,95 +1102,53 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
-          >
-            <Plus size={14} />
-            <span>สร้างกลุ่ม</span>
-          </button>
+          {viewMode === 'groups' && (
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
+            >
+              <Plus size={14} />
+              <span>สร้างกลุ่ม</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Block Grid */}
-      {loading ? (
-        <div className="py-12 text-center text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
-          <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-blue-600" />
-          <p className="text-xs font-medium">กำลังโหลดข้อมูลกลุ่มแชท...</p>
-        </div>
-      ) : displayGroups.length === 0 ? (
-        <div className="py-12 px-4 text-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-2.5">
-            <Users size={20} />
+      {viewMode === 'groups' ? (
+        loading ? (
+          <div className="py-12 text-center text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-blue-600" />
+            <p className="text-xs font-medium">กำลังโหลดข้อมูลกลุ่มแชท...</p>
           </div>
-          <h4 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
-            ยังไม่มีกลุ่มแชท
-          </h4>
-          <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
-            กด "สร้างกลุ่ม" เพื่อจับคู่ลูกค้ากับเซลล์ หรือเพิ่มผู้ดูแลคนที่ 2 ให้ลูกค้าในหน้ารวมแชท ระบบจะขึ้นกลุ่มออโต้ให้อัตโนมัติ
-          </p>
-        </div>
-      ) : filteredDisplayGroups.length === 0 ? (
-        <div className="py-10 text-center text-xs text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
-          ไม่พบกลุ่มที่ตรงกับตัวกรองหรือคำค้นหา
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filteredDisplayGroups.map((grp) => {
-            const groupCustomers = conversations.filter((c) => grp.customerIds.includes(c.id));
-            const groupAgents = users.filter((u) => grp.agentIds.includes(u.id));
-            const hasName = Boolean(grp.name && grp.name.trim());
-            const isInlineEditing = inlineEditId === grp.id;
-            const needsCollapse = groupCustomers.length > 3;
-            const visibleCustomers = needsCollapse ? groupCustomers.slice(0, 2) : groupCustomers;
-            const isPopoverOpen = popoverGroupId === grp.id;
-
-            const renderCustomerRow = (c: ChatConversation) => {
-              const bInfo = getBrandDisplay(c.brand, channels);
-              return (
-                <div key={c.id} className="flex items-center gap-2 min-w-0 py-0.5">
-                  <CustomerAvatarWithBadge conv={c} size={20} />
-                  <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                    <span className="text-[11.5px] font-semibold text-slate-800 dark:text-zinc-100 truncate">
-                      {c.customer_name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.6rem',
-                        fontWeight: 700,
-                        color: bInfo.bg,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {bInfo.logo ? (
-                        <img
-                          src={bInfo.logo}
-                          alt=""
-                          style={{ width: '9px', height: '9px', borderRadius: '50%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            width: '5px',
-                            height: '5px',
-                            borderRadius: '50%',
-                            background: bInfo.bg,
-                            display: 'inline-block',
-                          }}
-                        />
-                      )}
-                      <span>{bInfo.shortLabel}</span>
-                    </span>
-                  </div>
-                </div>
-              );
-            };
-
-            const isDimmedAuto = grp.isAuto && !grp.isIncludedInRouting;
+        ) : displayGroups.length === 0 ? (
+          <div className="py-12 px-4 text-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-2.5">
+              <Users size={20} />
+            </div>
+            <h4 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+              ยังไม่มีกลุ่มแชท
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
+              กด "สร้างกลุ่ม" เพื่อจับคู่ลูกค้ากับเซลล์ หรือเพิ่มผู้ดูแลคนที่ 2 ให้ลูกค้าในหน้ารวมแชท ระบบจะขึ้นกลุ่มออโต้ให้อัตโนมัติ
+            </p>
+          </div>
+        ) : filteredDisplayGroups.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            ไม่พบกลุ่มที่ตรงกับตัวกรองหรือคำค้นหา
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredDisplayGroups.map((grp) => {
+              const groupCustomers = conversations.filter((c) => grp.customerIds.includes(c.id));
+              const groupAgents = users.filter((u) => grp.agentIds.includes(u.id));
+              const hasName = Boolean(grp.name && grp.name.trim());
+              const isInlineEditing = inlineEditId === grp.id;
+              const needsCollapse = groupCustomers.length > 3;
+              const visibleCustomers = needsCollapse ? groupCustomers.slice(0, 2) : groupCustomers;
+              const isPopoverOpen = popoverGroupId === grp.id;
+              const isDimmedAuto = grp.isAuto && !grp.isIncludedInRouting;
             return (
               <div key={grp.id} className="relative h-full">
                 <div
@@ -1106,6 +1389,169 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
             );
           })}
         </div>
+      )
+    ) : (
+        /* Block Grid for Individual Agents */
+        loading ? (
+          <div className="py-12 text-center text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-blue-600" />
+            <p className="text-xs font-medium">กำลังโหลดข้อมูลผู้ดูแลรายบุคคล...</p>
+          </div>
+        ) : displayAgents.length === 0 ? (
+          <div className="py-12 px-4 text-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center mx-auto mb-2.5">
+              <UserIcon size={20} />
+            </div>
+            <h4 className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+              ยังไม่มีรายชื่อเซลล์ในระบบ
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
+              เปิดสิทธิ์ใช้งานแชทให้พนักงานในแท็บ "สิทธิ์เข้าใช้งาน" เพื่อให้พนักงานปรากฏในหน้านี้
+            </p>
+          </div>
+        ) : filteredDisplayAgents.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-400 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl">
+            ไม่พบเซลล์ที่ตรงกับตัวกรองหรือคำค้นหา
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredDisplayAgents.map((item) => {
+              const u = item.user;
+              const agentCustomers = item.customers;
+              const needsCollapse = agentCustomers.length > 3;
+              const visibleCustomers = needsCollapse ? agentCustomers.slice(0, 2) : agentCustomers;
+              const isPopoverOpen = popoverAgentId === u.id;
+
+              return (
+                <div key={u.id} className="relative h-full">
+                  <div className="group h-full min-h-[154px] rounded-xl shadow-2xs hover:shadow-md transition-all flex flex-col overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 hover:border-blue-300/80 dark:hover:border-blue-700/70">
+                    {/* Head: Sales Agent Profile & Quick Action */}
+                    <div className="px-3 py-2 bg-slate-50/85 dark:bg-zinc-800/50 border-b border-slate-100 dark:border-zinc-800 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <StaffAvatarImg url={u.avatar_url} name={u.first_name} size={28} />
+                            {item.isPaused && (
+                              <span
+                                className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-zinc-900"
+                                title="หยุดรับงานสุ่มชั่วคราว"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <h3 className="text-[12.5px] font-black text-slate-900 dark:text-zinc-100 truncate">
+                                {u.first_name} {u.last_name}
+                              </h3>
+                              {u.nickname && (
+                                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                                  ({u.nickname})
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {u.department || u.position || 'ทีมขาย'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAgentModal(item)}
+                          className="px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10.5px] font-bold cursor-pointer transition-colors shrink-0 flex items-center gap-1"
+                          title="มอบหมายหรือจัดการลูกค้าให้เซลล์ท่านนี้"
+                        >
+                          <UserCheck size={11} />
+                          <span>จัดการลูกค้า</span>
+                        </button>
+                      </div>
+
+                      {/* Subhead: Allowed Brands & Customer Count */}
+                      <div className="flex items-center justify-between gap-2 text-[10px]">
+                        <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                          {item.allowedBrands && item.allowedBrands.length > 0 ? (
+                            <div className="flex items-center gap-1 truncate" title={`ล็อคแบรนด์: ${item.allowedBrands.join(', ')}`}>
+                              {item.allowedBrands.slice(0, 3).map((bSlug) => {
+                                const bInfo = getBrandDisplay(bSlug, channels);
+                                return (
+                                  <span key={bSlug} style={{ color: bInfo.bg }} className="inline-flex items-center gap-0.5 font-bold">
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: bInfo.bg, display: 'inline-block' }} />
+                                    <span>{bInfo.shortLabel}</span>
+                                  </span>
+                                );
+                              })}
+                              {item.allowedBrands.length > 3 && (
+                                <span className="text-slate-400">+{item.allowedBrands.length - 3}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">รับทุกแบรนด์</span>
+                          )}
+                        </div>
+
+                        <span className="font-bold text-slate-600 dark:text-zinc-300 shrink-0">
+                          {agentCustomers.length} ลูกค้า
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Body: Assigned Customers */}
+                    <div className="px-3 py-2 flex-1 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        {visibleCustomers.length > 0 ? (
+                          visibleCustomers.map(renderCustomerRow)
+                        ) : (
+                          <div className="py-3 text-[11px] text-slate-400 italic text-center">
+                            ยังไม่มีลูกค้าที่ดูแลเดี่ยว
+                          </div>
+                        )}
+                      </div>
+
+                      {needsCollapse && (
+                        <button
+                          type="button"
+                          onClick={() => setPopoverAgentId(isPopoverOpen ? null : u.id)}
+                          className="mt-1.5 w-full py-1 rounded-lg bg-slate-50 hover:bg-slate-100 dark:bg-zinc-800/60 dark:hover:bg-zinc-800 text-[10.5px] font-bold text-blue-600 cursor-pointer transition-colors text-center"
+                        >
+                          {isPopoverOpen
+                            ? 'ซ่อนรายชื่อ ▲'
+                            : `ดูลูกค้าเพิ่มอีก ${agentCustomers.length - 2} คน (ทั้งหมด ${agentCustomers.length}) ▾`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Floating Popover Drawer for Overflow Customers */}
+                  {isPopoverOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-20"
+                        onClick={() => setPopoverAgentId(null)}
+                      />
+                      <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 bg-white dark:bg-zinc-900 border border-blue-200 dark:border-zinc-700 rounded-xl shadow-xl p-2.5">
+                        <div className="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b border-slate-100 dark:border-zinc-800">
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-200 truncate">
+                            ลูกค้าของ {u.first_name} ({agentCustomers.length} คน)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPopoverAgentId(null)}
+                            className="p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                        <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
+                          {agentCustomers.map(renderCustomerRow)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
 
       {/* ================= MODAL: CREATE / EDIT CHAT GROUP (CLEAN, ZERO CLIPPING) ================= */}
@@ -1197,34 +1643,67 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
               {/* LEFT PANE: Pick Customers */}
               <div className="flex-1 p-4 flex flex-col overflow-hidden bg-slate-50/40 dark:bg-zinc-900/40">
                 <div className="pb-3 border-b border-slate-200/80 dark:border-zinc-800 space-y-2.5 shrink-0">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-xs font-black text-slate-800 dark:text-zinc-200">
-                      1. เลือกลูกค้าเข้ากลุ่ม (เลือกแล้ว {formCustomerIds.length} คน)
+                      1. เลือกลูกค้า ({formCustomerIds.length})
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 text-xs">
                       <button
                         type="button"
-                        onClick={() => setCustomerFilter('all')}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
-                          customerFilter === 'all'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
-                        }`}
+                        onClick={() =>
+                          setFormCustomerIds((prev) =>
+                            Array.from(new Set([...prev, ...filteredCustomers.map((c) => c.id)]))
+                          )
+                        }
+                        className="text-blue-600 hover:text-blue-700 font-bold cursor-pointer"
                       >
-                        ทั้งหมด ({conversations.length})
+                        เลือกทั้งหมด
                       </button>
+                      <span className="text-slate-300 dark:text-zinc-700">|</span>
                       <button
                         type="button"
-                        onClick={() => setCustomerFilter('selected')}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
-                          customerFilter === 'selected'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
-                        }`}
+                        onClick={() => setFormCustomerIds([])}
+                        className="text-slate-400 hover:text-red-500 font-medium cursor-pointer"
                       >
-                        ที่เลือกไว้ ({formCustomerIds.length})
+                        ล้าง
                       </button>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setCustomerFilter('all')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
+                        customerFilter === 'all'
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                          : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      ทั้งหมด ({conversations.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerFilter('unassigned')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
+                        customerFilter === 'unassigned'
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                          : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      ยังไม่มีผู้ดูแล ({unassignedCustomerCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerFilter('selected')}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-colors ${
+                        customerFilter === 'selected'
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                          : 'bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      ที่เลือกไว้ ({formCustomerIds.length})
+                    </button>
                   </div>
 
                   <div className="relative">
@@ -1448,6 +1927,279 @@ export default function ChatRoutingTab(_props: ChatRoutingTabProps) {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ================= MODAL: INDIVIDUAL AGENT ASSIGNMENT ================= */}
+      {showAgentModal && selectedAgentUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !agentFormSaving) setShowAgentModal(false);
+          }}
+        >
+          <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl flex flex-col h-[85vh] max-h-[720px] overflow-hidden animate-fadeIn">
+            {/* Header */}
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-zinc-850/60">
+              <div className="flex items-center gap-3">
+                <StaffAvatarImg
+                  url={selectedAgentUser.avatar_url}
+                  name={selectedAgentUser.first_name}
+                  size={36}
+                />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span>จัดการลูกค้าของ {selectedAgentUser.first_name} {selectedAgentUser.last_name}</span>
+                    {selectedAgentUser.nickname && (
+                      <span className="text-blue-600 font-bold">({selectedAgentUser.nickname})</span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                    เลือกลูกค้าที่จะมอบหมายให้ดูแลเดี่ยว (ระบบจะถอดออกจากกลุ่มเดิมอัตโนมัติหากมี)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={agentFormSaving}
+                onClick={() => setShowAgentModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-zinc-700 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="p-4 border-b border-slate-100 dark:border-zinc-800 space-y-2.5 bg-white dark:bg-zinc-900 shrink-0">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                {/* Tabs */}
+                <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200/70 dark:border-zinc-700">
+                  <button
+                    type="button"
+                    onClick={() => setAgentCustomerFilter('assigned')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                      agentCustomerFilter === 'assigned'
+                        ? 'bg-white dark:bg-zinc-900 text-blue-600 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    ลูกค้าของคนนี้ ({agentFormCustomerIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentCustomerFilter('unassigned')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                      agentCustomerFilter === 'unassigned'
+                        ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    ยังไม่มีผู้ดูแล ({unassignedCustomerCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentCustomerFilter('all')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                      agentCustomerFilter === 'all'
+                        ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    ลูกค้าทั้งหมด ({conversations.length})
+                  </button>
+                </div>
+
+                {/* Quick actions */}
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAgentFormCustomerIds((prev) =>
+                        Array.from(new Set([...prev, ...filteredAgentCustomers.map((c) => c.id)]))
+                      )
+                    }
+                    className="text-blue-600 hover:text-blue-700 font-bold cursor-pointer"
+                  >
+                    เลือกทั้งหมดในหน้านี้
+                  </button>
+                  <span className="text-slate-300 dark:text-zinc-700">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setAgentFormCustomerIds([])}
+                    className="text-slate-400 hover:text-red-500 font-medium cursor-pointer"
+                  >
+                    ล้างทั้งหมด
+                  </button>
+                </div>
+              </div>
+
+              {/* Search input */}
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={agentCustomerSearch}
+                  onChange={(e) => setAgentCustomerSearch(e.target.value)}
+                  placeholder="ค้นหาชื่อลูกค้า, แบรนด์..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-xs outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Customer List (scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-1.5 divide-y divide-slate-100 dark:divide-zinc-800/60">
+              {filteredAgentCustomers.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  ไม่พบลูกค้าที่ตรงกับเงื่อนไขการค้นหา
+                </div>
+              ) : (
+                filteredAgentCustomers.map((c) => {
+                  const isSelected = agentFormCustomerIds.includes(c.id);
+                  const bInfo = getBrandDisplay(c.brand, channels);
+                  const cAgentIds = getConversationAgentIds(c);
+                  const isCurrentAssignedToMe = cAgentIds.length === 1 && cAgentIds[0] === selectedAgentUser.id;
+                  const isUnassigned = !hasCustomerCaretaker(c);
+
+                  let currentOwnerLabel = '';
+                  if (c.metadata?.assigned_group_name) {
+                    currentOwnerLabel = `กลุ่ม: ${c.metadata.assigned_group_name}`;
+                  } else if (cAgentIds.length > 1) {
+                    currentOwnerLabel = `กลุ่ม (${cAgentIds.length} คน)`;
+                  } else if (cAgentIds.length === 1 && !isCurrentAssignedToMe) {
+                    const owner = users.find((u) => u.id === cAgentIds[0]);
+                    currentOwnerLabel = owner ? `${owner.first_name} ${owner.nickname ? `(${owner.nickname})` : ''}` : 'เซลล์คนอื่น';
+                  }
+
+                  return (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/80'
+                          : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50 border border-transparent'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleAgentCustomer(c.id)}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-4 h-4 rounded-[4px] flex items-center justify-center border transition-colors shrink-0 ${
+                          isSelected
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
+                        }`}
+                      >
+                        {isSelected && <Check size={11} strokeWidth={3} />}
+                      </div>
+
+                      <CustomerAvatarWithBadge conv={c} size={30} />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 truncate">
+                            {c.customer_name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: bInfo.bg,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {bInfo.logo ? (
+                              <img
+                                src={bInfo.logo}
+                                alt=""
+                                style={{ width: '9px', height: '9px', borderRadius: '50%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  width: '5px',
+                                  height: '5px',
+                                  borderRadius: '50%',
+                                  background: bInfo.bg,
+                                  display: 'inline-block',
+                                }}
+                              />
+                            )}
+                            <span>{bInfo.shortLabel}</span>
+                          </span>
+                        </div>
+
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                          {isUnassigned ? (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                              ● ยังไม่มีผู้ดูแล (รอจ่ายงาน)
+                            </span>
+                          ) : isCurrentAssignedToMe ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              ● ผู้ดูแลปัจจุบันคือ {selectedAgentUser.first_name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">
+                              ดูแลโดย: {currentOwnerLabel} (ติ๊กเลือกเพื่อย้ายมาให้ {selectedAgentUser.first_name})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-zinc-850/60">
+              <div className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                เลือกแล้ว {agentFormCustomerIds.length} คน
+              </div>
+
+              {agentFormError && (
+                <div className="text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle size={13} />
+                  <span>{agentFormError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={agentFormSaving}
+                  onClick={() => setShowAgentModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={agentFormSaving}
+                  onClick={() => void handleSaveAgentCustomers()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {agentFormSaving && <RefreshCw size={13} className="animate-spin" />}
+                  <span>บันทึกการมอบหมาย ({agentFormCustomerIds.length})</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

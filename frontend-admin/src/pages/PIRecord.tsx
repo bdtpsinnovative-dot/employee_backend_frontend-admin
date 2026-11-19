@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import {
   ArrowLeft,
   Calendar,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Download,
   ExternalLink,
@@ -41,6 +43,7 @@ type PIRecord = {
   shipping_method: string;
   delivered_date: string;
   date_order: string;
+  last_update: string;
 };
 
 type Column = {
@@ -66,7 +69,9 @@ const columns: Column[] = [
   { key: 'requested_date', label: 'Requested_Date' },
   { key: 'payment_date', label: 'Payment_Date' },
   { key: 'shipping_method', label: 'Shipping_Method' },
+  { key: 'delivered_date', label: 'วันสินค้าถึง' },
   { key: 'date_order', label: 'Date_Order / วันที่ลูกค้าชำระเงิน' },
+  { key: 'last_update', label: 'Last Update' },
 ];
 
 const visibleValue = (value: string) => value?.trim() && value.trim() !== '-';
@@ -79,8 +84,9 @@ const DATE_TARGET_FIELDS: { key: keyof PIRecord; label: string }[] = [
   { key: 'etd', label: 'กำหนดส่ง (ETD)' },
   { key: 'requested_date', label: 'วันที่ต้องการ (Requested)' },
   { key: 'payment_date', label: 'วันที่ชำระเงิน (Payment)' },
-  { key: 'delivered_date', label: 'วันที่ส่งมอบ (Delivered)' },
+  { key: 'delivered_date', label: 'วันสินค้าถึง (Delivered)' },
   { key: 'date_order', label: 'วันที่ลูกค้าชำระเงิน' },
+  { key: 'last_update', label: 'อัปเดตล่าสุด (Last Update)' },
 ];
 
 function formatLocal(d: Date) {
@@ -250,6 +256,71 @@ function getEtdBadge(value: string) {
 
 export default function PIRecordPage() {
   const navigate = useNavigate();
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef({
+    active: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
+  const [isDraggingTable, setIsDraggingTable] = useState(false);
+
+  const handleTableMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('a, button, input, select, textarea, label')) return;
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    dragStateRef.current = {
+      active: true,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+    };
+  };
+
+  useEffect(() => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      const drag = dragStateRef.current;
+      const container = tableScrollRef.current;
+      if (!drag.active || !container) return;
+
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        drag.moved = true;
+        setIsDraggingTable(true);
+        window.getSelection()?.removeAllRanges();
+      }
+      if (!drag.moved) return;
+
+      container.scrollLeft = drag.scrollLeft - dx;
+      container.scrollTop = drag.scrollTop - dy;
+    };
+
+    const handleWindowMouseUp = () => {
+      if (!dragStateRef.current.active) return;
+      dragStateRef.current.active = false;
+      setIsDraggingTable(false);
+      window.setTimeout(() => {
+        dragStateRef.current.moved = false;
+      }, 0);
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('blur', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('blur', handleWindowMouseUp);
+    };
+  }, []);
   const [records, setRecords] = useState<PIRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -288,7 +359,7 @@ export default function PIRecordPage() {
     async function loadRecords() {
       try {
         const response = await api.get<{ data: PIRecord[] }>('/api/pi-records');
-        if (active) setRecords(response.data.data || []);
+        if (active) setRecords((response.data.data || []).map((item) => ({ ...item, last_update: item.last_update || '' })));
       } catch (requestError: any) {
         if (active) setError(requestError?.message || 'ไม่สามารถโหลดข้อมูล PI Record ได้');
       } finally {
@@ -491,7 +562,9 @@ export default function PIRecordPage() {
         'Requested_Date': r.requested_date || '',
         'Payment_Date': r.payment_date || '',
         'Shipping_Method': r.shipping_method || '',
+        'วันสินค้าถึง': r.delivered_date || '',
         'Date_Order / วันที่ลูกค้าชำระเงิน': r.date_order || '',
+        'Last Update': r.last_update || '',
       }));
 
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -505,8 +578,8 @@ export default function PIRecordPage() {
   };
 
   return (
-    <div className="pi-record-root fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#09090b] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1700px] space-y-4 pb-16">
+    <div className="pi-record-root fixed inset-0 overflow-y-auto bg-slate-50 dark:bg-[#09090b] px-3 py-3 sm:px-4">
+      <div className="w-full space-y-3 pb-3">
         
         {/* Header Bar */}
         <div className="pi-record-card flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#121214] sm:flex-row sm:items-center sm:justify-between">
@@ -744,7 +817,7 @@ export default function PIRecordPage() {
               href="/PI_Record_Template.xlsx"
               download="PI_Record_Template.xlsx"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 hover:border-slate-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 transition cursor-pointer"
-              title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐาน 16 คอลัมน์ (.xlsx)"
+              title="ดาวน์โหลดไฟล์เทมเพลตมาตรฐาน 18 คอลัมน์ (.xlsx)"
             >
               <FileSpreadsheet size={14} className="text-emerald-600 dark:text-emerald-400" />
               <span>ดาวน์โหลดเทมเพลต</span>
@@ -897,6 +970,46 @@ export default function PIRecordPage() {
 
         {/* ──── Table Section ──── */}
         <section className="pi-record-table-box overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-[#121214]">
+          {!loading && !error && displayedRecords.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2 text-xs dark:border-zinc-800 dark:bg-[#16161a]">
+              <span className="font-semibold text-slate-500 dark:text-zinc-400">
+                ทั้งหมด {columns.length} คอลัมน์ · คลิกค้างแล้วลากเพื่อเลื่อนตารางได้ (ล็อกคอลัมน์ PI-Supplier ไว้ด้านซ้าย)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => tableScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 cursor-pointer"
+                >
+                  ซ้ายสุด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => tableScrollRef.current?.scrollBy({ left: -520, behavior: 'smooth' })}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 cursor-pointer"
+                >
+                  <ChevronLeft size={14} /> เลื่อนซ้าย
+                </button>
+                <button
+                  type="button"
+                  onClick={() => tableScrollRef.current?.scrollBy({ left: 520, behavior: 'smooth' })}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 cursor-pointer"
+                >
+                  เลื่อนขวา <ChevronRight size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = tableScrollRef.current;
+                    if (el) el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+                  }}
+                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-bold text-indigo-700 transition hover:bg-indigo-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 cursor-pointer"
+                >
+                  ขวาสุด (วันสินค้าถึง / Last Update)
+                </button>
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="flex min-h-64 items-center justify-center gap-3 text-slate-500 dark:text-zinc-400">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-zinc-300" />
@@ -921,14 +1034,27 @@ export default function PIRecordPage() {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="pi-record-table min-w-[2100px] w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-100 text-xs font-bold text-slate-700 dark:bg-[#18181b] dark:text-zinc-400">
+              <div
+                ref={tableScrollRef}
+                onMouseDown={handleTableMouseDown}
+                onClickCapture={(e) => {
+                  if (dragStateRef.current.moved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragStateRef.current.moved = false;
+                  }
+                }}
+                className={`pi-record-scroll ${isDraggingTable ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+              >
+              <table className="pi-record-table min-w-[1950px] w-full border-collapse text-left text-xs">
+                <thead className="sticky top-0 z-20 bg-slate-100 text-xs font-bold text-slate-700 dark:bg-[#18181b] dark:text-zinc-400">
                   <tr>
                     {columns.map(({ key, label, align }) => (
                       <th
                         key={key}
-                        className={`whitespace-nowrap border-b border-r border-slate-200 px-3 py-3 last:border-r-0 dark:border-zinc-800 dark:bg-[#18181b] ${
+                        className={`whitespace-nowrap border-b border-r border-slate-200 bg-slate-100 px-2.5 py-2.5 last:border-r-0 dark:border-zinc-800 dark:bg-[#18181b] ${
+                          key === 'pi_supplier' ? 'sticky left-0 z-30 shadow-[2px_0_6px_-2px_rgba(15,23,42,0.08)]' : ''
+                        } ${
                           align === 'right' ? 'text-right' : 'text-left'
                         }`}
                       >
@@ -939,7 +1065,7 @@ export default function PIRecordPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
                   {displayedRecords.map((record) => (
-                    <tr key={record.id} className="align-top bg-white hover:bg-slate-50 dark:bg-[#121214] dark:hover:bg-[#18181b] transition-colors">
+                    <tr key={record.id} className="group align-top bg-white hover:bg-slate-50 dark:bg-[#121214] dark:hover:bg-[#18181b] transition-colors">
                       {columns.map(({ key, linkKey, label, align }) => {
                         const recordKey = key as keyof PIRecord;
                         const value = record[recordKey] || '-';
@@ -947,7 +1073,7 @@ export default function PIRecordPage() {
                         if (key === 'etd') {
                           const etdBadge = getEtdBadge(value);
                           return (
-                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
+                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-2.5 py-2.5 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${etdBadge.className}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${etdBadge.dotClassName}`} />
                                 <span>{etdBadge.label}</span>
@@ -960,7 +1086,7 @@ export default function PIRecordPage() {
                           const isSea = value.toLowerCase().includes('sea');
                           const isAir = value.toLowerCase().includes('air');
                           return (
-                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-3 py-3 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
+                            <td key={key} className="whitespace-nowrap border-r border-slate-100 px-2.5 py-2.5 align-middle text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300">
                               {value && value !== '-' ? (
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
                                   isSea
@@ -986,7 +1112,11 @@ export default function PIRecordPage() {
                         return (
                           <td
                             key={key}
-                            className={`max-w-64 border-r border-slate-100 px-3 py-3 leading-5 text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300 ${
+                            className={`max-w-44 border-r border-slate-100 px-2.5 py-2.5 leading-5 text-slate-600 last:border-r-0 dark:border-zinc-800/80 dark:bg-[#121214] dark:text-zinc-300 ${
+                              key === 'pi_supplier'
+                                ? 'sticky left-0 z-10 whitespace-nowrap bg-white group-hover:bg-slate-50 font-semibold text-slate-800 shadow-[2px_0_6px_-2px_rgba(15,23,42,0.08)] dark:text-zinc-100'
+                                : ''
+                            } ${
                               align === 'right' ? 'text-right font-medium text-slate-900 dark:text-zinc-100 whitespace-nowrap' : ''
                             }`}
                           >

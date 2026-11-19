@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Users,
@@ -35,9 +35,9 @@ import { supabase } from '../lib/supabase';
 import type { ChatConversation, ChatMessage, ChatChannel, User, ChatRoutingGroup, ChatCareGroup, ChatAccessUser, ChatSystemConfig } from '../types';
 import { fetchUsers, fetchMe } from '../services/adminApi';
 import { avatarUrl } from '../components/tasks/taskUtils';
-import ChatDistributionModal from '../components/chat/ChatDistributionModal';
 import ChatQAReviewModal from '../components/chat/ChatQAReviewModal';
 import { updateConversationDealOutcome, formatCurrencyTHB } from '../services/chatAnalyticsService';
+import { useQueryParams, useDebouncedUrlSearch } from '../utils/urlParams';
 import {
   fetchChatRoutingGroups,
   fetchChatCareGroups,
@@ -110,7 +110,7 @@ function getConversationAgents(conv?: ChatConversation | null, allUsers: User[] 
 
 export default function ChatInbox() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { searchParams, patchParams, getParam, getEnumParam } = useQueryParams();
   const deepLinkedConvRef = useRef<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -121,12 +121,15 @@ export default function ChatInbox() {
   const [systemConfig, setSystemConfig] = useState<ChatSystemConfig>(DEFAULT_CHAT_SYSTEM_CONFIG);
   const [isAllowed, setIsAllowed] = useState(true);
 
-  const [assignFilter, setAssignFilter] = useState<'all' | 'mine' | 'unassigned'>('all');
+  const assignFilter = getEnumParam('assign', ['all', 'mine', 'unassigned'] as const, 'all');
+  const setAssignFilter = useCallback(
+    (val: 'all' | 'mine' | 'unassigned') => patchParams({ assign: val === 'all' ? null : val }),
+    [patchParams]
+  );
   const [isAssigning, setIsAssigning] = useState(false);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [assignModalConv, setAssignModalConv] = useState<ChatConversation | null>(null);
   const [assignGroupNameInput, setAssignGroupNameInput] = useState('');
-  const [showDistributionModal, setShowDistributionModal] = useState(false);
   const [qaModalConfig, setQaModalConfig] = useState<{ open: boolean; focus: 'outcome' | 'qa' }>({
     open: false,
     focus: 'outcome',
@@ -169,11 +172,37 @@ export default function ChatInbox() {
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Filters & Search
-  const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'line' | 'facebook' | 'instagram'>('all');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'unread' | 'resolved'>('active');
+  // Filters & Search (persisted in URL search params across page refreshes)
+  const {
+    value: search,
+    setValue: setSearch,
+    flush: flushSearch,
+    clear: clearSearch,
+  } = useDebouncedUrlSearch('q', 150);
+  const platformFilter = getEnumParam('platform', ['all', 'line', 'facebook', 'instagram'] as const, 'all');
+  const setPlatformFilter = useCallback(
+    (val: 'all' | 'line' | 'facebook' | 'instagram') => patchParams({ platform: val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const brandFilter = getParam('brand', 'all') || 'all';
+  const setBrandFilter = useCallback(
+    (val: string) => patchParams({ brand: !val || val === 'all' ? null : val }),
+    [patchParams]
+  );
+  const statusFilter = getEnumParam('status', ['all', 'active', 'unread', 'resolved'] as const, 'active');
+  const setStatusFilter = useCallback(
+    (val: 'all' | 'active' | 'unread' | 'resolved') => patchParams({ status: val === 'active' ? null : val }),
+    [patchParams]
+  );
+
+  const handleSelectConversation = useCallback(
+    (conv: ChatConversation) => {
+      deepLinkedConvRef.current = conv.id;
+      setSelectedConv(conv);
+      patchParams({ convId: conv.id });
+    },
+    [patchParams]
+  );
 
   // Mouse drag-to-scroll for Brands bar
   const brandScrollRef = useRef<HTMLDivElement>(null);
@@ -228,7 +257,20 @@ export default function ChatInbox() {
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [tempWebhookUrl, setTempWebhookUrl] = useState('');
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('chat_inbox_sound_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('chat_inbox_sound_enabled', String(soundEnabled));
+    } catch {
+      // ignore storage errors
+    }
+  }, [soundEnabled]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -387,16 +429,23 @@ export default function ChatInbox() {
   // Support deep-linking directly into a conversation (?convId=...)
   useEffect(() => {
     const targetId = searchParams.get('convId');
-    if (!targetId || deepLinkedConvRef.current === targetId || conversations.length === 0) return;
+    if (!targetId) {
+      if (deepLinkedConvRef.current) {
+        deepLinkedConvRef.current = null;
+        setSelectedConv(null);
+      }
+      return;
+    }
+    if (deepLinkedConvRef.current === targetId || conversations.length === 0) return;
     const matched = conversations.find((c) => c.id === targetId);
     if (!matched) return;
     deepLinkedConvRef.current = targetId;
-    if (matched.status === 'resolved') {
+    if (matched.status === 'resolved' && !searchParams.get('status')) {
       setStatusFilter('all');
     }
     setSelectedConv(matched);
     void fetchMessages(matched.id);
-  }, [conversations, searchParams, fetchMessages]);
+  }, [conversations, searchParams, fetchMessages, setStatusFilter]);
 
   const handleCopyWebhook = (brandSlug: string) => {
     const url = `https://bddevelopment.app.n8n.cloud/webhook/line-inbound?brand=${brandSlug}`;
@@ -486,7 +535,9 @@ export default function ChatInbox() {
           } else if (payload.eventType === 'DELETE') {
             setConversations((prev) => prev.filter((c) => c.id !== payload.old.id));
             if (payload.old.id === currentConvIdRef.current) {
+              deepLinkedConvRef.current = null;
               setSelectedConv(null);
+              patchParams({ convId: null });
             }
           }
         }
@@ -512,7 +563,7 @@ export default function ChatInbox() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [soundEnabled]);
+  }, [soundEnabled, patchParams]);
 
   // 4. Send Message Handler
   const handleSendMessage = async (textToSend?: string) => {
@@ -1375,6 +1426,7 @@ export default function ChatInbox() {
                   placeholder="ค้นหาชื่อลูกค้าหรือข้อความ..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onBlur={flushSearch}
                   style={{
                     border: 'none',
                     outline: 'none',
@@ -1386,7 +1438,7 @@ export default function ChatInbox() {
                 />
                 {search && (
                   <button
-                    onClick={() => setSearch('')}
+                    onClick={clearSearch}
                     style={{
                       border: 'none',
                       background: 'transparent',
@@ -1651,35 +1703,6 @@ export default function ChatInbox() {
               })}
             </div>
 
-            {/* Quick Batch Random Distribution Action Button */}
-            {unassignedChatsCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowDistributionModal(true)}
-                style={{
-                  width: '100%',
-                  padding: '5px 10px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
-                  marginTop: '2px',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <Shuffle size={12} />
-                <span>🎲 สุ่มกระจายลูกค้าให้เซลล์ ({unassignedChatsCount})</span>
-              </button>
-            )}
-
             {/* Row 4: Channels (LINE / FB / IG) - ชั้นที่ 1 พอดีจอ สบายตา */}
             <div
               style={{
@@ -1902,7 +1925,7 @@ export default function ChatInbox() {
                 return (
                   <div
                     key={conv.id}
-                    onClick={() => setSelectedConv(conv)}
+                    onClick={() => handleSelectConversation(conv)}
                     style={{
                       padding: '12px',
                       borderBottom: '1px solid var(--border)',
@@ -4074,27 +4097,27 @@ export default function ChatInbox() {
               {/* Header */}
               <div
                 style={{
-                  padding: '16px 20px',
+                  padding: '14px 18px',
                   borderBottom: '1px solid var(--border, #E2E8F0)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  background: 'var(--surface-muted, #F8FAFC)',
+                  background: 'var(--surface, #ffffff)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                   <div
                     style={{
-                      width: '40px',
-                      height: '40px',
+                      width: '36px',
+                      height: '36px',
                       borderRadius: '50%',
-                      background: '#3B82F6',
-                      color: '#fff',
+                      background: '#E2E8F0',
+                      color: '#334155',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      fontSize: '1rem',
+                      fontSize: '0.9rem',
                       overflow: 'hidden',
                       flexShrink: 0,
                     }}
@@ -4112,7 +4135,7 @@ export default function ChatInbox() {
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {assignModalConv.customer_name}
                       </h3>
                       {(() => {
@@ -4120,12 +4143,13 @@ export default function ChatInbox() {
                         return (
                           <span
                             style={{
-                              fontSize: '0.68rem',
+                              fontSize: '0.65rem',
                               fontWeight: 700,
-                              color: bInfo.bg,
+                              color: '#475569',
                               padding: '1px 6px',
                               borderRadius: '4px',
-                              background: 'rgba(0,0,0,0.05)',
+                              background: '#F1F5F9',
+                              border: '1px solid #E2E8F0',
                               flexShrink: 0,
                             }}
                           >
@@ -4134,8 +4158,8 @@ export default function ChatInbox() {
                         );
                       })()}
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary, #64748B)' }}>
-                      จัดการคนดูแลลูกค้ารายนี้ (เลือกเพิ่มได้หลายคน)
+                    <p style={{ margin: 0, fontSize: '0.73rem', color: 'var(--text-secondary, #64748B)' }}>
+                      ผู้ดูแลลูกค้า
                     </p>
                   </div>
                 </div>
@@ -4148,50 +4172,50 @@ export default function ChatInbox() {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--text-secondary, #64748B)',
+                    color: '#94A3B8',
                     cursor: 'pointer',
-                    padding: '6px',
+                    padding: '5px',
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <X size={18} />
+                  <X size={17} />
                 </button>
               </div>
 
               {/* Current Caretakers Pills Section */}
               <div
                 style={{
-                  padding: '12px 20px',
-                  background: modalAgents.length > 0 ? '#EFF6FF' : '#FEF3C7',
+                  padding: '10px 18px',
+                  background: '#F8FAFC',
                   borderBottom: '1px solid var(--border, #E2E8F0)',
                 }}
               >
                 {modalAgents.length > 0 ? (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1D4ED8' }}>
-                        👥 ผู้ดูแลที่เลือกแล้ว ({modalAgents.length} คน):
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155' }}>
+                        ผู้ดูแล ({modalAgents.length})
                       </span>
                       <button
                         type="button"
                         onClick={() => void handleClearAllAgents(assignModalConv)}
                         disabled={isAssigning}
                         style={{
-                          padding: '2px 8px',
+                          padding: '2px 6px',
                           borderRadius: '5px',
-                          fontSize: '0.72rem',
+                          fontSize: '0.7rem',
                           fontWeight: 600,
-                          background: '#FEE2E2',
-                          color: '#DC2626',
-                          border: '1px solid #FECACA',
+                          background: 'transparent',
+                          color: '#64748B',
+                          border: '1px solid #E2E8F0',
                           cursor: isAssigning ? 'not-allowed' : 'pointer',
                         }}
                         title="นำคนดูแลทั้งหมดออก"
                       >
-                        ✕ นำออกทั้งหมด
+                        ล้างทั้งหมด
                       </button>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -4201,21 +4225,20 @@ export default function ChatInbox() {
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            padding: '3px 10px',
-                            borderRadius: '16px',
-                            background: '#DBEAFE',
-                            color: '#1D4ED8',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            border: '1px solid #BFDBFE',
-                            boxShadow: '0 1px 2px rgba(29, 78, 216, 0.08)',
+                            gap: '5px',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: '#FFFFFF',
+                            color: '#0F172A',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            border: '1px solid #CBD5E1',
                           }}
                         >
                           {ag.avatar_url ? (
-                            <img src={avatarUrl(ag.avatar_url)!} alt="" style={{ width: '15px', height: '15px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <img src={avatarUrl(ag.avatar_url)!} alt="" style={{ width: '14px', height: '14px', borderRadius: '50%', objectFit: 'cover' }} />
                           ) : (
-                            <span>👤</span>
+                            <span style={{ fontSize: '10px', color: '#64748B' }}>•</span>
                           )}
                           <span>{ag.nickname || ag.first_name}</span>
                           <button
@@ -4230,22 +4253,22 @@ export default function ChatInbox() {
                               border: 'none',
                               cursor: 'pointer',
                               padding: '1px',
-                              color: '#1D4ED8',
+                              color: '#94A3B8',
                               display: 'flex',
                               alignItems: 'center',
                               borderRadius: '50%',
                             }}
-                            title="นำคนนี้ออก"
+                            title="นำออก"
                           >
-                            <X size={13} />
+                            <X size={12} />
                           </button>
                         </span>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <div style={{ fontSize: '0.82rem', color: '#B45309', fontWeight: 600 }}>
-                    ⚠️ สถานะ: ยังไม่มีคนดูแลลูกค้าคนนี้ (สามารถคลิกเลือกเพิ่มด้านล่างได้มากกว่า 1 คน)
+                  <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 500 }}>
+                    ยังไม่มีผู้ดูแล (เลือกเพิ่มด้านล่าง)
                   </div>
                 )}
               </div>
@@ -4253,30 +4276,30 @@ export default function ChatInbox() {
               {(modalAgents.length > 1 || Boolean(resolveConvGroupName(assignModalConv))) && (
                 <div
                   style={{
-                    padding: '10px 20px',
-                    background: '#F8FAFC',
+                    padding: '8px 18px',
+                    background: '#FFFFFF',
                     borderBottom: '1px solid var(--border, #E2E8F0)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
                   }}
                 >
-                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>
-                    ชื่อกลุ่มแชท:
+                  <span style={{ fontSize: '0.73rem', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>
+                    ชื่อกลุ่ม
                   </span>
                   <input
                     type="text"
                     value={assignGroupNameInput}
                     onChange={(e) => setAssignGroupNameInput(e.target.value)}
-                    placeholder="ตั้งชื่อกลุ่มเพื่อแสดงแทนชื่อเซลล์..."
+                    placeholder="ตั้งชื่อกลุ่ม..."
                     style={{
                       flex: 1,
                       minWidth: 0,
-                      padding: '6px 10px',
+                      padding: '5px 9px',
                       borderRadius: '7px',
                       border: '1px solid #CBD5E1',
-                      fontSize: '0.78rem',
-                      background: '#fff',
+                      fontSize: '0.76rem',
+                      background: '#F8FAFC',
                       color: '#0F172A',
                       outline: 'none',
                     }}
@@ -4286,25 +4309,24 @@ export default function ChatInbox() {
                     disabled={isAssigning || !assignGroupNameInput.trim()}
                     onClick={() => void handleSaveInlineGroupName(assignModalConv, assignGroupNameInput)}
                     style={{
-                      padding: '6px 12px',
+                      padding: '5px 11px',
                       borderRadius: '7px',
                       border: 'none',
-                      background: assignGroupNameInput.trim() ? '#2563EB' : '#CBD5E1',
+                      background: assignGroupNameInput.trim() ? '#0F172A' : '#CBD5E1',
                       color: '#fff',
-                      fontSize: '0.75rem',
+                      fontSize: '0.73rem',
                       fontWeight: 700,
                       cursor: isAssigning || !assignGroupNameInput.trim() ? 'not-allowed' : 'pointer',
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    บันทึกชื่อกลุ่ม
+                    บันทึก
                   </button>
                 </div>
               )}
 
               {/* Quick Action Shortcuts */}
-              <div style={{ padding: '10px 20px 6px', display: 'flex', gap: '8px' }}>
-                {/* Assign / Toggle Me Button */}
+              <div style={{ padding: '10px 18px 6px', display: 'flex', gap: '8px' }}>
                 {currentUser && (
                   <button
                     type="button"
@@ -4314,33 +4336,32 @@ export default function ChatInbox() {
                     disabled={isAssigning}
                     style={{
                       flex: 1,
-                      padding: '8px 12px',
+                      padding: '7px 10px',
                       borderRadius: '8px',
-                      fontSize: '0.8rem',
+                      fontSize: '0.76rem',
                       fontWeight: 600,
-                      border: '1px solid #3B82F6',
-                      background: isMeAssigned ? '#EFF6FF' : '#3B82F6',
-                      color: isMeAssigned ? '#1D4ED8' : '#ffffff',
+                      border: isMeAssigned ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                      background: isMeAssigned ? '#0F172A' : '#FFFFFF',
+                      color: isMeAssigned ? '#FFFFFF' : '#334155',
                       cursor: isAssigning ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
+                      gap: '5px',
                     }}
                   >
-                    <span>👤</span>
-                    <span>{isMeAssigned ? '✓ ฉันดูแลอยู่ (คลิกนำออก)' : '+ ฉันดูแลด้วย'}</span>
+                    <UserCheck size={13} />
+                    <span>{isMeAssigned ? 'ฉันดูแลอยู่' : '+ ฉันดูแล'}</span>
                   </button>
                 )}
 
-                {/* Auto Random Round-Robin or Add 1 Agent Button */}
                 <button
                   type="button"
                   onClick={async () => {
                     const authorized = users.filter((u) => u.role !== 'admin' && hasChatAccess(u, accessUsers, routingGroups));
                     const remaining = authorized.filter((u) => !modalAgentIds.has(u.id));
                     if (remaining.length === 0) {
-                      alert('เซลล์/ทีมงานที่ได้รับอนุญาตทุกคนกำลังดูแลลูกค้ารายนี้อยู่แล้วครับ');
+                      alert('ทีมงานที่ได้รับอนุญาตทุกคนกำลังดูแลลูกค้ารายนี้อยู่แล้วครับ');
                       return;
                     }
                     const pick = remaining[Math.floor(Math.random() * remaining.length)];
@@ -4349,131 +4370,126 @@ export default function ChatInbox() {
                   disabled={isAssigning}
                   style={{
                     flex: 1,
-                    padding: '8px 12px',
+                    padding: '7px 10px',
                     borderRadius: '8px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%)',
-                    color: '#fff',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    border: '1px solid #E2E8F0',
+                    background: '#FFFFFF',
+                    color: '#334155',
                     cursor: isAssigning ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)',
+                    gap: '5px',
                   }}
                 >
                   <Shuffle size={13} />
-                  <span>{isAssigning ? 'กำลังสุ่ม...' : '🎲 สุ่มเพิ่ม 1 คน'}</span>
+                  <span>{isAssigning ? 'กำลังสุ่ม...' : 'สุ่มเพิ่ม 1 คน'}</span>
                 </button>
               </div>
 
               {/* Saved Chat Care Groups Quick Assign */}
               {careGroups.filter((g) => g.agent_ids.length > 0).length > 0 && (
-                <div style={{ padding: '4px 20px 6px' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563EB', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Users size={12} />
-                    <span>มอบหมายเข้ากลุ่มแชท:</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {careGroups
-                      .filter((g) => g.agent_ids.length > 0)
-                      .map((grp) => {
-                        const isGrpAssigned = assignModalConv.metadata?.assigned_group_id === grp.id;
-                        return (
-                          <button
-                            key={grp.id}
-                            type="button"
-                            onClick={async () => {
-                              await handleAssignConversationCareGroup(assignModalConv, grp);
-                            }}
-                            disabled={isAssigning}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.74rem',
-                              fontWeight: 600,
-                              cursor: isAssigning ? 'not-allowed' : 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              background: isGrpAssigned ? '#2563EB' : 'rgba(37, 99, 235, 0.08)',
-                              color: isGrpAssigned ? '#ffffff' : '#2563EB',
-                              border: '1px solid rgba(37, 99, 235, 0.25)',
-                            }}
-                          >
-                            <span>{grp.name} ({grp.agent_ids.length} คน)</span>
-                            {isGrpAssigned && <Check size={12} />}
-                          </button>
-                        );
-                      })}
-                  </div>
+                <div style={{ padding: '4px 18px 4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.71rem', fontWeight: 600, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Users size={11} />
+                    <span>กลุ่ม:</span>
+                  </span>
+                  {careGroups
+                    .filter((g) => g.agent_ids.length > 0)
+                    .map((grp) => {
+                      const isGrpAssigned = assignModalConv.metadata?.assigned_group_id === grp.id;
+                      return (
+                        <button
+                          key={grp.id}
+                          type="button"
+                          onClick={async () => {
+                            await handleAssignConversationCareGroup(assignModalConv, grp);
+                          }}
+                          disabled={isAssigning}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: isAssigning ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: isGrpAssigned ? '#0F172A' : '#F8FAFC',
+                            color: isGrpAssigned ? '#ffffff' : '#334155',
+                            border: isGrpAssigned ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                          }}
+                        >
+                          <span>{grp.name} ({grp.agent_ids.length})</span>
+                          {isGrpAssigned && <Check size={11} />}
+                        </button>
+                      );
+                    })}
                 </div>
               )}
 
               {/* Active Routing Groups Section (if available) */}
               {routingGroups.filter((g) => g.is_active && g.agent_ids.length > 0).length > 0 && (
-                <div style={{ padding: '4px 20px 6px' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4F46E5', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Users size={12} />
-                    <span>มอบหมายทั้งทีม (แอดมิน / เซลล์ประจำแบรนด์):</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {routingGroups
-                      .filter((g) => g.is_active && g.agent_ids.length > 0)
-                      .map((grp) => {
-                        const isAllGroupMembersAssigned = grp.agent_ids.every((id) => modalAgentIds.has(id));
-                        return (
-                          <button
-                            key={grp.id}
-                            type="button"
-                            onClick={async () => {
-                              await handleAssignConversationGroup(assignModalConv, grp);
-                            }}
-                            disabled={isAssigning}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              fontSize: '0.74rem',
-                              fontWeight: 600,
-                              cursor: isAssigning ? 'not-allowed' : 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              background: isAllGroupMembersAssigned ? '#4F46E5' : 'rgba(79, 70, 229, 0.08)',
-                              color: isAllGroupMembersAssigned ? '#ffffff' : '#4F46E5',
-                              border: '1px solid rgba(79, 70, 229, 0.25)',
-                            }}
-                          >
-                            <span>+ ทีม {grp.name} ({grp.agent_ids.length} คน)</span>
-                            {isAllGroupMembersAssigned && <Check size={12} />}
-                          </button>
-                        );
-                      })}
-                  </div>
+                <div style={{ padding: '2px 18px 4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.71rem', fontWeight: 600, color: '#64748B', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Users size={11} />
+                    <span>ทีมแบรนด์:</span>
+                  </span>
+                  {routingGroups
+                    .filter((g) => g.is_active && g.agent_ids.length > 0)
+                    .map((grp) => {
+                      const isAllGroupMembersAssigned = grp.agent_ids.every((id) => modalAgentIds.has(id));
+                      return (
+                        <button
+                          key={grp.id}
+                          type="button"
+                          onClick={async () => {
+                            await handleAssignConversationGroup(assignModalConv, grp);
+                          }}
+                          disabled={isAssigning}
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            cursor: isAssigning ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: isAllGroupMembersAssigned ? '#0F172A' : '#F8FAFC',
+                            color: isAllGroupMembersAssigned ? '#ffffff' : '#334155',
+                            border: isAllGroupMembersAssigned ? '1px solid #0F172A' : '1px solid #E2E8F0',
+                          }}
+                        >
+                          <span>{grp.name} ({grp.agent_ids.length})</span>
+                          {isAllGroupMembersAssigned && <Check size={11} />}
+                        </button>
+                      );
+                    })}
                 </div>
               )}
 
               {/* Search Input */}
-              <div style={{ padding: '6px 20px 8px' }}>
+              <div style={{ padding: '6px 18px 8px' }}>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    background: 'var(--surface-muted, #F1F5F9)',
-                    border: '1px solid var(--border, #E2E8F0)',
+                    gap: '7px',
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
                     borderRadius: '8px',
-                    padding: '7px 12px',
+                    padding: '6px 10px',
                   }}
                 >
-                  <Search size={14} style={{ color: 'var(--text-secondary, #64748B)' }} />
+                  <Search size={13} style={{ color: '#94A3B8' }} />
                   <input
                     type="text"
                     value={assignSearch}
                     onChange={(e) => setAssignSearch(e.target.value)}
-                    placeholder="ค้นหาชื่อเซลล์/ผู้ดูแล, ชื่อเล่น, แผนก หรือตำแหน่ง..."
+                    placeholder="ค้นหาชื่อ / ชื่อเล่น / ตำแหน่ง..."
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -4576,9 +4592,8 @@ export default function ChatInbox() {
 
                   return (
                     <>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary, #64748B)', padding: '2px 8px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>รายชื่อทีมงาน/เซลล์ที่ได้รับอนุญาต ({filtered.length} คน)</span>
-                        <span style={{ fontSize: '0.68rem', color: '#10B981', fontWeight: 600 }}>✓ คลิกเพื่อเพิ่มหรือนำออก</span>
+                      <div style={{ fontSize: '0.71rem', fontWeight: 700, color: '#64748B', padding: '2px 6px 4px' }}>
+                        <span>ทีมงาน ({filtered.length})</span>
                       </div>
                       {filtered.map((u) => {
                         const isAssigned = modalAgentIds.has(u.id);
@@ -4590,6 +4605,10 @@ export default function ChatInbox() {
                             g.brand.toLowerCase() === (assignModalConv.brand || '').toLowerCase() &&
                             (g.agent_ids || []).includes(u.id)
                         );
+                        const displayLabel = u.nickname
+                          ? `${u.nickname} (${u.first_name})`
+                          : `${u.first_name} ${u.last_name}`.trim();
+                        const subRoleText = u.position || u.department || '';
 
                         return (
                           <div
@@ -4598,33 +4617,34 @@ export default function ChatInbox() {
                               await handleToggleAgent(assignModalConv, u.id);
                             }}
                             style={{
-                              padding: '8px 12px',
-                              borderRadius: '10px',
-                              fontSize: '0.82rem',
+                              padding: '7px 10px',
+                              borderRadius: '9px',
+                              fontSize: '0.8rem',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              background: isAssigned ? '#EFF6FF' : 'transparent',
-                              border: isAssigned ? '1px solid #BFDBFE' : '1px solid transparent',
-                              transition: 'all 0.15s ease',
+                              gap: '10px',
+                              background: isAssigned ? '#F8FAFC' : 'transparent',
+                              border: isAssigned ? '1px solid #CBD5E1' : '1px solid transparent',
+                              transition: 'background 0.12s ease',
                             }}
                             onMouseEnter={(e) => {
-                              if (!isAssigned) e.currentTarget.style.background = 'var(--surface-muted, #F8FAFC)';
+                              if (!isAssigned) e.currentTarget.style.background = '#F8FAFC';
                             }}
                             onMouseLeave={(e) => {
                               if (!isAssigned) e.currentTarget.style.background = 'transparent';
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
                               <div
                                 style={{
-                                  width: '32px',
-                                  height: '32px',
+                                  width: '30px',
+                                  height: '30px',
                                   borderRadius: '50%',
-                                  background: isAssigned ? '#3B82F6' : '#94A3B8',
+                                  background: isAssigned ? '#0F172A' : '#CBD5E1',
                                   color: '#fff',
-                                  fontSize: '12px',
+                                  fontSize: '11px',
                                   fontWeight: 700,
                                   display: 'flex',
                                   alignItems: 'center',
@@ -4639,64 +4659,68 @@ export default function ChatInbox() {
                                   (u.nickname || u.first_name).charAt(0).toUpperCase()
                                 )}
                               </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {u.first_name} {u.last_name} {u.nickname ? `(${u.nickname})` : ''}
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                                  <span style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {displayLabel}
                                   </span>
                                   {isAdmin && (
-                                    <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: '#F3E8FF', color: '#7E22CE', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: '#F1F5F9', color: '#64748B', flexShrink: 0 }}>
                                       Admin
                                     </span>
                                   )}
                                   {isBrandMember && (
-                                    <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: '#ECFDF5', color: '#047857', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: '#F0FDF4', color: '#15803D', flexShrink: 0 }}>
                                       ตรงแบรนด์
                                     </span>
                                   )}
                                   {renderBrandLockTag(systemConfig.agent_weights?.[u.id]?.allowed_brands, assignModalConv.brand)}
                                 </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #64748B)' }}>
-                                  {u.position || u.department || u.role}
-                                </div>
+                                {subRoleText && (
+                                  <div style={{ fontSize: '0.7rem', color: '#94A3B8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {subRoleText}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ flexShrink: 0 }}>
                               {isAssigned ? (
                                 <span
                                   style={{
-                                    padding: '3px 10px',
-                                    borderRadius: '12px',
-                                    background: '#DBEAFE',
-                                    color: '#1D4ED8',
-                                    fontSize: '0.74rem',
-                                    fontWeight: 700,
-                                    display: 'flex',
+                                    padding: '3px 9px',
+                                    borderRadius: '999px',
+                                    background: '#0F172A',
+                                    color: '#FFFFFF',
+                                    fontSize: '0.71rem',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '4px',
+                                    whiteSpace: 'nowrap',
                                   }}
                                 >
-                                  <Check size={13} strokeWidth={2.5} />
+                                  <Check size={11} strokeWidth={2.5} />
                                   <span>ดูแลอยู่</span>
                                 </span>
                               ) : (
                                 <span
                                   style={{
-                                    padding: '3px 10px',
-                                    borderRadius: '12px',
-                                    background: '#F1F5F9',
-                                    color: '#2563EB',
-                                    fontSize: '0.74rem',
+                                    padding: '3px 9px',
+                                    borderRadius: '999px',
+                                    background: '#FFFFFF',
+                                    color: '#475569',
+                                    fontSize: '0.71rem',
                                     fontWeight: 600,
-                                    border: '1px solid #CBD5E1',
-                                    display: 'flex',
+                                    border: '1px solid #E2E8F0',
+                                    display: 'inline-flex',
                                     alignItems: 'center',
-                                    gap: '4px',
+                                    gap: '3px',
+                                    whiteSpace: 'nowrap',
                                   }}
                                 >
-                                  <Plus size={12} strokeWidth={2.4} />
-                                  <span>เพิ่มคนดูแล</span>
+                                  <Plus size={11} />
+                                  <span>เพิ่ม</span>
                                 </span>
                               )}
                             </div>
@@ -4711,9 +4735,9 @@ export default function ChatInbox() {
               {/* Footer / Done Button */}
               <div
                 style={{
-                  padding: '12px 20px',
+                  padding: '10px 18px',
                   borderTop: '1px solid var(--border, #E2E8F0)',
-                  background: 'var(--surface-muted, #F8FAFC)',
+                  background: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -4729,8 +4753,8 @@ export default function ChatInbox() {
                     background: 'none',
                     border: 'none',
                     padding: 0,
-                    color: '#3B82F6',
-                    fontSize: '0.76rem',
+                    color: '#64748B',
+                    fontSize: '0.74rem',
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
@@ -4738,8 +4762,8 @@ export default function ChatInbox() {
                     gap: '4px',
                   }}
                 >
-                  <SettingsIcon size={13} />
-                  <span>ตั้งค่ากลุ่มคนดูแลและสิทธิ์</span>
+                  <SettingsIcon size={12} />
+                  <span>ตั้งค่ากลุ่ม & สิทธิ์</span>
                 </button>
                 <button
                   type="button"
@@ -4748,45 +4772,27 @@ export default function ChatInbox() {
                     setAssignSearch('');
                   }}
                   style={{
-                    padding: '7px 20px',
+                    padding: '6px 16px',
                     borderRadius: '8px',
-                    fontSize: '0.82rem',
-                    background: '#10B981',
+                    fontSize: '0.78rem',
+                    background: '#0F172A',
                     border: 'none',
                     color: '#ffffff',
                     cursor: 'pointer',
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                    gap: '5px',
                   }}
                 >
-                  <Check size={14} strokeWidth={2.5} />
-                  <span>เสร็จสิ้น ({modalAgents.length} คนดูแล)</span>
+                  <Check size={13} strokeWidth={2.5} />
+                  <span>เสร็จสิ้น ({modalAgents.length})</span>
                 </button>
               </div>
             </div>
           </div>
         );
       })()}
-
-{/* Modal: Batch Customer Distribution & Approval */}
-      {showDistributionModal && (
-        <ChatDistributionModal
-          isOpen={showDistributionModal}
-          onClose={() => setShowDistributionModal(false)}
-          channels={channels}
-          initialBrand={brandFilter}
-          initialMode={systemConfig.routing_target_mode === 'groups' ? 'groups' : 'agents'}
-          onSuccess={() => {
-            void fetchConversations();
-            void fetchChatCareGroups().then((res) => {
-              if (res) setCareGroups(res);
-            });
-          }}
-        />
-      )}
 
       {/* Outcome Tagging & Manual QA Review Modal */}
       <ChatQAReviewModal

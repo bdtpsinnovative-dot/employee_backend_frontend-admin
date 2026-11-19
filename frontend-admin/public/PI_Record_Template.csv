@@ -1,7 +1,7 @@
-﻿PI-Supplier,Date,Supplier,Link/File,จำนวนเงิน (Yuan),จำนวนเงิน ($),ETD,Band,Order_NO.,File,Sale_Name,Project_name,Requested_Date,Payment_Date,Shipping_Method,Date_Order / วันที่ลูกค้าชำระเงิน
-HYM25122501,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1emX1S...,,,570.00,ของอยู่ในสต็อกแล้ว,ZenSlab,,,,,,,,,
-HYM25122501-2,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/17IustH...,,,300.00,ของอยู่ในสต็อกแล้ว,ZenSlab,,,,,,,,,
-HYM25122501-1,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://drive.google.com/file/d/1DVYK9ExUmZocM...,,,490.00,ของอยู่ในสต็อกแล้ว,ZenSlab,,,,,,,,,
-HYM25122501-4,27/07/2026,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1Qh-dP...,,.00,ของอยู่ในสต็อกแล้ว,ZenSlab,,,,,,,,,
-,,Shangjie Xiaowugeshuo Deban Furniture Store,,,,รอถึง,ZenSlab,D2609055,https://drive.google.com/file/d/1SnTz4KNBrBVwnsbR-pfg2mJ-2cSLoWO1,Bonus,MR. David Miller,1/7/2027,02/10/2026,Sea Shipping,02/10/2026
-,,Shangjie Xiaowugeshuo Deban Furniture Store,,,,รอถึง,ZenSlab,K2610109,https://drive.google.com/file/d/1xAfursw-8QWyVxLqUDCNwfrnS7oPOkvH,Golf,บริษัท ซีแพคค้าวัสดุก่อสร้าง 1998 จำกัด,12/14/2026,15/10/2026,Sea Shipping,15/10/2026
+PI-Supplier,Date,Supplier,Link/File,จำนวนเงิน (Yuan),จำนวนเงิน ($),ETD,Band,Order_NO.,File,Sale_Name,Project_name,Requested_Date,Payment_Date,Shipping_Method,วันสินค้าถึง,Date_Order / วันที่ลูกค้าชำระเงิน,Last Update
+HYM25122501,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1emX1S...,,"$34,516.00",ของอยู่ในสต๊อกแล้ว,ZenSlab,,,,,,,,,,30/10/26
+HYM25122501-2,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/17IustH...,,"$3,308.00",ของอยู่ในสต๊อกแล้ว,ZenSlab,,,,,,,,,,30/10/26
+HYM25122501-1,25/12/2025,Shangjie Xiaowugeshuo Deban Furniture Store,https://drive.google.com/file/d/1DVYK9ExUmZocM...,,"$45,496.00",ของอยู่ในสต๊อกแล้ว,ZenSlab,,,,,,,,,,30/10/26
+HYM25122501-4,27/07/2026,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1Qh-dP...,,$710.00,ของอยู่ในสต๊อกแล้ว,ZenSlab,,,,,,,,,,30/10/26
+HYM25122501-5,17/10/2026,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1Oq-qgj...,,"$2,631.00",โรงงานกำลังส่งมา,ZenSlab,O2609055,https://drive.google.com/file/d/1SnTz4KNBrBVwnsbR-pfg2mJ-2cSLoWO1,Bonus,MR. David Peller,30/11/2026,02/10/2026,Sea Shipping,11/04/2026,02/10/2026,30/10/26
+HYM25122501-5,17/10/2026,Shangjie Xiaowugeshuo Deban Furniture Store,https://docs.google.com/spreadsheets/d/1Oq-qgj...,,"$1,589.00",โรงงานกำลังส่งมา,ZenSlab,X2610109,https://drive.google.com/file/d/1xAfursw-8QWyVxLqUDCNwfrnS7oPOkvH,Golf,บริษัท ชัยพลค้าวัสดุก่อสร้าง 1996 จำกัด,07/01/2027,15/10/2026,Sea Shipping,14/01/2027,15/10/2026,30/10/26
