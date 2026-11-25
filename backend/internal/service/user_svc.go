@@ -21,11 +21,15 @@ func NewUserService(ur *repository.UserRepo) *UserService {
 	return &UserService{userRepo: ur}
 }
 
-// Register สร้างบัญชีใหม่จาก Supabase Auth (สถานะ pending รอ Admin อนุมัติ)
+// Register สร้างบัญชีใหม่จาก Supabase Auth (สถานะ active เข้าใช้งานได้ทันที)
 func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, firstName, lastName string, avatarURL, faceVector *string) (*domain.User, error) {
 	// ตรวจว่ามี user นี้อยู่แล้วหรือยัง
 	existing, _ := s.userRepo.FindByAuthID(ctx, authID)
 	if existing != nil {
+		if existing.Status != "active" {
+			_ = s.userRepo.UpdateStatus(ctx, existing.ID, "active")
+			existing.Status = "active"
+		}
 		return existing, nil // มีอยู่แล้ว คืน user เดิมกลับไป
 	}
 
@@ -36,7 +40,7 @@ func (s *UserService) Register(ctx context.Context, authID uuid.UUID, email, fir
 		FirstName:     firstName,
 		LastName:      lastName,
 		Role:          "employee",
-		Status:        "pending", // ต้องรอ Admin อนุมัติก่อนใช้งานได้
+		Status:        "active", // อนุมัติและเข้าใช้งานได้ทันที
 		AvatarURL:     avatarURL,
 		FaceEmbedding: faceVector,
 	}
@@ -190,6 +194,10 @@ func (s *UserService) UpdateFcmToken(ctx context.Context, userID uuid.UUID, fcmT
 func (s *UserService) EnsureActiveUser(ctx context.Context, authID uuid.UUID, email string) (*domain.User, error) {
 	existing, _ := s.userRepo.FindByAuthID(ctx, authID)
 	if existing != nil {
+		if existing.Status != "active" {
+			_ = s.userRepo.UpdateStatus(ctx, existing.ID, "active")
+			existing.Status = "active"
+		}
 		return existing, nil
 	}
 	email = strings.TrimSpace(email)
@@ -198,17 +206,24 @@ func (s *UserService) EnsureActiveUser(ctx context.Context, authID uuid.UUID, em
 	}
 	name := strings.Split(email, "@")[0]
 	user := &domain.User{
-		ID:        uuid.New(),
-		AuthID:    authID,
-		Email:     email,
-		FirstName: name,
-		LastName:  "Employee",
-		Nickname:  name,
-		Role:      "employee",
-		Status:    "active",
+		ID:         uuid.New(),
+		AuthID:     authID,
+		Email:      email,
+		FirstName:  name,
+		LastName:   "Employee",
+		Nickname:   name,
+		Department: "ทั่วไป",
+		Team:       "",
+		Position:   "พนักงาน",
+		Role:       "employee",
+		Status:     "active",
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		if found, _ := s.userRepo.FindByAuthID(ctx, authID); found != nil {
+			if found.Status != "active" {
+				_ = s.userRepo.UpdateStatus(ctx, found.ID, "active")
+				found.Status = "active"
+			}
 			return found, nil
 		}
 		return user, nil

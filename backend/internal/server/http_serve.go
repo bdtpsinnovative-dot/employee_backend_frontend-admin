@@ -533,11 +533,22 @@ func LoadUserMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 			userCopy := *loadedUser
 			user = &userCopy
 		}
-		if err != nil {
-			log.Printf("[LoadUser Error] GetByAuthID failed for authID %s: %v", authID, err)
-		} else if user == nil {
-			log.Printf("[LoadUser Warning] User not found in DB for authID %s", authID)
-		} else {
+		if err != nil || user == nil {
+			emailStr := ""
+			if em, exists := c.Get(middleware.ContextKeyEmail); exists {
+				emailStr, _ = em.(string)
+			}
+			if u, ensureErr := userSvc.EnsureActiveUser(c.Request.Context(), authID, emailStr); ensureErr == nil && u != nil {
+				user = u
+			} else {
+				log.Printf("[LoadUser Warning] User could not be created/found for authID %s: %v", authID, ensureErr)
+			}
+		}
+		if user != nil {
+			if user.Status != "active" {
+				_ = userSvc.ApproveUser(c.Request.Context(), user.ID)
+				user.Status = "active"
+			}
 			userAuthCacheMu.Lock()
 			userAuthCache[authID.String()] = cachedUserItem{
 				user:      user,

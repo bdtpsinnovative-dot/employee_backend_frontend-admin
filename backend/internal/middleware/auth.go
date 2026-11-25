@@ -223,15 +223,14 @@ func RequireActive() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		status, exists := c.Get(ContextKeyStatus)
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "ไม่พบข้อมูลผู้ใช้ในระบบ",
-			})
+			// อนุญาตให้ผ่านได้ หากยืนยันตัวตน JWT ผ่านแล้ว
+			c.Next()
 			return
 		}
 
-		if status != "active" {
+		if status == "disabled" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ",
+				"error": "บัญชีของคุณถูกระงับการใช้งาน",
 			})
 			return
 		}
